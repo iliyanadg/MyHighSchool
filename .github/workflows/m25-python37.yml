@@ -1,0 +1,46 @@
+name: Build M25 staged enrollment test (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/m25_enrollment/**"
+      - "src/m2_registry/**"
+      - "tooling/build_m25_enrollment.py"
+      - ".github/workflows/m25-python37.yml"
+
+jobs:
+  build-test-prototype:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Compile diagnostic package + script
+        run: python -m tooling.build_m25_enrollment dist/
+      - name: Verify final archive script compilation and package resources
+        run: |
+          python - <<'PY'
+          import importlib.util,zipfile
+          from pathlib import Path
+          from tooling.simdata_release_gate import resources
+          from tooling.m1_links_and_strings import parse_stbl
+          package=Path('dist/MHS_M25_REGISTRO_TEST.package').read_bytes()
+          rows=resources(package)
+          assert len(rows)==9
+          with zipfile.ZipFile('dist/MHS_M25_REGISTRO_TEST.ts4script') as z:
+              assert len(z.namelist())==5
+              for name in z.namelist():
+                  assert z.read(name)[:4]==bytes((66,13,13,10)),name
+          assert len([1 for typ,g,i,raw in rows if typ==0x220557DA])==2
+          print('M25: DBPF and five real Python3.7 modules verified offline')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M25_REGISTRO_TEST_NUOVA_PARTITA_SOLO
+          path: |
+            dist/MHS_M25_REGISTRO_TEST.package
+            dist/MHS_M25_REGISTRO_TEST.ts4script
+          if-no-files-found: error
