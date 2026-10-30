@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "purpose": "UNBUILT UI TEST ONLY: selection never saves or changes enrollment",
+  "stbl_type": "0x220557DA",
+  "stbl_group": "0x80000000",
+  "instance_low_56_hex": "0x71B2A5F733BD3E",
+  "locales": {
+    "en": "0x00",
+    "it": "0x0B"
+  },
+  "entries": [
+    {
+      "key": "0x3FCE8D06",
+      "name": "MenuTitle",
+      "it": "MY HIGH SCHOOL (PROVA)",
+      "en": "MY HIGH SCHOOL (TEST)"
+    },
+    {
+      "key": "0xED9F1219",
+      "name": "Pick1",
+      "it": "Prova selezione Classe 1",
+      "en": "Test selecting Class 1"
+    },
+    {
+      "key": "0xEA9F0D60",
+      "name": "Pick2",
+      "it": "Prova selezione Classe 2",
+      "en": "Test selecting Class 2"
+    },
+    {
+      "key": "0x32988D0E",
+      "name": "DialogTitle1",
+      "it": "Classe 1 – Prova selezione",
+      "en": "Class 1 – Selection test"
+    },
+    {
+      "key": "0x31988B7B",
+      "name": "DialogTitle2",
+      "it": "Classe 2 – Prova selezione",
+      "en": "Class 2 – Selection test"
+    },
+    {
+      "key": "0x7FE4CEBC",
+      "name": "DialogText",
+      "it": "PROVA INTERFACCIA: scegli fino a 8 adolescenti. Nessuna iscrizione verrà salvata.",
+      "en": "INTERFACE TEST: choose up to 8 teens. No school enrollment will be saved."
+    },
+    {
+      "key": "0x78718F64",
+      "name": "SuccessTitle",
+      "it": "MY HIGH SCHOOL – Test interfaccia",
+      "en": "MY HIGH SCHOOL – Interface test"
+    },
+    {
+      "key": "0x19B49209",
+      "name": "Success1",
+      "it": "Hai confermato la selezione per la Classe 1. Nessuna iscrizione è stata salvata.",
+      "en": "You confirmed the Class 1 selection. No enrollment was saved."
+    },
+    {
+      "key": "0x16B48D50",
+      "name": "Success2",
+      "it": "Hai confermato la selezione per la Classe 2. Nessuna iscrizione è stata salvata.",
+      "en": "You confirmed the Class 2 selection. No enrollment was saved."
+    }
+  ]
+}
