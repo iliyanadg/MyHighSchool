@@ -162,6 +162,52 @@ class UiTests(unittest.TestCase):
         self.assertTrue(factory.dialog.shown)
         self.assertEqual(self.mod._EVENTS[-1][0],'OPEN')
 
+    def test_picker_uses_native_max_selectable_policy(self):
+        # Regression for actual macOS game failure on 31 Oct 2026:
+        # AttributeError: 'ImmutableSlots' object has no attribute
+        # 'get_max_selectable'. Never pass handmade ImmutableSlots.
+        loc=types.ModuleType('sims4.localization')
+        loc.LocalizationHelperTuning=types.SimpleNamespace(
+            get_raw_text=lambda text:text)
+        ui=types.ModuleType('ui')
+        ui.__path__=[]
+        picker=types.ModuleType('ui.ui_dialog_picker')
+
+        class NativeSelectable(object):
+            def get_max_selectable(self, *args, **kwargs):
+                return 8
+
+        class GuardDialog(FakeDialog):
+            def __init__(self, selectable):
+                super().__init__()
+                self.max_selectable=selectable
+
+            def show_dialog(self, **kwargs):
+                self.max_selectable.get_max_selectable()
+                return super().show_dialog(**kwargs)
+
+        class NativeFactory(object):
+            dialog=None
+            def default(self, *args, **kwargs):
+                if 'max_selectable' in kwargs:
+                    raise AssertionError('Picker must use EA selectable policy')
+                self.dialog=GuardDialog(NativeSelectable())
+                return self.dialog
+
+        factory=NativeFactory()
+        picker.UiSimPicker=types.SimpleNamespace(
+            TunableFactory=lambda:types.SimpleNamespace(default=factory.default))
+        picker.SimPickerRow=Row
+        self.mod._dialog_factory=load_ui()._dialog_factory
+        with patch.dict(sys.modules,{
+            'sims4.localization':loc,
+            'ui':ui,
+            'ui.ui_dialog_picker':picker
+        }):
+            self.click(1)
+        self.assertTrue(factory.dialog.shown)
+        self.assertEqual(self.mod._EVENTS[-1][0], 'OPEN')
+
     def test_class1_picker_has_only_class1_members(self):
         self.click(1)
         self.assertEqual({x.tag for x in self.dialog.rows},{101,102})
