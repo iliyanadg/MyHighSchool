@@ -55,7 +55,7 @@ class RemovalTests(unittest.TestCase):
 
     def test_wrong_class_rejected(self):
         with self.assertRaises(Exception):
-            plan_removal(self.roster,3,['101'])
+            plan_removal(self.roster,4,['101'])
 
     def test_oversized_list_rejected(self):
         with self.assertRaises(RemovalError):
