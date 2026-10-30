@@ -1,0 +1,47 @@
+name: M28 three-class cumulative build (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/m28_bundle/**"
+      - "src/m2_registry/**"
+      - "src/m27_remove_ui/**"
+      - "tooling/build_m28_bundle.py"
+      - "tests/test_m28_bundle.py"
+      - ".github/workflows/m28-python37.yml"
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Run tests against Python 3.7
+        run: python -m unittest discover -s tests -v
+      - name: Build M28
+        run: python -m tooling.build_m28_bundle dist/
+      - name: Validate installable file pair
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          from tooling.simdata_release_gate import resources
+          package=Path('dist/MHS_M28_REGISTRO_3_CLASSI_TEST.package')
+          script=Path('dist/MHS_M28_REGISTRO_3_CLASSI_TEST.ts4script')
+          assert len(resources(package.read_bytes())) == 14
+          with zipfile.ZipFile(str(script)) as z:
+              assert len(z.namelist()) == 8
+              assert all(z.read(x)[:4] == bytes((66,13,13,10)) for x in z.namelist())
+          print('M28: static checks passed; in-game validation pending')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M28_3_CLASSI_TEST_NON_VERIFICATO_IN_GIOCO
+          path: |
+            dist/MHS_M28_REGISTRO_3_CLASSI_TEST.package
+            dist/MHS_M28_REGISTRO_3_CLASSI_TEST.ts4script
+          if-no-files-found: error
