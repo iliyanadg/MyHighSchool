@@ -26,6 +26,24 @@ class MailboxWiringTests(unittest.TestCase):
         self.assertEqual(root.attrib['m'],'xml_injector.snippet')
         self.assertEqual(root.attrib['c'],'XmlInjector')
 
+    def test_custom_snippet_id_has_high_bit(self):
+        root = mod.ET.parse(str(mod.INJECTOR)).getroot()
+        self.assertTrue(int(root.attrib['s']) & (1 << 63))
+
+    def test_snippet_id_matches_fnv64_highbit_of_name(self):
+        root = mod.ET.parse(str(mod.INJECTOR)).getroot()
+        self.assertEqual(int(root.attrib['s']), mod.fnv64_highbit(root.attrib['n']))
+        self.assertEqual(int(root.attrib['s']), 11407916219541495957)
+
+    def test_previous_low_bit_snippet_id_rejected(self):
+        original = mod.INJECTOR.read_text(encoding='utf-8')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'old.xml'
+            path.write_text(original.replace('11407916219541495957',
+                                            '2184544182686720149'), encoding='utf-8')
+            with self.assertRaises(mod.MailboxValidationError):
+                mod.validate_injector(path)
+
     def test_bad_object_tuning_is_rejected(self):
         original=mod.INJECTOR.read_text(encoding='utf-8')
         self.assertIn('14940',original)

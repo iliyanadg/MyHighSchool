@@ -20,6 +20,15 @@ class MailboxValidationError(ValueError):
     pass
 
 
+def fnv64_highbit(name):
+    """The XML Injector modder docs require FNV-64 with the high bit set."""
+    h = 0xCBF29CE484222325
+    for b in name.encode("utf-8"):
+        h = ((h ^ b) * 0x100000001B3) & ((1 << 64) - 1)
+    return h | (1 << 63)
+
+
+
 def _text_values(elements):
     return tuple((item.text or '').strip() for item in elements)
 
@@ -29,10 +38,13 @@ def validate_injector(path=INJECTOR):
     for key, expected in {
         'c':'XmlInjector', 'i':'snippet', 'm':'xml_injector.snippet',
         'n':'Iliyana:MHS_M1_Mailbox_Injector',
-        's':'2184544182686720149'
+        's':str(fnv64_highbit('Iliyana:MHS_M1_Mailbox_Injector'))
     }.items():
         if root.get(key) != expected:
             raise MailboxValidationError('Wrong injector {}'.format(key))
+
+    if not (int(root.get('s')) & (1 << 63)):
+        raise MailboxValidationError('Custom snippet instance must set high bit')
 
     entries = root.findall('./L[@n="add_interactions_to_objects"]/U')
     if len(entries) != 1:
