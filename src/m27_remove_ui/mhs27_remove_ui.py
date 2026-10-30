@@ -54,19 +54,21 @@ def _lookup_sim_info(sid):
 def _dialog_factory(klass, sim_infos, actor, title_text=None, description_text=None):
     """Direct native picker; no Sim not present in sim_infos is added."""
     from sims4.localization import LocalizationHelperTuning
-    from sims4.collections import make_immutable_slots_class
     from ui.ui_dialog_picker import SimPickerRow, UiSimPicker
 
     title = lambda **_: LocalizationHelperTuning.get_raw_text(
         title_text or 'Rimuovi studenti - Classe {}'.format(klass))
     description = lambda **_: LocalizationHelperTuning.get_raw_text(
         description_text or 'Seleziona gli iscritti da rimuovere dal registro. I Sim non verranno eliminati.')
-    allowed = make_immutable_slots_class(
-        set(('multi_select', 'number_selectable', 'max_type')))({
-            'multi_select': True, 'number_selectable': 8, 'max_type': 1
-        })
+    # The old M27 implementation supplied a hand-built ImmutableSlots as
+    # max_selectable. The October 2026 game calls get_max_selectable() on
+    # this object while building the picker, causing a silent UI failure:
+    # AttributeError: 'ImmutableSlots' object has no attribute ...
+    # Let the game's TunableFactory supply its own valid selectable policy.
+    # Only enrolled students are offered (hard limit of eight per class).
+    # RemovalService independently rejects invalid or oversized selections.
     dialog = UiSimPicker.TunableFactory().default(
-        actor, text=description, title=title, max_selectable=allowed,
+        actor, text=description, title=title,
         min_selectable=1, should_show_names=True, hide_row_description=False)
     for sim_info in sim_infos:
         dialog.add_row(SimPickerRow(sim_info.sim_id, False, tag=sim_info.sim_id))
