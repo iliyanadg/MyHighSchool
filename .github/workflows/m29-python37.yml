@@ -1,0 +1,49 @@
+name: M29 cumulative registry build and audit (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/m29_registry/**"
+      - "src/m2_registry/**"
+      - "src/m27_remove_ui/**"
+      - "tooling/build_m29_bundle.py"
+      - "tooling/build_m28_bundle.py"
+      - "tests/test_m29_bundle.py"
+      - ".github/workflows/m29-python37.yml"
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Full unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile bundled files
+        run: python -m tooling.build_m29_bundle dist/
+      - name: Check DBPF and CPython bytecode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.simdata_release_gate import resources
+          p=Path('dist/MHS_M29_REGISTRO_SICURO_TEST.package')
+          s=Path('dist/MHS_M29_REGISTRO_SICURO_TEST.ts4script')
+          assert len(resources(p.read_bytes()))==17
+          with zipfile.ZipFile(str(s)) as archive:
+              names=archive.namelist()
+              assert len(names)==9
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M29 passed static tests; real Mac in-game test still required')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M29_TEST_3_CLASSI_BACKUP_REGISTRO
+          path: |
+            dist/MHS_M29_REGISTRO_SICURO_TEST.package
+            dist/MHS_M29_REGISTRO_SICURO_TEST.ts4script
+          if-no-files-found: error
