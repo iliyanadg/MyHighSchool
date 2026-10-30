@@ -1,0 +1,50 @@
+name: Build M24 PickedSim diagnostic (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/m24_probe/**"
+      - "tooling/build_m24_probe.py"
+      - "tooling/build_m1_offline.py"
+      - "tooling/m1_mailbox_validation.py"
+      - "tooling/m1_links_and_strings.py"
+      - "src/experiments/m1_unbuilt/**"
+      - "tests/fixtures/lot51_category_only.dbpf"
+      - ".github/workflows/m24-python37.yml"
+
+jobs:
+  compile-and-audit:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.7 for Sims 4 bytecode
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Show exact bytecode target
+        run: python -c "import sys,importlib.util; print(sys.version); print(importlib.util.MAGIC_NUMBER.hex())"
+      - name: Compile diagnostic resources
+        run: python -m tooling.build_m24_probe dist/
+      - name: Validate complete script and DBPF
+        run: |
+          python - <<'PY'
+          import zipfile,importlib.util
+          from pathlib import Path
+          from tooling.simdata_release_gate import resources
+          p=Path('dist/MHS_M24_PICKEDSIM_SOLO_LETTURA.package').read_bytes()
+          assert len(resources(p)) == 9
+          with zipfile.ZipFile('dist/MHS_M24_PICKEDSIM_SOLO_LETTURA.ts4script') as z:
+              raw=z.read('mhs24_diagnostic.pyc')
+              assert raw[:4] == b'B\\r\\r\\n', repr(raw[:4])
+          print('M24: DBPF 9 resources + TS4 Python 3.7 bytecode confirmed')
+          PY
+      - name: Upload isolated diagnostic only
+        uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M24_PickedSim_SOLO_LETTURA_DIAGNOSTICA
+          path: |
+            dist/MHS_M24_PICKEDSIM_SOLO_LETTURA.package
+            dist/MHS_M24_PICKEDSIM_SOLO_LETTURA.ts4script
+          if-no-files-found: error
