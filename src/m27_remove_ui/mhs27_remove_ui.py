@@ -51,16 +51,16 @@ def _lookup_sim_info(sid):
     return None
 
 
-def _dialog_factory(klass, sim_infos, actor):
+def _dialog_factory(klass, sim_infos, actor, title_text=None, description_text=None):
     """Direct native picker; no Sim not present in sim_infos is added."""
     from sims4.localization import LocalizationHelperTuning
     from sims4.collections import make_immutable_slots_class
     from ui.ui_dialog_picker import SimPickerRow, UiSimPicker
 
     title = lambda **_: LocalizationHelperTuning.get_raw_text(
-        'Rimuovi studenti - Classe {}'.format(klass))
+        title_text or 'Rimuovi studenti - Classe {}'.format(klass))
     description = lambda **_: LocalizationHelperTuning.get_raw_text(
-        'Seleziona gli iscritti da rimuovere dal registro. I Sim non verranno eliminati.')
+        description_text or 'Seleziona gli iscritti da rimuovere dal registro. I Sim non verranno eliminati.')
     allowed = make_immutable_slots_class(
         set(('multi_select', 'number_selectable', 'max_type')))({
             'multi_select': True, 'number_selectable': 8, 'max_type': 1
