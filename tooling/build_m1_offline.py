@@ -91,7 +91,10 @@ def build_m1_bytes():
     index_offset = len(header) + len(body)
     struct.pack_into("<I", header, 0x24, len(entries))
     struct.pack_into("<I", header, 0x2C, len(index))
-    struct.pack_into("<I", header, 0x3C, index_offset)
+    # 0x3C is the DBPF INDEX MINOR VERSION (must stay 3), not an offset!
+    # The previous version overwrote it, but our own DBPF reader missed it.
+    if struct.unpack_from("<I", header, 0x3C)[0] != 3:
+        raise BuildError("Lot51 template has unsupported DBPF index version")
     struct.pack_into("<Q", header, 0x40, index_offset)
     result = bytes(header + body + index)
     restored = resources(result)

@@ -102,7 +102,7 @@ def compile_stbl(locale):
         payload.extend(struct.pack('<IBH', key, 0, len(raw)))
         payload.extend(raw)
     header = b'STBL' + struct.pack('<HBQ2sI', 5, 0, len(rows), b'\x00\x00',
-                                    sum(len(raw) for key,raw in rows))
+                                    sum(len(raw) + 1 for key,raw in rows))
     result = bytes(header + payload)
     locale_id = int(data['locales'][locale],16)
     low56 = int(data['instance_low_56_hex'],16)
@@ -128,7 +128,9 @@ def parse_stbl(payload):
             raise LinkError('Malformed STBL row')
         decoded[key] = payload[position:position+length].decode('utf-8')
         position += length
-        total_bytes += length
+        # Header stores size AS IF every string had a null terminator,
+        # though UTF-8 entries in the file do not contain that terminator.
+        total_bytes += length + 1
     if position != len(payload) or total_bytes != expected_bytes:
         raise LinkError('STBL count or trailing bytes mismatch')
     return decoded

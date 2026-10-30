@@ -54,6 +54,23 @@ class M1AssemblyTests(unittest.TestCase):
         self.assertEqual(self.package,m.build_m1_bytes())
         self.assertEqual(hashlib.sha256(m.BASE.read_bytes()).hexdigest(),original_hash)
 
+    def test_dbpf_index_minor_is_3_not_overwritten(self):
+        import struct
+        self.assertEqual(struct.unpack_from('<I', self.package, 0x3C)[0], 3)
+        self.assertEqual(struct.unpack_from('<I', self.package, 0x28)[0], 0)
+        self.assertGreater(struct.unpack_from('<Q', self.package, 0x40)[0], 96)
+
+    def test_corrupt_dbpf_index_version_is_rejected(self):
+        import struct
+        invalid = bytearray(self.package)
+        struct.pack_into('<I', invalid, 0x3C, struct.unpack_from('<I', invalid, 0x40)[0])
+        with self.assertRaises(m.inspect_bytes.__globals__['PackageError']):
+            m.inspect_bytes(bytes(invalid))
+
+    def test_lot51_original_keeps_index_version_three(self):
+        import struct
+        self.assertEqual(struct.unpack_from('<I', m.BASE.read_bytes(), 0x3C)[0], 3)
+
     def test_no_game_load_claim(self):
         self.assertEqual(m.report()["result"],"OFFLINE_ONLY_NOT_READY_FOR_MODS")
 

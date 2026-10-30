@@ -21,9 +21,17 @@ class PackageError(ValueError):
 def resources(blob):
     if len(blob) < 96 or blob[:4] != b'DBPF':
         raise PackageError('Not a DBPF file or truncated header')
+    major, minor = struct.unpack_from('<II', blob, 0x04)
+    if (major, minor) != (2, 1):
+        raise PackageError('Expected The Sims 4 DBPF version 2.1')
+    index_minor = struct.unpack_from('<I', blob, 0x3C)[0]
+    if index_minor != 3:
+        raise PackageError('Unsupported DBPF index minor version (expected 3)')
     total = struct.unpack_from('<I', blob, 0x24)[0]
     index_size = struct.unpack_from('<I', blob, 0x2c)[0]
-    index_offset = struct.unpack_from('<Q', blob, 0x40)[0]
+    index_offset_short = struct.unpack_from('<I', blob, 0x28)[0]
+    index_offset_long = struct.unpack_from('<Q', blob, 0x40)[0]
+    index_offset = index_offset_short if index_offset_short else index_offset_long
     if total > 100000 or index_offset < 96 or index_offset > len(blob):
         raise PackageError('Bad package index information')
     if index_size != 4 + total * INDEX_ENTRY.size or index_offset + index_size > len(blob):

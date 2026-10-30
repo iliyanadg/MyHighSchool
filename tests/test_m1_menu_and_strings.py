@@ -40,6 +40,33 @@ class MenuAndStringTests(unittest.TestCase):
         self.assertEqual(len(table), 9)
         self.assertEqual(table[0xEA9F0D60], 'Test selecting Class 2')
 
+    def test_stbl_declares_null_terminated_total_length(self):
+        # Independently apply the STBL reference: 21-byte header, text length
+        # equal to UTF-8 byte lengths + 1 (conceptual NUL) for each entry.
+        import struct
+        for locale in ('en', 'it'):
+            instance, data = m1.compile_stbl(locale)
+            version, compressed, count, reserved, declared = struct.unpack_from('<HBQ2sI', data, 4)
+            self.assertEqual(version, 5)
+            self.assertEqual(count, 9)
+            pos, total_utf8 = 21, 0
+            for _ in range(count):
+                key, flags, sz = struct.unpack_from('<IBH', data, pos)
+                pos += 7
+                total_utf8 += sz
+                pos += sz
+            self.assertEqual(pos, len(data))
+            self.assertEqual(declared, total_utf8 + count)
+
+    def test_wrong_legacy_stbl_total_length_rejected(self):
+        import struct
+        instance, data = m1.compile_stbl('it')
+        corrupted = bytearray(data)
+        declared = struct.unpack_from('<I', corrupted, 17)[0]
+        struct.pack_into('<I', corrupted, 17, declared - 9)
+        with self.assertRaises(m1.LinkError):
+            m1.parse_stbl(bytes(corrupted))
+
     def test_classes_have_distinct_entries(self):
         self.assertNotEqual(m1.PICKER_IDS['1'], m1.PICKER_IDS['2'])
         self.assertNotEqual(m1.CONFIRM_IDS['1'], m1.CONFIRM_IDS['2'])
