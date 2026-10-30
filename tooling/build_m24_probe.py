@@ -37,7 +37,7 @@ def replace_confirms(entries):
                 raise DiagnosticBuildError('Confirmation source class not as expected')
             root.set('c', REPLACEMENTS[instance])
             root.set('m', 'mhs24_diagnostic')
-            payload = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+            payload = ET.tostring(root, encoding='utf-8')
             changed.append(instance)
         result.append((typ, group, instance, payload))
     if set(changed) != set(REPLACEMENTS):
