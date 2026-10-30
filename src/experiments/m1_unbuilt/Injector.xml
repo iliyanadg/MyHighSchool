@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<I c="XmlInjector" i="snippet" m="xml_injector.snippet" n="Iliyana:MHS_M1_Mailbox_Injector" s="2184544182686720149">
+    <L n="add_interactions_to_objects">
+        <U>
+            <V n="object_selection" t="object_list">
+                <U n="object_list">
+                    <L n="object_list">
+                        <T>14940</T>
+                        <T>133176</T>
+                    </L>
+                </U>
+            </V>
+            <L n="_super_affordances">
+                <T>10604127343160706865</T>
+                <T>10604124044625822232</T>
+            </L>
+        </U>
+    </L>
+</I>
