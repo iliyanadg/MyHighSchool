@@ -1,4 +1,4 @@
-"""Only source-link regression for the proposed Tdesc Builder category."""
+"""Source-link regression for user-exported Lot51 tuning (not game launch)."""
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import unittest
@@ -17,7 +17,7 @@ class MenuCategorySourceTests(unittest.TestCase):
         root = ET.parse(NEW / "Category_for_Tdesc.xml").getroot()
         category_id = root.attrib["s"]
         for number in (1, 2):
-            picker = ET.parse(OLD / ("ChooseClass"+str(number)+".xml")).getroot()
+            picker = ET.parse(NEW / ("ChooseClass"+str(number)+".xml")).getroot()
             self.assertEqual(picker.find("./T[@n='category']").text.strip(), category_id)
 
     def test_builder_source_references_existing_display_name_key(self):
