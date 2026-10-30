@@ -122,6 +122,46 @@ class UiTests(unittest.TestCase):
         self.assertEqual(list(obj._run_interaction_gen(None)),['base-event'])
         return self.dialog
 
+    def test_native_picker_does_not_pass_tuple_icon_override(self):
+        # Regression for actual macOS game error:
+        # AttributeError: 'tuple' object has no attribute 'icon_resource'
+        localization=types.ModuleType('sims4.localization')
+        localization.LocalizationHelperTuning=types.SimpleNamespace(
+            get_raw_text=lambda text:text)
+        collections=types.ModuleType('sims4.collections')
+        collections.make_immutable_slots_class=lambda fields:lambda values:values
+        ui=types.ModuleType('ui')
+        ui.__path__=[]
+        picker=types.ModuleType('ui.ui_dialog_picker')
+
+        class GuardDialog(FakeDialog):
+            def show_dialog(self,**kwargs):
+                if isinstance(kwargs.get('icon_override'),tuple):
+                    raise AttributeError("'tuple' object has no attribute 'icon_resource'")
+                return super().show_dialog(**kwargs)
+
+        class NativeFactory(object):
+            dialog=None
+            def default(self,*args,**kwargs):
+                self.dialog=GuardDialog()
+                return self.dialog
+
+        factory=NativeFactory()
+        picker.UiSimPicker=types.SimpleNamespace(
+            TunableFactory=lambda:types.SimpleNamespace(default=factory.default))
+        picker.SimPickerRow=Row
+        self.mod._dialog_factory=load_ui()._dialog_factory
+        with patch.dict(sys.modules,{
+            'sims4.localization':localization,
+            'sims4.collections':collections,
+            'ui':ui,
+            'ui.ui_dialog_picker':picker,
+        }):
+            self.click(1)
+        self.assertIsNotNone(factory.dialog)
+        self.assertTrue(factory.dialog.shown)
+        self.assertEqual(self.mod._EVENTS[-1][0],'OPEN')
+
     def test_class1_picker_has_only_class1_members(self):
         self.click(1)
         self.assertEqual({x.tag for x in self.dialog.rows},{101,102})
