@@ -128,11 +128,11 @@ def open_remove_picker(klass, interaction):
             except Exception as exc:
                 _event('BLOCKED', type(exc).__name__)
         dialog.add_listener(_selection_callback)
-        info = getattr(actor, 'sim_info', None)
-        if info is not None:
-            dialog.show_dialog(icon_override=(None, info))
-        else:
-            dialog.show_dialog()
+        # Do not override the dialog header icon with a (None, SimInfo)
+        # tuple. The live game expects an icon data object with
+        # icon_resource; passing a tuple crashes the picker on open.
+        # The SimPickerRow entries still provide native Sim portraits.
+        dialog.show_dialog()
         _event('OPEN', 'Classe {} | candidati {}'.format(klass, len(choices)))
         return True
     except Exception as exc:
