@@ -1,0 +1,66 @@
+name: Import seven verified v1.6 modules
+on:
+  push:
+    paths:
+      - 'staging/v1_6_missing_sources.tar.gz'
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify archive checksum and extract ONLY approved source filenames
+        run: |
+          python - <<'PY'
+          import hashlib
+          import io
+          from pathlib import Path
+          import tarfile
+
+          archive = Path('staging/v1_6_missing_sources.tar.gz').read_bytes()
+          expected_archive = '24df55ab31c8600130b0117a83381eb983293d2c47fb2ec58a71db28a7b77d71'
+          if hashlib.sha256(archive).hexdigest() != expected_archive:
+              raise SystemExit('Archive SHA256 mismatch; aborting')
+          checksums = {
+              'mhs_direct_call.py': 'a9a5771542af0c6b70179a823bd17b0bafaa91eb2934120ff13e2dd162483867',
+              'mhs_capacity_observer.py': '8432c65c56b6130d297914fd88e750e6227436a9699d6f9d0d35d981ed2a6d1b',
+              'mhs_priority_at_selection.py': '4f2ced50057f6db162b083d9e1265b3340ea6d678ea790907acf0660d925d957',
+              'mhs_situation_invite.py': '2c45121be14c72f7a0761864cb3db020ea8fe083872bed4beb800612d34baca2',
+              'mhs_live_seat_adapter.py': '1479b074fe0228b372c0883c244c3b84f39ec35966c9b0d618792d570ac4aa64',
+              'mhs_game_commands.py': '2443b359d5b9d52079aa68d9f3c5a7b1bde956471f16c1103357f06be90d4f39',
+              'mhs_school_diagnostics.py': 'e3a1e75d7412d920cdcb264282b7b92486aad3b37e9538dd5a754f1be87d378e'
+          }
+          with tarfile.open(fileobj=io.BytesIO(archive), mode='r:gz') as tar:
+              members = tar.getmembers()
+              if len(members) != len(checksums) or {m.name for m in members} != set(checksums):
+                  raise SystemExit('Unexpected archived files; aborting')
+              for member in members:
+                  if not member.isfile() or member.size > 100000:
+                      raise SystemExit('Invalid archived file type/size; aborting')
+                  content = tar.extractfile(member).read()
+                  if hashlib.sha256(content).hexdigest() != checksums[member.name]:
+                      raise SystemExit('Source SHA256 mismatch: ' + member.name)
+                  dest = Path('src/legacy_v1_6') / member.name
+                  if dest.exists():
+                      raise SystemExit('Refusing to overwrite existing source: ' + member.name)
+                  dest.write_bytes(content)
+                  print('Verified source: ' + member.name)
+          PY
+      - name: Compile source and run offline tests (not game validation)
+        run: |
+          python -m compileall -q src/legacy_v1_6
+          python -m unittest discover -s tests -v
+      - name: Commit verified source files and remove staging archive
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/legacy_v1_6/
+          git rm -- staging/v1_6_missing_sources.tar.gz
+          git commit -m "Import seven checksum-verified original v1.6 source modules"
+          git push
