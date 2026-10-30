@@ -20,6 +20,7 @@ SIMDATA=b'DATA'+bytes(range(96))
 def package(contents):
     header=bytearray(96);header[:4]=b'DBPF'
     struct.pack_into('<II',header,4,2,1)
+    struct.pack_into('<I',header,0x3C,3)  # Sims 4 DBPF index minor version
     struct.pack_into('<I',header,0x24,len(contents))
     idx=bytearray(struct.pack('<I',0));body=bytearray()
     for typ, group, instance, raw, compressed in contents:
@@ -57,6 +58,16 @@ class GateTests(unittest.TestCase):
         blob=package([(mod.TYPE_CATEGORY,0,INSTANCE,XML.replace(str(INSTANCE).encode(),b'123'),False),
                       (mod.TYPE_SIMDATA,0x00e9d7e7,INSTANCE,SIMDATA,False)])
         self.assertIn('CATEGORY_ID_MISMATCH',[x['code'] for x in mod.inspect_bytes(blob)['findings']])
+
+    def test_index_version_three_in_fixture(self):
+        blob=package([(mod.TYPE_CATEGORY,0,INSTANCE,XML,True)])
+        self.assertEqual(struct.unpack_from('<I',blob,0x3c)[0],3)
+
+    def test_corrupt_index_minor_rejected(self):
+        blob=bytearray(package([(mod.TYPE_CATEGORY,0,INSTANCE,XML,True)]))
+        struct.pack_into('<I',blob,0x3c,12345)
+        with self.assertRaises(mod.PackageError):
+            mod.inspect_bytes(bytes(blob))
 
     def test_corrupt_payload_rejected(self):
         blob=bytearray(package([(mod.TYPE_CATEGORY,0,INSTANCE,XML,True)]))
