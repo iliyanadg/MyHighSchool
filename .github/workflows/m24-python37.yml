@@ -37,7 +37,7 @@ jobs:
           assert len(resources(p)) == 9
           with zipfile.ZipFile('dist/MHS_M24_PICKEDSIM_SOLO_LETTURA.ts4script') as z:
               raw=z.read('mhs24_diagnostic.pyc')
-              assert raw[:4] == b'B\\r\\r\\n', repr(raw[:4])
+              assert raw[:4] == bytes((0x42, 0x0D, 0x0D, 0x0A)), repr(raw[:4])
           print('M24: DBPF 9 resources + TS4 Python 3.7 bytecode confirmed')
           PY
       - name: Upload isolated diagnostic only

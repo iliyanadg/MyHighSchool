@@ -93,7 +93,7 @@ def compile_script(output):
     import sys
     import tempfile
     import zipfile
-    if sys.version_info[:2] != (3, 7) or importlib.util.MAGIC_NUMBER != b'B\\r\\r\\n':
+    if sys.version_info[:2] != (3, 7) or importlib.util.MAGIC_NUMBER != bytes((0x42, 0x0D, 0x0D, 0x0A)):
         raise DiagnosticBuildError('Serve Python 3.7 per compilare ts4script')
     with tempfile.TemporaryDirectory() as temp:
         pyc = Path(temp) / 'mhs24_diagnostic.pyc'
