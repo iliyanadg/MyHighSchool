@@ -1,0 +1,42 @@
+name: Build M27 removal UI prototype (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/m27_remove_ui/**"
+      - "src/m26_withdrawal/**"
+      - "tooling/build_m27_removal.py"
+      - ".github/workflows/m27-python37.yml"
+
+jobs:
+  build-and-audit:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Compile native removal UI M27
+        run: python -m tooling.build_m27_removal dist/
+      - name: Validate scripts and package
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tooling.simdata_release_gate import resources
+          import zipfile
+          pkg=Path('dist/MHS_M27_RIMOZIONE_TEST.package').read_bytes()
+          assert len(resources(pkg))==11
+          with zipfile.ZipFile('dist/MHS_M27_RIMOZIONE_TEST.ts4script') as z:
+              assert len(z.namelist())==7
+              assert all(z.read(name)[:4]==bytes((66,13,13,10)) for name in z.namelist())
+          print('M27: 11 DBPF resources and 7 Python3.7 modules valid offline')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M27_RIMOZIONE_TEST SOLO PARTITA DI PROVA
+          path: |
+            dist/MHS_M27_RIMOZIONE_TEST.package
+            dist/MHS_M27_RIMOZIONE_TEST.ts4script
+          if-no-files-found: error
