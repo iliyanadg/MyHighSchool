@@ -69,9 +69,11 @@ class RosterBatchTests(unittest.TestCase):
             with self.assertRaises(RosterError):
                 self.roster.assign_many(1, ids, self.teen)
 
-    def test_no_class_3_in_m2_ui_yet(self):
+    def test_third_class_supported_but_fourth_rejected(self):
+        updated, _ = self.roster.assign_many(3, [1], self.teen)
+        self.assertEqual(updated.class_members(3), ['1'])
         with self.assertRaises(RosterError):
-            self.roster.assign_many(3, [1], self.teen)
+            self.roster.assign_many(4, [1], self.teen)
 
     def test_corrupt_overfull_json_refused(self):
         huge = {'schema':1,'slot':'7','assignments':{str(i):1 for i in range(1,10)}}
