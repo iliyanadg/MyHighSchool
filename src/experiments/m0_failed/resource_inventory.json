@@ -1,0 +1,15 @@
+{
+  "source": "MHS_M0_MENU_NATIVO_SOLO_TEST.package (failed game launch)",
+  "resource_count": 8,
+  "category_instances": [
+    7064630105397427000
+  ],
+  "simdata_instances": [],
+  "types": {
+    "0x03E9D964": 1,
+    "0xE882D22F": 4,
+    "0x7DF2169C": 1,
+    "0x220557DA": 2
+  },
+  "note": "Static inventory; not a game startup verdict"
+}

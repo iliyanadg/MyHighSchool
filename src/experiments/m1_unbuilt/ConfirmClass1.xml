@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<I c="ImmediateSuperInteraction" i="interaction" m="interactions.base.immediate_interaction" n="Iliyana_MHS_M0_ConfirmClass1" s="13813934116852558422">
+  <V n="_saveable" t="disabled" />
+  <V n="outcome" t="single"><U n="single"><U n="actions"><L n="basic_extras">
+    <V t="notification"><U n="notification">
+      <V n="dialog" t="single"><V n="single" t="literal"><U n="literal">
+        <V n="title" t="enabled"><T n="enabled">0x78718F64</T></V>
+        <V n="text" t="single"><T n="single">0x19B49209</T></V>
+        <E n="urgency">URGENT</E>
+      </U></V></V>
+      <V n="timing" t="at_beginning" />
+    </U></V>
+  </L></U></U></V>
+</I>
