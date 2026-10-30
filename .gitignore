@@ -1,0 +1,22 @@
+# Non pubblicare gli archivi proprietari EA o mod di terzi
+*.package
+*.ts4script
+*.pyc
+__pycache__/
+.pytest_cache/
+.DS_Store
+
+# Dati di salvataggio personali
+*.save
+*.save.ver*
+*.json
+**/lastCrash*
+**/lastException*
+**/lastUIException*
+EA_Originali/
+saves/
+Tray/
+Mods/
+*.zip
+
+# Eccezione: in futuro versionare manifest di esempio non personali

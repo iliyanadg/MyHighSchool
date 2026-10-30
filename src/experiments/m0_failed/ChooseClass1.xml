@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<I c="SimPickerInteraction" i="interaction" m="interactions.base.picker_interaction" n="Iliyana_MHS_M0_ChooseClass1" s="10604127343160706865">
+  <L n="actor_continuation">
+    <U><T n="affordance">13813934116852558422</T></U>
+  </L>
+  <T n="category">7064630105397426819</T>
+  <T n="display_name">0xED9F1219</T>
+  <V n="picker_dialog" t="sim_picker">
+    <U n="sim_picker">
+      <V n="max_selectable" t="static_count">
+        <U n="static_count"><T n="number_selectable">8</T></U>
+      </V>
+      <T n="min_selectable">1</T>
+      <V n="title" t="enabled"><T n="enabled">0x32988D0E</T></V>
+      <V n="text" t="enabled"><V n="enabled" t="single"><T n="single">0x7FE4CEBC</T></V></V>
+    </U>
+  </V>
+  <L n="sim_tests">
+    <L>
+      <V t="sim_info"><U n="sim_info">
+        <V n="ages" t="specified"><L n="specified"><E>TEEN</E></L></V>
+        <E n="who">PickedSim</E>
+      </U></V>
+    </L>
+  </L>
+  <L n="test_globals">
+    <V t="sim_info"><U n="sim_info">
+      <V n="ages" t="specified"><L n="specified"><E>TEEN</E><E>YOUNGADULT</E><E>ADULT</E><E>ELDER</E></L></V>
+      <E n="who">Actor</E>
+    </U></V>
+  </L>
+</I>
