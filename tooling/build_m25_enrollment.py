@@ -80,7 +80,7 @@ def new_stbl(payload, locale):
         data.extend(struct.pack('<IBH',key,0,len(encoded)))
         data.extend(encoded)
         total+=len(encoded)+1
-    result=(b'STBL'+struct.pack('<HBQ2sI',5,0,len(decoded),b'\\x00\\x00',total)+bytes(data))
+    result=(b'STBL'+struct.pack('<HBQ2sI',5,0,len(decoded),bytes((0,0)),total)+bytes(data))
     if parse_stbl(result)!=decoded:
         raise M25BuildError('STBL roundtrip mismatch')
     return result
