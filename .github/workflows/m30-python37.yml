@@ -1,0 +1,50 @@
+name: Build M30 nested class submenus (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tooling/build_m30_nested_menu.py"
+      - "tooling/build_m29_bundle.py"
+      - "tests/test_m30_nested_menu.py"
+      - ".github/workflows/m30-python37.yml"
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Full offline tests
+        run: python -m unittest discover -s tests -v
+      - name: Build M30
+        run: python -m tooling.build_m30_nested_menu dist/
+      - name: Audit package and Python 3.7 bytecode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.simdata_release_gate import resources, inspect_bytes
+          p=Path('dist/MHS_M30_MENU_CLASSI_TEST.package')
+          s=Path('dist/MHS_M30_MENU_CLASSI_TEST.ts4script')
+          check=inspect_bytes(p.read_bytes())
+          assert len(resources(p.read_bytes()))==23
+          assert check['category_count']==4
+          assert check['simdata_count']==4
+          assert check['status']=='STATIC_GATE_PASSED'
+          with zipfile.ZipFile(str(s)) as archive:
+              names=archive.namelist()
+              assert len(names)==9
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M30: static passed; nested UI still needs game test')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M30_MENU_CLASSI_TEST_NON_VERIFICATO_IN_GIOCO
+          path: |
+            dist/MHS_M30_MENU_CLASSI_TEST.package
+            dist/MHS_M30_MENU_CLASSI_TEST.ts4script
+          if-no-files-found: error
