@@ -1,0 +1,48 @@
+name: Build M33 safe flat-menu recovery (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tooling/build_m33_flat_recovery.py"
+      - "src/m32_transfer/**"
+      - "tests/test_m33_flat_recovery.py"
+      - ".github/workflows/m33-python37.yml"
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Run full offline regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Build recovery M33
+        run: python -m tooling.build_m33_flat_recovery dist/
+      - name: Validate single menu category and TS4 bytecode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.simdata_release_gate import resources,inspect_bytes
+          p=Path('dist/MHS_M33_MENU_RECUPERO_TEST.package')
+          s=Path('dist/MHS_M33_MENU_RECUPERO_TEST.ts4script')
+          info=inspect_bytes(p.read_bytes())
+          assert info['status']=='STATIC_GATE_PASSED'
+          assert info['category_count']==1 and info['simdata_count']==1
+          assert len(resources(p.read_bytes()))==23
+          with zipfile.ZipFile(str(s)) as z:
+              assert len(z.namelist())==10
+              assert all(z.read(f)[:4]==bytes((66,13,13,10)) for f in z.namelist())
+          print('M33: root-only regression passed. Still requires in-game test.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M33_RECUPERO_MENU_SOLO_PARTITA_TEST
+          path: |
+            dist/MHS_M33_MENU_RECUPERO_TEST.package
+            dist/MHS_M33_MENU_RECUPERO_TEST.ts4script
+          if-no-files-found: error
