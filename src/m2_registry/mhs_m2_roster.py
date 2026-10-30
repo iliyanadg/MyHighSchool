@@ -47,11 +47,11 @@ class SchoolRoster(object):
 
     @staticmethod
     def _class(klass):
-        if type(klass) is not int or klass not in (1, 2):
-            raise RosterError('Per il primo prototipo sono disponibili solo Classe 1 e 2')
+        if type(klass) is not int or klass not in (1, 2, 3):
+            raise RosterError('Sono disponibili soltanto le Classi 1, 2 e 3')
 
     def _check_capacity(self):
-        for klass in (1, 2):
+        for klass in (1, 2, 3):
             if len(self.class_members(klass)) > self.CAPACITY:
                 raise RosterError('Capienza Classe {} superata'.format(klass))
 
@@ -94,7 +94,7 @@ class SchoolRoster(object):
 
         changed = sorted([sid for sid in selected if before.get(sid) != klass], key=int)
         moved = sorted([sid for sid in selected
-                        if before.get(sid) in (1, 2) and before[sid] != klass], key=int)
+                        if before.get(sid) in (1, 2, 3) and before[sid] != klass], key=int)
         return updated, {
             'slot': self.slot,
             'class': klass,
@@ -104,6 +104,34 @@ class SchoolRoster(object):
             'already_in_class': len(selected) - len(changed),
             'class_size': len(updated.class_members(klass))
         }
+
+    def swap_students(self, first, second, teen_eligibility):
+        """Exchange two enrolled teenagers between distinct full or partial classes.
+        
+        Returns a new roster: no mutation or disk I/O until the caller saves.
+        """
+        a = canonical_sim_id(first)
+        b = canonical_sim_id(second)
+        if a == b or a not in self.assignments or b not in self.assignments:
+            raise RosterError('Seleziona due studenti iscritti differenti')
+        source = self.assignments[a]
+        target = self.assignments[b]
+        if source == target:
+            raise RosterError('Gli studenti devono appartenere a classi diverse')
+        if not callable(teen_eligibility):
+            raise RosterError('Verifica adolescenti non disponibile')
+        for sid in (a, b):
+            try:
+                valid = teen_eligibility(sid)
+            except Exception:
+                valid = False
+            if valid is not True:
+                raise RosterError('Studente non idoneo allo scambio: {}'.format(sid))
+        result = dict(self.assignments)
+        result[a], result[b] = target, source
+        updated = SchoolRoster(self.slot, result)
+        return updated, {'slot':self.slot, 'first':a, 'second':b,
+                         'first_class':target, 'second_class':source}
 
     def to_dict(self):
         return {'schema': self.VERSION, 'slot': self.slot,
