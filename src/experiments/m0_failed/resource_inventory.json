@@ -2,7 +2,7 @@
   "source": "MHS_M0_MENU_NATIVO_SOLO_TEST.package (failed game launch)",
   "resource_count": 8,
   "category_instances": [
-    7064630105397427000
+    "7064630105397426819"
   ],
   "simdata_instances": [],
   "types": {
@@ -11,5 +11,5 @@
     "0x7DF2169C": 1,
     "0x220557DA": 2
   },
-  "note": "Static inventory; not a game startup verdict"
+  "note": "Store 64-bit resource IDs as strings: JavaScript numbers lose precision. Inventory, not a game startup verdict."
 }

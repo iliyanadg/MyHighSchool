@@ -7,7 +7,7 @@
         <V n="title" t="enabled"><T n="enabled">0x78718F64</T></V>
         <V n="text" t="single"><T n="single">0x16B48D50</T></V>
         <E n="urgency">URGENT</E>
-      </U></V>
+      </U></V></V>
       <V n="timing" t="at_beginning" />
     </U></V>
   </L></U></U></V>

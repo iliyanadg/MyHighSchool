@@ -39,10 +39,15 @@ class M0Tests(unittest.TestCase):
         self.assertFalse([x for x in problems if x.startswith(("CONFIRM_EXTRAS_AT_ROOT","CONFIRM_NOTIFICATION_NOT_IN_OUTCOME"))])
         self.assertIn("MISSING_CATEGORY_SIMDATA",problems)
 
+    def test_all_source_xml_files_are_well_formed(self):
+        import xml.etree.ElementTree as ET
+        for name in mod.NAMES:
+            ET.parse(F / (name + ".xml"))
+
     def test_manifest_matches_8_resource_M0_inventory(self):
         self.assertEqual(self.manifest["resource_count"],8)
         self.assertEqual(self.manifest["simdata_instances"],[])
-        self.assertEqual(self.manifest["category_instances"],[7064630105397426819])
+        self.assertEqual(self.manifest["category_instances"],["7064630105397426819"])
 
 if __name__ == "__main__":
     unittest.main()
