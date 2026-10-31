@@ -6,6 +6,12 @@ on:
       - feature/m55-presenze-studente-test
     paths:
       - 'src/m55_attendance/**'
+      - 'src/m2_registry/mhs56_slot_identity.py'
+      - 'src/m2_registry/mhs_m2_game_bridge.py'
+      - 'src/m39_visibility/mhs39_visibility_ui.py'
+      - 'src/m29_registry/mhs29_controls.py'
+      - 'src/m53_staff/mhs53_staff_ui.py'
+      - 'tests/test_m56_stable_school_slot.py'
       - 'tooling/build_m55_attendance_trial.py'
       - 'tests/test_m55_attendance_trial.py'
       - '.github/workflows/m55-attendance-trial.yml'
