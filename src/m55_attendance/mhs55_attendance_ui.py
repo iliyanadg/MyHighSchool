@@ -10,6 +10,7 @@ from interactions.base.immediate_interaction import ImmediateSuperInteraction
 from sims4.localization import LocalizationHelperTuning
 from ui.ui_dialog_notification import UiDialogNotification
 from mhs55_attendance_auto import status_lines
+import mhs58_situation_probe
 
 
 def _text(value):
@@ -27,6 +28,24 @@ def _actor(interaction):
         return None
 
 
+def compact_diagnostic():
+    """Short EA-safe notification; original multi-line report was oversized.
+
+    Empty counters mean no matching creation OBSERVED, never no students.
+    """
+    state=mhs58_situation_probe.status()
+    counts=state.get('counts',{})
+    parts=[]
+    for guid,label in ((277733,'Studenti'),(298052,'Core'),
+                       (298096,'Personale'),(278011,'Mensa')):
+        row=counts.get(guid,{})
+        parts.append('{}:{}'.format(label,row.get('calls',0)))
+    return ('M58 attiva: {}. {}. Errore: {}. '
+            'Contatori di creazione, NON presenze.'.format(
+                'SI' if state.get('installed') else 'NO',
+                ' | '.join(parts),str(state.get('error','none'))[:35]))
+
+
 def show_attendance_status(interaction):
     actor = _actor(interaction)
     if actor is None:
@@ -34,7 +53,7 @@ def show_attendance_status(interaction):
     try:
         dialog = UiDialogNotification.TunableFactory().default(
             actor, title=_text('MY HIGH SCHOOL - Presenze automatiche'),
-            text=_text(status_lines()))
+            text=_text(compact_diagnostic()))
         dialog.show_dialog()
         return True
     except Exception:
