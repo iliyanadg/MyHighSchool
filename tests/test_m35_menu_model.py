@@ -58,6 +58,23 @@ class M35VisibilityTests(unittest.TestCase):
         with self.assertRaises(MenuModelError):
             build_menu(SchoolSettings('12',True,3),self.roster)
 
+    def test_optional_third_class_can_be_enabled_later(self):
+        two=build_menu(SchoolSettings('11',True,2),self.roster)
+        self.assertEqual(two['settings_options'][0]['action'],
+                         'abilita_classe3')
+        self.assertTrue(two['settings_options'][0]['enabled'])
+        self.assertEqual(len(two['classes']),2)
+
+        three=build_menu(SchoolSettings('11',True,3),self.roster)
+        self.assertEqual(three['settings_options'][0]['action'],
+                         'disabilita_classe3')
+        self.assertTrue(three['settings_options'][0]['enabled'])
+        self.assertEqual(len(three['classes']),3)
+
+        occupied=SchoolRoster('11',{'99':3})
+        three_full=build_menu(SchoolSettings('11',True,3),occupied)
+        self.assertFalse(three_full['settings_options'][0]['enabled'])
+
     def test_model_has_no_mutation(self):
         before=self.roster.to_json()
         build_menu(SchoolSettings('11',True,3),self.roster)
