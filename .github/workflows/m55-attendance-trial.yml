@@ -1,4 +1,4 @@
-name: M57c school core role bypass and ManifestError diagnostics
+name: M57d EA school filter observability and safe diagnostics
 on:
   workflow_dispatch:
   push:
@@ -43,8 +43,8 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile
           from tooling.simdata_release_gate import inspect_bytes
-          p=Path('dist/MHS_M57C_CORE_FILTER_MANIFEST_DIAGNOSTICA_MAC_TEST.package')
-          z=Path('dist/MHS_M57C_CORE_FILTER_MANIFEST_DIAGNOSTICA_MAC_TEST.ts4script')
+          p=Path('dist/MHS_M57D_TELEMETRIA_FILTRI_EA_MAC_TEST.package')
+          z=Path('dist/MHS_M57D_TELEMETRIA_FILTRI_EA_MAC_TEST.ts4script')
           info=inspect_bytes(p.read_bytes())
           assert info['status']=='STATIC_GATE_PASSED'
           assert info['resource_count']==63
@@ -62,8 +62,8 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: MHS_M57C_CORE_FILTER_MANIFEST_DIAGNOSTICA_MAC_TEST
+          name: MHS_M57D_TELEMETRIA_FILTRI_EA_MAC_TEST
           path: |
-            dist/MHS_M57C_CORE_FILTER_MANIFEST_DIAGNOSTICA_MAC_TEST.package
-            dist/MHS_M57C_CORE_FILTER_MANIFEST_DIAGNOSTICA_MAC_TEST.ts4script
+            dist/MHS_M57D_TELEMETRIA_FILTRI_EA_MAC_TEST.package
+            dist/MHS_M57D_TELEMETRIA_FILTRI_EA_MAC_TEST.ts4script
           if-no-files-found: error
