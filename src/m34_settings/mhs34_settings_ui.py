@@ -24,6 +24,25 @@ def _event(text):
         del _EVENTS[:-12]
 
 
+def _settings_notice(title,message):
+    """Make rejected class-3 deactivation visible instead of silently failing."""
+    try:
+        import services
+        from sims4.localization import LocalizationHelperTuning
+        from ui.ui_dialog_notification import UiDialogNotification
+        client=services.client_manager().get_first_client()
+        actor=getattr(client,'active_sim',None)
+        if actor is None:
+            return False
+        text=lambda value:(lambda **_:LocalizationHelperTuning.get_raw_text(value))
+        dialog=UiDialogNotification.TunableFactory().default(
+            actor,title=text(title),text=text(message))
+        dialog.show_dialog()
+        return True
+    except Exception:
+        return False
+
+
 def _apply(operation):
     try:
         slot=current_slot()
@@ -42,6 +61,12 @@ def _apply(operation):
         return True
     except Exception as exc:
         _event('BLOCKED | {}: {}'.format(type(exc).__name__,str(exc)[:120]))
+        if operation=='two':
+            _settings_notice('MY HIGH SCHOOL - Classe 3 ancora attiva',
+                str(exc)[:180])
+        else:
+            _settings_notice('MY HIGH SCHOOL - Impostazioni non modificate',
+                str(exc)[:180])
         return False
 
 
