@@ -12,6 +12,7 @@ from sims4.localization import LocalizationHelperTuning
 from ui.ui_dialog_notification import UiDialogNotification
 from mhs55_attendance_auto import status_lines
 import mhs58_situation_probe
+import mhs57_filter_runtime
 
 
 def _text(value):
@@ -55,7 +56,7 @@ def show_attendance_status(interaction):
         folder=os.path.join(os.path.expanduser('~'),'Documents','Electronic Arts',
                             'The Sims 4','MY_HIGH_SCHOOL_M25_TEST_DATA')
         try:
-            mhs58_situation_probe.save_report(folder)
+            mhs58_situation_probe.save_report(folder, mhs57_filter_runtime.m59_snapshot())
         except Exception:
             pass  # File diagnostic is optional; never block native UI.
         dialog = UiDialogNotification.TunableFactory().default(
