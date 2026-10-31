@@ -7,6 +7,8 @@ on:
     paths:
       - 'src/m58_selection/**'
       - 'src/m57_selection/mhs57_filter_runtime.py'
+      - 'src/m57_selection/mhs57_filter_policy.py'
+      - 'tests/test_m57_ea_filter_policy.py'
       - 'src/m55_attendance/mhs55_attendance_auto.py'
       - 'src/m55_attendance/mhs55_attendance_ui.py'
       - 'tooling/build_m58_diagnostic.py'
@@ -27,7 +29,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Run M58 pure diagnostic unit tests
-        run: python -m unittest tests.test_m58_situation_probe tests.test_m58_notification -v
+        run: PYTHONPATH=src/m57_selection:src/m2_registry:src/m53_staff python -m unittest tests.test_m58_situation_probe tests.test_m58_notification tests.test_m57_ea_filter_policy -v
       - name: Build Mac compatible diagnostic
         run: python -m tooling.build_m58_diagnostic dist/
       - name: Verify no guest mutation and Python 3.7 bytecode
