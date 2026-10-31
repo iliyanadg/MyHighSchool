@@ -249,7 +249,7 @@ class M55Tests(unittest.TestCase):
         self.assertIn('alarms.add_alarm(',auto)
         self.assertIn('settings.active',auto)
         self.assertIn('roster_plan(',auto)
-        self.assertIn('current_slot()',auto)
+        self.assertIn('current_slot(allow_travel=True)',auto)
         self.assertIn('school_running(',auto)
         self.assertIn('already_in_base_student(',auto)
         self.assertIn('session.next_batch(_BATCH)',auto)
