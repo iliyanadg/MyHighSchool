@@ -79,16 +79,3 @@ for _class_number in (1, 2, 3):
          '_mhs39_class':_class_number}
     )
 
-
-# M47: retain the M45 visibility checks, but replace only the three
-# preparation picker tunings with a native SimPicker + explicit in-game
-# Yes/No confirmation. Original menu category names and SimData unchanged.
-from mhs47_enrollment_ui import MHS47EnrollmentImmediateBase
-for _number in (1,2,3):
-    _name='MHS47EnrollClass{}'.format(_number)
-    globals()[_name]=type(_name,(_MHS39VisibilityMixin,MHS47EnrollmentImmediateBase),{
-        '__module__':__name__,
-        '_mhs39_action':'class',
-        '_mhs39_class':_number,
-        '_mhs47_class':_number,
-    })
