@@ -26,3 +26,10 @@ Le PieMenuCategory figlie M30/M32 hanno bloccato l'intero menu della cassetta. U
 
 ## SICUREZZA
 Tutti i comandi `*commit conferma` scrivono immediatamente sul JSON esterno di test; uscire da The Sims 4 senza salvare NON annulla quelle scritture. Per le prove attuali non usare commit, pulizia o undo. La frequenza reale alle scuole EA e la presenza nelle 3 aule NON sono ancora implementate.
+
+## Aggiornamento prova M33 trasferimento — ore 01:27, 31/10/2026
+- Dopo aver **tolto la pausa**, l'interazione della cassetta postale «Classe 1 - Trasferisci in Classe 3» è stata effettivamente eseguita: i comandi delle interazioni ImmediateSuperInteraction erano in attesa mentre il gioco era in pausa.
+- Screenshot dell'utente del comando `mhs32.report`: `OPEN | Classe 1 -> 3 | 2 candidati` seguito da `READY | 1 studenti da Classe 1 a Classe 3. Usa mhs32.transferpreview`.
+- Dunque il picker fotografico del trasferimento **si apre** e produce una selezione preparata in memoria con un iscritto della Classe 1. Non è stato ancora confermato alcun `commit` al registro esterno; la convalida di `mhs32.transferpreview` è il prossimo test.
+- Per gli altri picker M33, **togliere la pausa prima di concludere che il comando non funziona**. Usare console di diagnostica dedicata se non compare la finestra dopo che il gioco è in esecuzione.
+- Rimane prioritario per l'UX finale il menu annidato MY HIGH SCHOOL → Classe 1/2/3 → operazioni, senza reintrodurre categorie invalide.
