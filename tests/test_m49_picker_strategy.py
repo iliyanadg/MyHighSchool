@@ -36,7 +36,7 @@ class M49Tests(unittest.TestCase):
                      '<M49 max selection>',mode='exec'),namespace)
         strategy=namespace['_max_selectable'](8)
         self.assertTrue(callable(strategy.get_max_selectable))
-        self.assertEqual(strategy.get_max_selectable(),999)
+        self.assertEqual(strategy.get_max_selectable(),8)
         with self.assertRaises(ValueError):
             namespace['_max_selectable'](9)
 
