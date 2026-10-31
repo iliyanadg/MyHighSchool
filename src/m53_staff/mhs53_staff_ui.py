@@ -174,7 +174,7 @@ def open_staff(role,mode,klass,interaction):
     """Save only inside the genuine accepted result callback of the picker."""
     actor=_actor(interaction)
     try:
-        slot=current_slot()
+        slot=current_slot(allow_travel=(mode in ('view','teachers_view','all')))
         _SETTINGS.require_management(slot,klass)
         before=_STAFF.load(slot)
         if mode in ('view','teachers_view','all'):
