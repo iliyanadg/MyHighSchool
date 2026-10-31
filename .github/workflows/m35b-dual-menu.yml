@@ -1,0 +1,48 @@
+name: M35B two actions in single category (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tooling/build_m35b_two_actions.py"
+      - "tests/test_m35b_two_actions.py"
+      - ".github/workflows/m35b-dual-menu.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Full regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Compile only M35B
+        run: python -m tooling.build_m35b_two_actions dist/
+      - name: Check compiled file structure
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tooling.simdata_release_gate import resources, inspect_bytes
+          import zipfile
+          p=Path('dist/MHS_M35B_DUE_AZIONI_CLASSE1_TEST.package')
+          s=Path('dist/MHS_M35B_DUE_AZIONI_CLASSE1_TEST.ts4script')
+          info=inspect_bytes(p.read_bytes())
+          assert info['status']=='STATIC_GATE_PASSED'
+          assert info['category_count']==2
+          assert info['simdata_count']==2
+          assert len(resources(p.read_bytes()))==29
+          with zipfile.ZipFile(str(s)) as z:
+              assert len(z.namelist())==13
+              assert all(z.read(f)[:4]==bytes((66,13,13,10)) for f in z.namelist())
+          print('M35B static OK; actual pie-menu visual hierarchy not yet tested')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M35B_DUE_VOCI_CLASSE1_SOLO_TEST
+          path: |
+            dist/MHS_M35B_DUE_AZIONI_CLASSE1_TEST.package
+            dist/MHS_M35B_DUE_AZIONI_CLASSE1_TEST.ts4script
+          if-no-files-found: error
