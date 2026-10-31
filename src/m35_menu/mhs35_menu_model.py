@@ -32,7 +32,8 @@ def build_menu(settings, roster):
             'root':'MY HIGH SCHOOL',
             'active':False,
             'actions':('attiva',),
-            'classes':()
+            'classes':(),
+            'settings_options':()
         }
 
     active_classes=tuple(range(1,settings.class_count+1))
@@ -55,7 +56,15 @@ def build_menu(settings, roster):
         'root':'MY HIGH SCHOOL',
         'active':True,
         'actions':('disattiva','impostazioni'),
-        'classes':tuple(tabs)
+        'classes':tuple(tabs),
+        'settings_options':(
+            {'action':'abilita_classe3','enabled':True,
+             'label':'Abilita Classe 3'}
+            if settings.class_count==2 else
+            {'action':'disabilita_classe3',
+             'enabled':not bool(roster.class_members(3)),
+             'label':'Disabilita Classe 3'}
+        ,)
     }
 
 
