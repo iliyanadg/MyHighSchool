@@ -32,7 +32,7 @@ def release(folder):
     blob=package_bytes()
     assert inspect_bytes(blob)['status']=='STATIC_GATE_PASSED'
     assert len(SCRIPTS)==29
-    assert len(set(p.name for p in SCRIPTS))==27
+    assert len(set(p.name for p in SCRIPTS))==29
     (folder/PACKAGE).write_bytes(blob)
     with tempfile.TemporaryDirectory() as temp:
         with zipfile.ZipFile(str(folder/SCRIPT),'w',zipfile.ZIP_DEFLATED) as archive:
