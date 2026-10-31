@@ -17,3 +17,23 @@ _DIR=os.path.join(os.path.expanduser('~'),'Documents','Electronic Arts',
                   'The Sims 4','MY_HIGH_SCHOOL_M25_TEST_DATA')
 _STORE=RosterStore(_DIR)
 _SETTINGS=SettingsStore(_DIR)
+
+def _str(s):
+    return lambda **_:LocalizationHelperTuning.get_raw_text(str(s))
+
+def _notice(actor,heading,message):
+    if actor is None:
+        return
+    try:
+        dialog=UiDialogNotification.TunableFactory().default(
+            actor,title=_str(heading),text=_str(message))
+        dialog.show_dialog()
+    except Exception:
+        pass
+
+def _max(count):
+    base=UiDialogObjectPicker._MaxSelectableUnlimited
+    class Limit(base):
+        def get_max_selectable(self,*args,**kwargs):
+            return count
+    return Limit()
