@@ -21,6 +21,7 @@ from mhs_m2_store import RosterStore
 from mhs34_settings import SettingsStore
 from mhs55_attendance_core import (
     DailyAttendance, AttendanceError, roster_plan, valid_student,
+    resolve_save_slot,
     school_running, already_in_base_student, create_student_request,
     BASE_STUDENT_SITUATION, BASE_STUDENT_JOB)
 
@@ -57,6 +58,23 @@ def _notice(title, message):
         dialog.show_dialog()
     except Exception as exc:
         _event('AVVISO_NON_MOSTRATO', type(exc).__name__)
+
+
+def _current_save_slot():
+    """Consult EA live persistence and active-client account, no cached slot."""
+    proto_slot = None
+    try:
+        proto_slot = current_slot()
+    except Exception:
+        proto_slot = None
+    account_slot = None
+    try:
+        client = services.client_manager().get_first_client()
+        account = getattr(client, 'account', None)
+        account_slot = getattr(account, 'save_slot_id', None)
+    except Exception:
+        account_slot = None
+    return resolve_save_slot(proto_slot, account_slot)
 
 
 def _game_day():
@@ -151,7 +169,7 @@ def _tick(_handle=None):
         zone = services.current_zone()
         if zone is None or zone is not _ZONE:
             return
-        slot = current_slot()  # Fail closed on 0 (unknown travel slot).
+        slot = _current_save_slot()  # Verified from live EA sources only.
         settings = _SETTINGS.load(slot)
         if not settings.active:
             return
