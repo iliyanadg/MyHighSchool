@@ -100,6 +100,50 @@ def installed():
     return _INSTALLED
 
 
+def physical_status():
+    """Read-only comparison of loaded on-zone SimIDs, not attendance roles."""
+    try:
+        plan=_manifest()
+        if plan is None:
+            return 'M57 confronto lotto: gestione non attiva'
+        manager=services.sim_info_manager()
+        if manager is None:
+            return 'M57 confronto lotto: archivio Sim non pronto'
+        loaded=set()
+        for info in manager.get_all():
+            try:
+                sim=getattr(info,'get_sim_instance',lambda:None)()
+                if sim is not None:
+                    loaded.add(str(info.sim_id))
+            except Exception:
+                continue
+        school_seen=len(loaded & plan.all_student_ids)
+        # The distinction between teens and non-teen visitors is crucial:
+        # this does not call every unregistered person an "extra student".
+        from sims.sim_info_types import Age,Species
+        stray=0
+        for info in manager.get_all():
+            try:
+                sid=str(info.sim_id)
+                if sid in loaded and sid not in plan.all_student_ids and (
+                        info.age==Age.TEEN and info.species==Species.HUMAN):
+                    stray+=1
+            except Exception:
+                continue
+        planned_staff=set()
+        for members in plan.staff_ids.values():
+            planned_staff.update(members)
+        staff_seen=len(loaded.intersection(planned_staff))
+        return ('M57 Sim visibili sul lotto: iscritti {}/{}; altri adolescenti '
+                '{} (anche giocabili non iscritti); personale scelto {}/{} '
+                '(presenza, NON ruolo EA)'.format(
+                    school_seen,len(plan.all_student_ids),stray,
+                    staff_seen,len(planned_staff)))
+    except Exception as exc:
+        return 'M57 confronto lotto non disponibile: {}'.format(
+            type(exc).__name__)
+
+
 def status():
     return ('Selezione M57: {}. Filtri limitati: {} | non modificati: {} '
             '| errori: {}. Ultimo: {}'.format(
