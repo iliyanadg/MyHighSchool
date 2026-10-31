@@ -134,6 +134,50 @@ class M57EAFilterTests(unittest.TestCase):
                          'EA success')
         self.assertEqual(events[-1],((1,obj),{}))
 
+    def test_physical_status_counts_selected_not_entire_lot(self):
+        source=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
+        tree=ast.parse(source)
+        fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
+                and n.name=='physical_status')
+        m=manifest()
+        from types import SimpleNamespace
+        people=[]
+        for sid in (3,4,9,17,18,201,202,301):
+            age=1 if sid<200 else 2
+            people.append(SimpleNamespace(sim_id=sid,age=age,species=10,
+                          get_sim_instance=lambda:object()))
+        ctx={
+            '_manifest':lambda:m,
+            'services':SimpleNamespace(sim_info_manager=lambda:
+                         SimpleNamespace(get_all=lambda:people)),
+        }
+        import types
+        fake=types.ModuleType('sims')
+        fake_types=types.ModuleType('sims.sim_info_types')
+        fake_types.Age=SimpleNamespace(TEEN=1)
+        fake_types.Species=SimpleNamespace(HUMAN=10)
+        import sys
+        old=sys.modules.get('sims')
+        old_types=sys.modules.get('sims.sim_info_types')
+        sys.modules['sims']=fake
+        sys.modules['sims.sim_info_types']=fake_types
+        try:
+            exec(compile(ast.Module(body=[fn],type_ignores=[]),
+                         '<m57 physical_status>','exec'),ctx)
+            text=ctx['physical_status']()
+        finally:
+            if old is None:
+                sys.modules.pop('sims',None)
+            else:
+                sys.modules['sims']=old
+            if old_types is None:
+                sys.modules.pop('sims.sim_info_types',None)
+            else:
+                sys.modules['sims.sim_info_types']=old_types
+        self.assertIn('iscritti 3/16',text)
+        self.assertIn('altri adolescenti 2',text)
+        self.assertIn('personale scelto 2/8',text)
+
     def test_does_not_copy_or_modify_game_tunings(self):
         runtime=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
         self.assertIn("('submit_matching_filter','submit_filter')",runtime)
