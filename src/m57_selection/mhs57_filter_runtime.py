@@ -122,15 +122,20 @@ def install_filter_hooks():
     if _INSTALLED:
         return True
     try:
-        for method in ('submit_matching_filter','submit_filter'):
+        # EA public methods are named submit_*; the constraint policy uses
+        # the logical modes 'matching'/'filter'. Passing the API method name
+        # directly raised ManifestError("Unsupported EA filter method") for
+        # every attempted school filter in the user's M57b Mac test.
+        for method, mode in (('submit_matching_filter','matching'),
+                             ('submit_filter','filter')):
             old=getattr(SimFilterService,method,None)
             if not callable(old):
                 raise RuntimeError('API EA assente: '+method)
             if getattr(old,'_mhs57_school_filter_hook',False):
                 continue
 
-            def wrapper(self,*args,_previous=old,_name=method,**kwargs):
-                return _filtered(_previous,self,args,kwargs,_name)
+            def wrapper(self,*args,_previous=old,_mode=mode,**kwargs):
+                return _filtered(_previous,self,args,kwargs,_mode)
             wrapper._mhs57_school_filter_hook=True
             setattr(SimFilterService,method,wrapper)
         _INSTALLED=True
