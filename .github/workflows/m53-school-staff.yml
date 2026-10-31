@@ -1,0 +1,54 @@
+name: M53 existing-Sim school staffing on Mac (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/m53_staff/mhs53_staff_store.py'
+      - 'src/m53_staff/mhs53_staff_ui.py'
+      - 'src/m39_visibility/mhs39_visibility_ui.py'
+      - 'tooling/build_m53_staff_management.py'
+      - 'tests/test_m53_staff_management.py'
+      - '.github/workflows/m53-school-staff.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Staff backend + exact category/SimData regression suite
+        run: PYTHONPATH=src/m2_registry:src/m53_staff python -m unittest tests.test_m53_staff_management -v
+      - name: Build new menu and staff interactions
+        run: python -m tooling.build_m53_staff_management dist/
+      - name: Verify Mac package and 19 Python 3.7 script modules
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_m53_staff_management import package_bytes,SCRIPTS,STAFF_UI
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist/MHS_M53_PERSONALE_SCOLASTICO_TEST.package')
+          ts=Path('dist/MHS_M53_PERSONALE_SCOLASTICO_TEST.ts4script')
+          assert p.read_bytes()==package_bytes()
+          g=inspect_bytes(p.read_bytes())
+          assert g['status']=='STATIC_GATE_PASSED'
+          assert g['category_count']==g['simdata_count']==10
+          assert g['resource_count']==62
+          with ZipFile(ts) as archive:
+              names=archive.namelist()
+              assert len(names)==19
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+              assert 'mhs53_staff_store.pyc' in names
+              assert 'mhs53_staff_ui.pyc' in names
+          print('M53 structurally built; in-game Mac testing required.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M53_PERSONALE_SCOLASTICO_MAC_TEST
+          path: |
+            dist/MHS_M53_PERSONALE_SCOLASTICO_TEST.package
+            dist/MHS_M53_PERSONALE_SCOLASTICO_TEST.ts4script
+          if-no-files-found: error
