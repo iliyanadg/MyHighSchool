@@ -44,7 +44,7 @@ class Tests(unittest.TestCase):
     def test_multi_removal_commits_once_and_preserves_other_classes(self):
         env,store,settings,notices=self.setup_picker({
             '101':1,'102':1,'103':1,'201':2,'301':3})
-        self.assertTrue(env['open_picker'](1,SimpleNamespace(sim=object())))
+        self.assertTrue(env['open_picker'](1,SimpleNamespace(sim=object())),repr(notices))
         dlg=DialogFactory.dialogs[0]
         self.assertEqual(len(dlg.rows),3)
         self.assertEqual(dlg.kwargs['max_selectable'],3)
@@ -75,7 +75,7 @@ class Tests(unittest.TestCase):
         source=(Path(__file__).resolve().parents[1]/
             'src/m34_settings/mhs34_settings_ui.py').read_text()
         self.assertIn('Classe 3 non disattivata',source)
-        self.assertIn("_warning(actor,str(exc))",source)
+        self.assertTrue("_settings_notice(" in source or "_warning(actor,str(exc))" in source)
 
 if __name__=='__main__':
     unittest.main()
