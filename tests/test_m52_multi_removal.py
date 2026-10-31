@@ -1,9 +1,10 @@
 """M52 real picker callback: all three classes, batch checkmark and X."""
-import ast,unittest
+import ast,unittest,sys
 from pathlib import Path
 from types import SimpleNamespace
 from tests.test_m51_bulk_transfer import DialogFactory,Store
 from mhs_m2_roster import SchoolRoster,RosterError,canonical_sim_id
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'/'m26_withdrawal'))
 from mhs26_remove import plan_removal,roster_fingerprint
 from tooling.build_m52_removal import package_bytes,EXTRA
 from tooling.build_m51_bulk_transfer import package_bytes as m51
