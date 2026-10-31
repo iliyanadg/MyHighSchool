@@ -54,12 +54,11 @@ class _MHS39VisibilityMixin(object):
 
 
 for _module,_name,_action,_klass in SPECS:
-    _runtime_module=('mhs52_picker'
-                     if _name in ('MHS27RemoveClass1',
-                                  'MHS27RemoveClass2',
-                                  'MHS28RemoveClass3')
-                     else _module)
-    _base=getattr(__import__(_runtime_module),_name)
+    # The M52 native multi-removal implementation is now in the existing
+    # mhs27_remove_ui module, used by all three class actions. Avoid an
+    # import of an optional mhs52_picker module absent from the 17-module
+    # M51-compatible TS4 archive.
+    _base=getattr(__import__(_module),_name)
     _wrapper='MHS39_'+_name
     globals()[_wrapper]=type(
         _wrapper,(_MHS39VisibilityMixin,_base),
