@@ -17,6 +17,7 @@ from ui.ui_dialog_notification import UiDialogNotification
 from sims4.localization import LocalizationHelperTuning
 
 from mhs_m2_game_bridge import current_slot, slot_identity_status
+import mhs57_filter_runtime
 from mhs_m2_store import RosterStore
 from mhs34_settings import SettingsStore
 from mhs55_attendance_core import (
@@ -232,6 +233,12 @@ def _tick(_handle=None):
             _event('GIORNATA_INIZIATA', 'Iscritti idonei {} / non idonei {}'.format(
                 len(planned), len(invalid)))
         current = _SESSION
+        if mhs57_filter_runtime.installed():
+            # M57 chooses eligible NPCs BEFORE EA creates school situations.
+            # Do NOT also add one independent EA Base Student situation for
+            # each enrolled teen: that caused duplicates and extra classmates.
+            _gate('M57_PREFILTRO', 'Filtri EA: vedere conteggio sotto')
+            return
         if not current.done:
             _process(current, situation_mgr, sim_mgr)
             if current.done:
@@ -309,6 +316,7 @@ def status_lines():
     result = ['Automazione M55: {}'.format(_HOOK_STATE),
               'Controlli eseguiti: {} | {}'.format(_POLL_COUNT, _LAST_GATE),
               slot_identity_status(),
+              mhs57_filter_runtime.status(),
               _registration_diagnostic(),
               'Ultimo evento: {}'.format(_LAST_EVENT)]
     if _SESSION is None:
