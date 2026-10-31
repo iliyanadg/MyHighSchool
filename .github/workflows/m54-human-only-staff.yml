@@ -1,0 +1,53 @@
+name: M54 staff picker human adults only, no pets
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/m53_staff/mhs53_staff_ui.py'
+      - 'tooling/build_m54_human_only_staff.py'
+      - 'tests/test_m54_human_staff_species.py'
+      - '.github/workflows/m54-human-only-staff.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Human species regression and M53 staff registry and package tests
+        run: |
+          PYTHONPATH=src/m2_registry:src/m53_staff python -m unittest tests.test_m54_human_staff_species -v
+          PYTHONPATH=src/m2_registry:src/m53_staff python -m unittest tests.test_m53_staff_management -v
+      - name: Build M54 script fix with M53 menu preserved byte-for-byte
+        run: python -m tooling.build_m54_human_only_staff dist/
+      - name: Check untouched menu and game compiled script
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.build_m53_staff_management import package_bytes as m53
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist/MHS_M54_PERSONALE_SOLO_UMANI_TEST.package')
+          s=Path('dist/MHS_M54_PERSONALE_SOLO_UMANI_TEST.ts4script')
+          assert p.read_bytes()==m53()
+          result=inspect_bytes(p.read_bytes())
+          assert result['status']=='STATIC_GATE_PASSED'
+          assert result['category_count']==result['simdata_count']==10
+          assert result['resource_count']==62
+          with zipfile.ZipFile(s) as z:
+              assert len(z.namelist())==19
+              assert all(z.read(n)[:4]==bytes((66,13,13,10))
+                         for n in z.namelist())
+              assert 'mhs53_staff_ui.pyc' in z.namelist()
+          print('M54 structurally safe; Mac game test still required')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M54_PERSONALE_SOLO_UMANI_MAC_TEST
+          path: |
+            dist/MHS_M54_PERSONALE_SOLO_UMANI_TEST.package
+            dist/MHS_M54_PERSONALE_SOLO_UMANI_TEST.ts4script
+          if-no-files-found: error
