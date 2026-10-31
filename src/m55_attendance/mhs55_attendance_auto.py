@@ -220,8 +220,12 @@ def _start_zone(zone):
     _ZONE = zone
     _SESSION = None
     interval = create_time_span(minutes=_POLL_MINUTES)
-    _HANDLE = alarms.add_alarm(
-        zone, interval, _tick, repeating=True, repeat_interval=interval)
+    # EA alarms.add_alarm repeats the initial TimeSpan when repeating=True.
+    # It does NOT accept repeat_interval (that keyword belongs to other
+    # scheduling APIs and raised TypeError in the Mac M55 in-game trial).
+    _HANDLE = alarms.add_alarm(zone, interval, _tick, repeating=True)
+    if _HANDLE is None:
+        raise AttendanceError('EA non ha creato l allarme scolastico')
     _event('CONTROLLO_AVVIATO', 'Verifica scuola automatica ogni {} minuti Sim'.format(
         _POLL_MINUTES))
 
@@ -242,7 +246,8 @@ def _install_zone_hook():
             try:
                 _start_zone(zone)
             except Exception as exc:
-                _event('HOOK_ERRORE', type(exc).__name__)
+                _event('HOOK_ERRORE', '{}: {}'.format(
+                    type(exc).__name__, str(exc)[:120]))
             return result
 
         _mhs55_after_loading._mhs55_attendance_hook = True
