@@ -1,0 +1,33 @@
+name: M44 Lot51 category merge preflight (no user export yet)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tooling/build_m44_tdesc_merge.py'
+      - 'tests/test_m44_tdesc_merge.py'
+      - '.github/workflows/m44-tdesc-preflight.yml'
+jobs:
+  tests:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Full offline regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Verify no M44 release is built from identical M43 resources
+        run: |
+          python - <<'PY'
+          from tests.test_m44_tdesc_merge import exported_categories
+          from tooling.build_m44_tdesc_merge import transform,M44BuildError
+          try:
+              transform(exported_categories())
+          except M44BuildError as e:
+              assert 'UNCHANGED' in str(e)
+              print('PASS: identical SimData blocks do not trigger redundant user tests')
+          else:
+              raise AssertionError('Expected identical-export guard')
+          PY
