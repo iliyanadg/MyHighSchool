@@ -32,6 +32,16 @@ class StableSchoolSlotTests(unittest.TestCase):
         with self.assertRaises(IdentityError):
             guard.resolve(0,9102,272,allow_travel=True)
 
+    def test_opaque_stable_guid_may_be_hex_or_object(self):
+        guard=TravelSlotGuard()
+        guid='0x0019aabb'
+        self.assertEqual(guard.resolve(19,guid,87),'19')
+        self.assertEqual(guard.resolve(0,guid,87,allow_travel=True),'19')
+        class GuidObject(object):
+            def __str__(self):
+                return '0x0019aabb'
+        self.assertEqual(guard.resolve(0,GuidObject(),87,allow_travel=True),'19')
+
     def test_no_inferred_slot_when_guid_missing(self):
         guard=TravelSlotGuard()
         self.assertEqual(guard.resolve(5,None,22),'5')
