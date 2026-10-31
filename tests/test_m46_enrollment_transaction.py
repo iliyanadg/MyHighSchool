@@ -1,7 +1,12 @@
 """M46 enrollment previews never write, confirmed data is atomic and guarded."""
 import tempfile
 import unittest
+import sys
 from pathlib import Path
+
+REG=Path(__file__).resolve().parents[1]/'src'/'m2_registry'
+if str(REG) not in sys.path:
+    sys.path.insert(0,str(REG))
 
 from src.m2_registry.mhs46_enrollment_transaction import (
     preview_enrollment,confirm_enrollment,EnrollmentTransactionError)
