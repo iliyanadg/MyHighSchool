@@ -8,11 +8,11 @@ REG=Path(__file__).resolve().parents[1]/'src'/'m2_registry'
 if str(REG) not in sys.path:
     sys.path.insert(0,str(REG))
 
-from src.m2_registry.mhs46_enrollment_transaction import (
+from mhs46_enrollment_transaction import (
     preview_enrollment,confirm_enrollment,EnrollmentTransactionError)
-from src.m2_registry.mhs34_settings import SettingsStore,SettingsError
-from src.m2_registry.mhs_m2_store import RosterStore
-from src.m2_registry.mhs_m2_roster import SchoolRoster,RosterError
+from mhs34_settings import SettingsStore,SettingsError
+from mhs_m2_store import RosterStore
+from mhs_m2_roster import SchoolRoster,RosterError
 
 
 class TestM46Enrollment(unittest.TestCase):
