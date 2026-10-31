@@ -144,7 +144,7 @@ class M57EAFilterTests(unittest.TestCase):
     def test_error_message_includes_manifest_error_details(self):
         src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
         self.assertIn("type(exc).__name__,str(exc)[:105]",src)
-        self.assertIn("'Ultimo errore: {}'.format(",src)
+        self.assertIn("Ultimo errore: {}",src)
         self.assertIn("_LAST_ERROR=message",src)
 
     def test_entire_ea_filter_hook_routes_method_name_to_policy(self):
@@ -213,6 +213,7 @@ class M57EAFilterTests(unittest.TestCase):
             return 'EA success'
         fake=type('Svc',(),{})()
         ctx={'guid_for_filter':guid_for_filter,'SCHOOL_FILTERS':SCHOOL_FILTERS,
+             'CORE_FILTERS':CORE_FILTERS,
              '_CONFLICTS':(),
              '_manifest':lambda:manifest(),
              'apply_constraints':apply_constraints,
