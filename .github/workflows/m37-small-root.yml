@@ -1,0 +1,48 @@
+name: M37 root 31-bit nested menu repair (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tooling/build_m37_small_root.py"
+      - "tests/test_m37_small_root.py"
+      - ".github/workflows/m37-small-root.yml"
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Full repository test suite
+        run: python -m unittest discover -s tests -v
+      - name: Build M37
+        run: python -m tooling.build_m37_small_root dist/
+      - name: Structural and bytecode verification
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tooling.build_m37_small_root import NEW_ROOT,CATEGORY_ID
+          from tooling.simdata_release_gate import inspect_bytes
+          import zipfile
+          p=Path('dist/MHS_M37_ROOT_31BIT_NESTED_TEST.package')
+          s=Path('dist/MHS_M37_ROOT_31BIT_NESTED_TEST.ts4script')
+          audit=inspect_bytes(p.read_bytes())
+          assert audit['status']=='STATIC_GATE_PASSED'
+          assert (audit['category_count'],audit['simdata_count'])==(2,2)
+          assert 0<NEW_ROOT<2**31 and 0<CATEGORY_ID<2**31
+          with zipfile.ZipFile(s) as z:
+              assert len(z.namelist())==13
+              assert all(z.read(item)[:4]==bytes((66,13,13,10)) for item in z.namelist())
+          print('M37 root & child use compact ids, full client still requires validation.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M37_ROOT_31BIT_CLASSE1_SOLO_TEST
+          path: |
+            dist/MHS_M37_ROOT_31BIT_NESTED_TEST.package
+            dist/MHS_M37_ROOT_31BIT_NESTED_TEST.ts4script
+          if-no-files-found: error
