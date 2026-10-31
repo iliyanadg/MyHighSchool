@@ -4,8 +4,9 @@ All existing interactions inherit their original Python implementations.
 This module wraps ONLY the test result, so the UI can hide Class 3
 when 2-class mode is enabled, and show only 'Enable' when deactivated.
 
-The game's test-class dispatch and category collapsing need in-game
-verification. No school-attendance override or pause-time execution yet.
+The game's runtime test behavior and category nesting still need in-game
+verification.  Use an actual TestResult(False) rather than the nonexistent
+TestResult.FALSE class constant (M41 caused repeat LastExceptions on the mailbox). No school-attendance override or pause-time execution yet.
 """
 from event_testing.results import TestResult
 from mhs_m2_game_bridge import current_slot
@@ -45,9 +46,9 @@ class _MHS39VisibilityMixin(object):
                 config,cls._mhs39_action,cls._mhs39_class)
         except Exception:
             # Settings errors must never reveal unsafe write operations.
-            return TestResult.FALSE
+            return TestResult(False, 'MY HIGH SCHOOL: azione non disponibile')
         if not show:
-            return TestResult.FALSE
+            return TestResult(False, 'MY HIGH SCHOOL: azione non disponibile')
         return super()._test(*args,**kwargs)
 
 
