@@ -65,7 +65,7 @@ def transformed_resources():
                 root.set('c',mapping[pair])
                 blob=ET.tostring(root,encoding='utf-8')
             elif pair!=('interactions.base.picker_interaction','SimPickerInteraction'):
-                raise M39BuildError('No guard for unexpected action {}'.format(pair))
+                raise M39BuildError('No guard for unexpected action {}. Parsed SPECS keys: {}'.format(pair,sorted(mapping)))
             # EA SimPickerInteraction is a supporting picker tuning, not one
             # of the school menu's 19 clickable affordances. Keep unchanged.
         result.append((t,g,i,blob))
