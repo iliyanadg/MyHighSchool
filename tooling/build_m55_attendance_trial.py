@@ -24,14 +24,15 @@ from tooling.m1_links_and_strings import parse_stbl
 from tooling.simdata_release_gate import inspect_bytes, resources
 
 ROOT = Path(__file__).resolve().parents[1]
+SLOT = ROOT/'src'/'m2_registry'/'mhs56_slot_identity.py'
 CORE = ROOT/'src'/'m55_attendance'/'mhs55_attendance_core.py'
 AUTO = ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py'
 UI = ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py'
-SCRIPTS = tuple(M54_SCRIPTS) + (CORE, AUTO, UI)
+SCRIPTS = tuple(M54_SCRIPTS) + (SLOT, CORE, AUTO, UI)
 ACTION = 'Iliyana:MHS55_Attendance_One'
 ACTION_ID = fnv64_highbit(ACTION)
 LABEL_ID = 0x5A895200
-PACKAGE = 'MHS_M55C_DIAGNOSTICA_PRESENZE_MAC_TEST.package'
+PACKAGE = 'MHS_M56_SLOT_STABILE_SCELTA_EA_MAC_TEST.package'
 SCRIPT = 'MHS_M55C_DIAGNOSTICA_PRESENZE_MAC_TEST.ts4script'
 
 
@@ -92,7 +93,7 @@ def _interaction(template):
 
 def transformed_resources():
     existing = resources(build_m54_package())
-    if len(existing) != 62 or len(SCRIPTS) != 22:
+    if len(existing) != 62 or len(SCRIPTS) != 23:
         raise M55BuildError('Unexpected M54 baseline')
     source = next((raw for typ, group, iid, raw in existing
                    if typ == TYPE_INTERACTION and
@@ -177,6 +178,7 @@ def release(directory):
             'script_modules':len(SCRIPTS),
             'automatic_full_roster_dispatch':True,
             'school_gate_diagnostic':True,
+            'stable_save_guid_travel_guard':True,
             'read_only_active_teens_roster_count':True,
             'batch_size_per_five_sim_minutes':3,
             'max_roster_students':24,
