@@ -34,6 +34,10 @@ def guest_list_decision(situation_guid, job_guests, planned_ids,
     if any(sid for _,sid in guests):
         return {'action':'preserve','reason':'EA explicit guest'}
     ids=tuple(str(x) for x in planned_ids)
-    if not ids:
-        return {'action':'preserve','reason':'no verified candidate'}
-    return {'action':'candidate','candidate_count':len(ids)}
+    if len(guests)!=1:
+        return {'action':'preserve','reason':'unexpected number of base job guests'}
+    if len(ids)!=1:
+        return {'action':'preserve','reason':'requires exactly one verified candidate'}
+    if not ids[0].isdigit() or int(ids[0])<1 or str(int(ids[0]))!=ids[0]:
+        return {'action':'preserve','reason':'invalid candidate Sim ID'}
+    return {'action':'candidate','candidate_count':1}
