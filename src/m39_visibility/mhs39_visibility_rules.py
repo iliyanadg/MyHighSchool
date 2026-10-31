@@ -18,6 +18,10 @@ def allowed(active, class_count, action, klass=0):
         return active and class_count==3
     if action=='class':
         return (active and type(klass) is int and 1<=klass<=class_count)
+    if action=='transfer':
+        return (active and isinstance(klass,tuple) and len(klass)==2
+                and all(type(n) is int and 1<=n<=class_count for n in klass)
+                and klass[0]!=klass[1])
     raise VisibilityError('Operazione non definita')
 
 
