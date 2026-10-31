@@ -156,15 +156,16 @@ class M55Tests(unittest.TestCase):
         self.assertEqual(tuning.find('./T[@n="display_name"]').text,
                          '0x{:08X}'.format(LABEL_ID))
 
-    def test_package_and_22_script_modules(self):
+    def test_package_and_23_script_modules(self):
         r=inspect_bytes(package_bytes())
         self.assertEqual(r['status'],'STATIC_GATE_PASSED')
         self.assertEqual(r['resource_count'],63)
         self.assertEqual(r['category_count'],10)
         self.assertEqual(r['simdata_count'],10)
         names=[f.name for f in SCRIPTS]
-        self.assertEqual(len(names),22)
-        self.assertEqual(len(set(names)),22)
+        self.assertEqual(len(names),23)
+        self.assertEqual(len(set(names)),23)
+        self.assertIn('mhs56_slot_identity.py',names)
         self.assertIn('mhs55_attendance_auto.py',names)
         self.assertIn('mhs55_attendance_core.py',names)
         self.assertIn('mhs55_attendance_ui.py',names)
