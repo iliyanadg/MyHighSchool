@@ -1,0 +1,47 @@
+name: M36 parent link one-category probe (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tooling/build_m36_parent_link.py"
+      - "tests/test_m36_parent_link.py"
+      - ".github/workflows/m36-parent-link.yml"
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Run all offline regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile M36 isolated parent link pair
+        run: python -m tooling.build_m36_parent_link dist/
+      - name: Validate Python 3.7 and package
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tooling.simdata_release_gate import resources, inspect_bytes
+          import zipfile
+          p=Path('dist/MHS_M36_PARENT_SOTTOMENU_CLASSE1_TEST.package')
+          s=Path('dist/MHS_M36_PARENT_SOTTOMENU_CLASSE1_TEST.ts4script')
+          report=inspect_bytes(p.read_bytes())
+          assert report['status']=='STATIC_GATE_PASSED'
+          assert report['category_count']==2 and report['simdata_count']==2
+          assert len(resources(p.read_bytes()))==29
+          with zipfile.ZipFile(s) as z:
+              assert len(z.namelist())==13
+              assert all(z.read(f)[:4]==bytes((66,13,13,10)) for f in z.namelist())
+          print('M36 static gate OK. Real game compatibility untested.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M36_SOLO_PARENT_CLASSE1_TEST
+          path: |
+            dist/MHS_M36_PARENT_SOTTOMENU_CLASSE1_TEST.package
+            dist/MHS_M36_PARENT_SOTTOMENU_CLASSE1_TEST.ts4script
+          if-no-files-found: error
