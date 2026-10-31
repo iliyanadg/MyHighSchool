@@ -260,6 +260,12 @@ def _start_zone(zone):
     _HANDLE = None
     _ZONE = zone
     _SESSION = None
+    # Bind the original save *before* the next possible trip when the live
+    # home-zone proto has a positive slot. No registry data is modified.
+    try:
+        current_slot()
+    except Exception:
+        pass
     interval = create_time_span(minutes=_POLL_MINUTES)
     # EA alarms.add_alarm repeats the initial TimeSpan when repeating=True.
     # It does NOT accept repeat_interval (that keyword belongs to other
