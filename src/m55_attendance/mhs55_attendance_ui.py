@@ -5,6 +5,7 @@ the coordinator's in-memory status; the coordinator runs on its own on the
 school lot after EA initializes school situations.
 """
 import inspect
+import os
 
 from interactions.base.immediate_interaction import ImmediateSuperInteraction
 from sims4.localization import LocalizationHelperTuning
@@ -51,6 +52,12 @@ def show_attendance_status(interaction):
     if actor is None:
         return False
     try:
+        folder=os.path.join(os.path.expanduser('~'),'Documents','Electronic Arts',
+                            'The Sims 4','MY_HIGH_SCHOOL_M25_TEST_DATA')
+        try:
+            mhs58_situation_probe.save_report(folder)
+        except Exception:
+            pass  # File diagnostic is optional; never block native UI.
         dialog = UiDialogNotification.TunableFactory().default(
             actor, title=_text('MY HIGH SCHOOL - Presenze automatiche'),
             text=_text(compact_diagnostic()))
