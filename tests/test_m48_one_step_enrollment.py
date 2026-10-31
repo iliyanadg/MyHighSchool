@@ -87,7 +87,7 @@ class M48Tests(unittest.TestCase):
                 n.name=='_unassigned_candidates')
         FakePicker.dialogs=[]
         calls={'preview':[],'commit':[],'notices':[],'events':[]}
-        def preview(*args):
+        def preview(*args,**kwargs):
             calls['preview'].append(args)
             return {'slot':'11','class':args[3],'selected':args[4],
                     'changed':1,'class_size':1}
