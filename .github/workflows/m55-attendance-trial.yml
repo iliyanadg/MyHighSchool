@@ -1,4 +1,4 @@
-name: M55 one enrolled student school attendance test
+name: M55 automatic attendance for all registered school pupils
 on:
   workflow_dispatch:
   push:
@@ -38,9 +38,10 @@ jobs:
           assert info['resource_count']==63
           assert info['category_count']==info['simdata_count']==10
           with ZipFile(z) as f:
-              assert len(f.namelist())==21
+              assert len(f.namelist())==22
               assert all(f.read(n)[:4]==bytes((66,13,13,10)) for n in f.namelist())
               assert 'mhs55_attendance_ui.pyc' in f.namelist()
+              assert 'mhs55_attendance_auto.pyc' in f.namelist()
           print('Static validation completed; real Mac school test REQUIRED')
           PY
       - uses: actions/upload-artifact@v4
