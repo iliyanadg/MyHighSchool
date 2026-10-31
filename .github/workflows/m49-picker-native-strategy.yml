@@ -1,0 +1,48 @@
+name: M49 fix SimPicker ImmutableSlots get_max_selectable
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/m48_enrollment/mhs48_single_picker.py'
+      - 'tooling/build_m49_picker_strategy.py'
+      - 'tests/test_m49_picker_strategy.py'
+      - '.github/workflows/m49-picker-native-strategy.yml'
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: All offline tests, M45 menu + M48 callbacks + M49 picker API
+        run: python -m unittest discover -s tests -v
+      - name: Build M49 scripts and proven menu package
+        run: python -m tooling.build_m49_picker_strategy dist/
+      - name: Validate actual ZIP and package
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          from tooling.build_m49_picker_strategy import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          package=Path('dist/MHS_M49_PICKER_COMPATIBILE_TEST.package')
+          scripts=Path('dist/MHS_M49_PICKER_COMPATIBILE_TEST.ts4script')
+          assert package.read_bytes()==package_bytes()
+          v=inspect_bytes(package.read_bytes())
+          assert v['status']=='STATIC_GATE_PASSED'
+          assert v['category_count']==v['simdata_count']==5
+          with zipfile.ZipFile(scripts) as z:
+              assert len(z.namelist())==17
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in z.namelist())
+          print('M49 binaries verified, real Mac gameplay test still required')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M49_PICKER_COMPATIBILE_MAC_TEST
+          path: |
+            dist/MHS_M49_PICKER_COMPATIBILE_TEST.package
+            dist/MHS_M49_PICKER_COMPATIBILE_TEST.ts4script
+          if-no-files-found: error
