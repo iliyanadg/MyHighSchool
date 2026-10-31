@@ -46,8 +46,14 @@ class M35SmokeTests(unittest.TestCase):
         self.assertTrue(simdata.endswith(CATEGORY_NAME.encode('ascii')+b'\x00'))
 
     def test_only_class1_consulta_uses_new_category(self):
-        cat={iid:int(ET.fromstring(raw).find('./T[@n="category"]').text)
-             for typ,g,iid,raw in self.new if typ==TYPE_INTERACTION}
+        cat={}
+        for typ,g,iid,raw in self.new:
+            if typ!=TYPE_INTERACTION:
+                continue
+            # Some EA/custom interactions have no explicit category field.
+            category=ET.fromstring(raw).find('./T[@n="category"]')
+            if category is not None:
+                cat[iid]=int(category.text)
         self.assertEqual(cat[VIEW_ONLY_INTERACTION],CATEGORY_ID)
         self.assertEqual(sum(1 for x in cat.values() if x==CATEGORY_ID),1)
         self.assertTrue(all(x in {CATEGORY_ID,BASE_CATEGORY}
