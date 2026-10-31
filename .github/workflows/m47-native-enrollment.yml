@@ -1,0 +1,50 @@
+name: M47 native enrollment UI — safe Mac game-test build (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tooling/build_m47_native_enrollment.py'
+      - 'src/m47_enrollment/mhs47_enrollment_ui.py'
+      - 'src/m39_visibility/mhs39_visibility_ui.py'
+      - 'src/m2_registry/mhs46_enrollment_transaction.py'
+      - 'tests/test_m47_native_enrollment.py'
+      - '.github/workflows/m47-native-enrollment.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Complete offline unit suite
+        run: python -m unittest discover -s tests -v
+      - name: Build one M47 package and bytecode bundle
+        run: python -m tooling.build_m47_native_enrollment dist/
+      - name: Inspect script archive and unchanged category graph
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.simdata_release_gate import inspect_bytes
+          from tooling.build_m47_native_enrollment import package_bytes
+          p=Path('dist/MHS_M47_ISCRIZIONI_CONFERMA_GUI_TEST.package')
+          s=Path('dist/MHS_M47_ISCRIZIONI_CONFERMA_GUI_TEST.ts4script')
+          assert p.read_bytes()==package_bytes()
+          report=inspect_bytes(p.read_bytes())
+          assert report['status']=='STATIC_GATE_PASSED'
+          assert report['category_count']==report['simdata_count']==5
+          with zipfile.ZipFile(s) as archive:
+              assert len(archive.namelist())==17
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in archive.namelist())
+          print('M47 is ready for an isolated MAC SAVE-TEST; not verified in game')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M47_NATIVE_GUI_ISCRIZIONI_TEST
+          path: |
+            dist/MHS_M47_ISCRIZIONI_CONFERMA_GUI_TEST.package
+            dist/MHS_M47_ISCRIZIONI_CONFERMA_GUI_TEST.ts4script
+          if-no-files-found: error
