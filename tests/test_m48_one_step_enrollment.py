@@ -128,7 +128,7 @@ class M48Tests(unittest.TestCase):
         dialog=FakePicker.dialogs[0]
         self.assertTrue(dialog.shown)
         self.assertEqual(len(dialog.rows),2)
-        self.assertEqual(dialog.kwargs['max_selectable'],8)
+        self.assertEqual(dialog.kwargs['max_selectable'],2)
         dialog.reply(False,(11,12))
         dialog.reply(True,(11,12))
         self.assertEqual(calls['preview'],[])
