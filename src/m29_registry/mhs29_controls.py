@@ -78,7 +78,7 @@ def _get_actor(interaction):
 def open_view_picker(klass, interaction):
     """Photo-based, class-filtered read-only overview; no callback writes."""
     try:
-        roster = _STORE.load(current_slot())
+        roster = _STORE.load(current_slot(allow_travel=True))
         choices = candidate_rows(roster,klass,_lookup_sim_info)
         if not choices:
             _UI_EVENTS.append('EMPTY | Classe {}'.format(klass))
