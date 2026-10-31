@@ -167,7 +167,8 @@ def _filtered(original, self, args, kwargs, method):
         # not physically on-zone yet. All other filters remain unchanged.
         # When offline tests execute the isolated EA adapter, this optional
         # observation is absent and the original registry constraints apply.
-        present=(_m60_present_ids() if guid==280516 else ())
+        present=(globals().get('_m60_present_ids', lambda: ())()
+                 if guid==280516 else ())
         newargs,newkwargs,report=apply_constraints(
             args,kwargs,method,plan,exclude_student_ids=present)
         _log(report[0],guid,report[2])
