@@ -73,3 +73,8 @@ tutte le altre interazioni restino byte-per-byte uguali.
 - La presenza/assenza di classi in base a 2/3 e Attiva/Disattiva, la gestione
   in pausa e le conferme con finestre native NON sono ancora funzionanti.
 - Il sistema di frequenza del liceo EA non è implementato.
+
+### Esito compilazione M35
+- Workflow passato: https://github.com/iliyanadg/MyHighSchool/actions/runs/41157983178
+- Archive: `MHS_M35_SOLO_TEST_REGISTRAZIONE_CLASSE1` (contiene la coppia .package + .ts4script)
+- Tutti i test offline e bytecode Python 3.7 superati; **NON ANCORA VERIFICATA NEL GIOCO**.
