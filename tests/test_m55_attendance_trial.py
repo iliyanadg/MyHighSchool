@@ -169,16 +169,19 @@ class M55Tests(unittest.TestCase):
         self.assertEqual(tuning.find('./T[@n="display_name"]').text,
                          '0x{:08X}'.format(LABEL_ID))
 
-    def test_package_and_23_script_modules(self):
+    def test_package_and_26_script_modules(self):
         r=inspect_bytes(package_bytes())
         self.assertEqual(r['status'],'STATIC_GATE_PASSED')
         self.assertEqual(r['resource_count'],63)
         self.assertEqual(r['category_count'],10)
         self.assertEqual(r['simdata_count'],10)
         names=[f.name for f in SCRIPTS]
-        self.assertEqual(len(names),23)
-        self.assertEqual(len(set(names)),23)
+        self.assertEqual(len(names),26)
+        self.assertEqual(len(set(names)),26)
         self.assertIn('mhs56_slot_identity.py',names)
+        self.assertIn('mhs57_school_manifest.py',names)
+        self.assertIn('mhs57_filter_policy.py',names)
+        self.assertIn('mhs57_filter_runtime.py',names)
         self.assertIn('mhs55_attendance_auto.py',names)
         self.assertIn('mhs55_attendance_core.py',names)
         self.assertIn('mhs55_attendance_ui.py',names)
@@ -266,6 +269,8 @@ class M55Tests(unittest.TestCase):
         self.assertIn('school_running(',auto)
         self.assertIn('already_in_base_student(',auto)
         self.assertIn('session.next_batch(_BATCH)',auto)
+        self.assertIn('mhs57_filter_runtime.installed()',auto)
+        self.assertIn('mhs57_filter_runtime.status()',auto)
         self.assertIn('session.record(sid, \'requested\')',auto)
         self.assertNotIn('_ROSTERS.save(',auto)
         self.assertNotIn('UiSimPicker',ui)
