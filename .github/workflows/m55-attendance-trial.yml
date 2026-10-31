@@ -1,4 +1,4 @@
-name: M55c automatic school attendance and live gate diagnostics
+name: M56 stable school save identity after travel
 on:
   workflow_dispatch:
   push:
@@ -21,7 +21,7 @@ jobs:
           python-version: '3.7'
       - name: M54 baseline and M55 fail-closed new native action
         run: |
-          PYTHONPATH=src/m2_registry:src/m53_staff:src/m55_attendance python -m unittest tests.test_m55_attendance_trial -v
+          PYTHONPATH=src/m2_registry:src/m53_staff:src/m55_attendance python -m unittest tests.test_m55_attendance_trial tests.test_m56_stable_school_slot -v
           PYTHONPATH=src/m2_registry:src/m53_staff python -m unittest tests.test_m54_human_staff_species -v
       - name: Compile M55 with the game-compatible Python 3.7
         run: python -m tooling.build_m55_attendance_trial dist/
@@ -31,17 +31,18 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile
           from tooling.simdata_release_gate import inspect_bytes
-          p=Path('dist/MHS_M55C_DIAGNOSTICA_PRESENZE_MAC_TEST.package')
+          p=Path('dist/MHS_M56_SLOT_STABILE_SCELTA_EA_MAC_TEST.package')
           z=Path('dist/MHS_M55C_DIAGNOSTICA_PRESENZE_MAC_TEST.ts4script')
           info=inspect_bytes(p.read_bytes())
           assert info['status']=='STATIC_GATE_PASSED'
           assert info['resource_count']==63
           assert info['category_count']==info['simdata_count']==10
           with ZipFile(z) as f:
-              assert len(f.namelist())==22
+              assert len(f.namelist())==23
               assert all(f.read(n)[:4]==bytes((66,13,13,10)) for n in f.namelist())
               assert 'mhs55_attendance_ui.pyc' in f.namelist()
               assert 'mhs55_attendance_auto.pyc' in f.namelist()
+              assert 'mhs56_slot_identity.pyc' in f.namelist()
           print('Static validation completed; real Mac school test REQUIRED')
           PY
       - uses: actions/upload-artifact@v4
