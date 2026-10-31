@@ -12,7 +12,7 @@ class M58GuestPolicyTests(unittest.TestCase):
         self.assertEqual(classify_situation(298096),'venue')
         self.assertIsNone(classify_situation(280756))
     def test_preselection_requires_verified_school(self):
-        args=(277733,[(277894,0)],['3','4'])
+        args=(277733,[(277894,0)],['3'])
         self.assertEqual(guest_list_decision(*args,verified_school_zone=True)['action'],'candidate')
         self.assertEqual(guest_list_decision(*args)['action'],'preserve')
         self.assertEqual(guest_list_decision(*args,verified_school_zone=True,active=False)['action'],'preserve')
@@ -20,6 +20,11 @@ class M58GuestPolicyTests(unittest.TestCase):
         self.assertEqual(guest_list_decision(277733,[(277894,42)],['3'],True)['action'],'preserve')
         self.assertEqual(guest_list_decision(298052,[(277895,0)],['3'],True)['action'],'preserve')
         self.assertEqual(guest_list_decision(277733,[(277895,0)],['3'],True)['action'],'preserve')
+    def test_reject_oversubscribed_or_multiple_requests(self):
+        self.assertEqual(guest_list_decision(277733,[(277894,0)],['3','4'],True)['action'],'preserve')
+        self.assertEqual(guest_list_decision(277733,[(277894,0),(277894,0)],['3'],True)['action'],'preserve')
+        self.assertEqual(guest_list_decision(277733,[(277894,0)],['invalid'],True)['action'],'preserve')
+
     def test_empty_requests(self):
         self.assertEqual(guest_list_decision(277733,[],['3'],True)['action'],'observe')
         self.assertEqual(guest_list_decision(277733,[(277894,0)],[],True)['action'],'preserve')
