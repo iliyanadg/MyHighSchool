@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/m27_remove_ui/mhs27_remove_ui.py'
       - 'src/m34_settings/mhs34_settings_ui.py'
+      - 'src/m39_visibility/mhs39_visibility_ui.py'
       - 'tooling/build_m52_removal_and_settings.py'
       - 'tooling/build_m39_conditional_menu.py'
       - 'tests/test_m27_remove_ui.py'
@@ -27,6 +28,18 @@ jobs:
           python -m unittest discover -s tests -p 'test_m26_withdrawal.py' -v
           python -m unittest discover -s tests -p 'test_m51_bulk_transfer.py' -v
           PYTHONPATH=src/m2_registry:src/m26_withdrawal python -m unittest tests.test_m50_enrollment_filter -v
+      - name: Ensure M52 class actions do not depend on missing script modules
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tooling.build_m48_single_checkmark import SCRIPTS
+          names={p.stem for p in SCRIPTS}
+          script=(Path('src/m39_visibility/mhs39_visibility_ui.py')).read_text()
+          assert 'mhs52_picker' not in script or 'import mhs52_picker' not in script
+          assert len(names)==17
+          assert 'mhs27_remove_ui' in names and 'mhs39_visibility_ui' in names
+          print('M52 menu script imports bundled removal module')
+          PY
       - name: Build M52 Mac test bundle
         run: python -m tooling.build_m52_removal_and_settings dist/
       - name: Check 35 DBPF entries and 17 Python 3.7 compiled modules
