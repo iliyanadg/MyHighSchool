@@ -1,0 +1,50 @@
+name: M52 native multi-removal and class 3 occupancy notice
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/m27_remove_ui/mhs27_remove_ui.py'
+      - 'src/m34_settings/mhs34_settings_ui.py'
+      - 'tooling/build_m52_removal_and_settings.py'
+      - 'tests/test_m27_remove_ui.py'
+      - 'tests/test_m52_removal_and_settings.py'
+      - '.github/workflows/m52-bulk-removal.yml'
+jobs:
+  compile:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Entire project regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Build M52 Mac test bundle
+        run: python -m tooling.build_m52_removal_and_settings dist/
+      - name: Check 35 DBPF entries and 17 Python 3.7 compiled modules
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          from tooling.simdata_release_gate import inspect_bytes
+          from tooling.build_m52_removal_and_settings import package_bytes
+          p=Path('dist/MHS_M52_RIMOZIONI_MULTIPLE_AVVISI_TEST.package')
+          s=Path('dist/MHS_M52_RIMOZIONI_MULTIPLE_AVVISI_TEST.ts4script')
+          assert p.read_bytes()==package_bytes()
+          info=inspect_bytes(p.read_bytes())
+          assert info['status']=='STATIC_GATE_PASSED' and info['category_count']==5 and info['simdata_count']==5
+          with zipfile.ZipFile(s) as z:
+              names=z.namelist()
+              assert len(names)==17
+              assert all(z.read(name)[:4]==bytes((66,13,13,10)) for name in names)
+          print('M52 code verified offline; Mac UI not yet tested')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M52_RIMOZIONI_MULTIPLE_MAC_TEST
+          path: |
+            dist/MHS_M52_RIMOZIONI_MULTIPLE_AVVISI_TEST.package
+            dist/MHS_M52_RIMOZIONI_MULTIPLE_AVVISI_TEST.ts4script
+          if-no-files-found: error
