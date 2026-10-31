@@ -93,3 +93,19 @@ def open_picker(klass,interaction):
     except Exception as exc:
         _notice(actor,'MY HIGH SCHOOL - Impossibile aprire',str(exc)[:130])
         return False
+
+class _Action(ImmediateSuperInteraction):
+    klass=0
+    def _run_interaction_gen(self,timeline):
+        open_picker(self.klass,self)
+        result=super()._run_interaction_gen(timeline)
+        if inspect.isgenerator(result):
+            return (yield from result)
+        return result
+
+class MHS27RemoveClass1(_Action):
+    klass=1
+class MHS27RemoveClass2(_Action):
+    klass=2
+class MHS28RemoveClass3(_Action):
+    klass=3
