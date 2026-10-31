@@ -202,6 +202,43 @@ class M55Tests(unittest.TestCase):
         self.assertIsNotNone(context['_HANDLE'])
         self.assertEqual(events[-1][0],'CONTROLLO_AVVIATO')
 
+    def test_roster_status_includes_playable_teens_within_eight_seats(self):
+        """The diagnostic must count all registry slots, not 8 NPC + household."""
+        source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py').read_text()
+        tree=ast.parse(source)
+        fragment=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
+                      and n.name=='_registration_diagnostic')
+        roster=make_roster({'10':1,'11':1,'12':2})
+        roster.assignments={'10':1,'11':1,'12':2}
+        household=SimpleNamespace(sim_info_gen=lambda:iter([
+            SimpleNamespace(sim_id=10,age=1,species=10,first_name='Sofia',last_name='A'),
+            SimpleNamespace(sim_id=99,age=1,species=10,first_name='Sandro',last_name='B'),
+            SimpleNamespace(sim_id=12,age=1,species=10,first_name='Giorgio',last_name='C')]))
+        context={
+            '_current_save_slot':lambda:'3',
+            '_ROSTERS':SimpleNamespace(load=lambda slot:roster),
+            '_SETTINGS':SimpleNamespace(load=lambda slot:SimpleNamespace(class_count=2)),
+            'services':SimpleNamespace(active_household=lambda:household),
+            'Age':SimpleNamespace(TEEN=1),
+            'Species':SimpleNamespace(HUMAN=10),
+            'valid_student':valid_student,
+        }
+        exec(compile(ast.Module(body=[fragment],type_ignores=[]),
+                     '<M55c roster display>',mode='exec'),context)
+        message=context['_registration_diagnostic']()
+        self.assertIn('C1 2/8',message)
+        self.assertIn('C2 1/8',message)
+        self.assertIn('Non iscritti: 1: Sandro B',message)
+
+    def test_runtime_diagnostics_are_read_only_and_expose_school_gate(self):
+        source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py').read_text()
+        self.assertIn("Situazione EA liceo Base_Student non rilevata",source)
+        self.assertIn('Controlli eseguiti:',source)
+        self.assertIn('_registration_diagnostic()',source)
+        self.assertNotIn('_ROSTERS.save(',source)
+        self.assertIn('_gate(\'ATTESA\'',source)
+        ast.parse(source)
+
     def test_auto_invites_without_picker_or_roster_write(self):
         auto=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py').read_text()
         ui=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py').read_text()
