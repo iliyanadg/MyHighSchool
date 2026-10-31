@@ -18,16 +18,19 @@ jobs:
           python-version: '3.7'
       - name: Full offline regression suite
         run: python -m unittest discover -s tests -v
-      - name: Verify no M44 release is built from identical M43 resources
+      - name: Verify regenerated references correct the original M43 bug
         run: |
           python - <<'PY'
           from tests.test_m44_tdesc_merge import exported_categories
           from tooling.build_m44_tdesc_merge import transform,M44BuildError
           try:
-              transform(exported_categories())
+              transform(exported_categories(legacy_low_parent=True))
           except M44BuildError as e:
-              assert 'UNCHANGED' in str(e)
-              print('PASS: identical SimData blocks do not trigger redundant user tests')
+              assert 'parent mismatch' in str(e)
+              print('PASS: reject original low-half hand-patched references')
           else:
-              raise AssertionError('Expected identical-export guard')
+              raise AssertionError('M43 low-half parent was incorrectly accepted')
+          rows,changes=transform(exported_categories())
+          assert len(rows)==35 and sum(x.startswith('simdata:') for x in changes)==4
+          print('PASS: accept fresh TDesc high-half parent encoding')
           PY
