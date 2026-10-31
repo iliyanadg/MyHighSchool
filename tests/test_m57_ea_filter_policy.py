@@ -147,6 +147,62 @@ class M57EAFilterTests(unittest.TestCase):
         self.assertIn("'Ultimo errore: {}'.format(",src)
         self.assertIn("_LAST_ERROR=message",src)
 
+    def test_entire_ea_filter_hook_routes_method_name_to_policy(self):
+        """Integrate the actual installation wrapper AND filter processing.
+
+        The M57b Mac failure occurred because the wrapper passed
+        'submit_matching_filter' instead of the policy mode 'matching'.
+        Calling _filtered in isolation did not catch this mistake.
+        """
+        src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
+        tree=ast.parse(src)
+        functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)
+                   and n.name in ('install_filter_hooks','_filtered')]
+        self.assertEqual(len(functions),2)
+        calls=[]
+        class FakeEAFilterService(object):
+            def submit_matching_filter(self,*args,**kw):
+                calls.append(('matching',args,kw))
+                return 'EA matching result'
+            def submit_filter(self,*args,**kw):
+                calls.append(('filter',args,kw))
+                return 'EA filter result'
+        actions=[]
+        ctx={
+            'SimFilterService':FakeEAFilterService,
+            'guid_for_filter':guid_for_filter,
+            'SCHOOL_FILTERS':SCHOOL_FILTERS,
+            'CORE_FILTERS':CORE_FILTERS,
+            '_CONFLICTS':(),
+            '_manifest':manifest,
+            'apply_constraints':apply_constraints,
+            '_log':lambda *args: actions.append(args),
+            '_INSTALLED':False,
+            'RuntimeError':RuntimeError,
+        }
+        exec(compile(ast.Module(body=functions,type_ignores=[]),
+                     '<M57c end-to-end EA filter hooks>','exec'),ctx)
+        self.assertTrue(ctx['install_filter_hooks']())
+        service=FakeEAFilterService()
+        student=type('StudentFilter',(),{'guid64':STUDENT_FILTER})
+        teacher=type('TeacherFilter',(),{'guid64':296396})
+        core=type('CoreFilter',(),{'guid64':303766})
+        self.assertEqual(service.submit_matching_filter(1,student),
+                         'EA matching result')
+        self.assertEqual(calls[-1][2]['sim_constraints'],tuple(range(3,17)))
+        self.assertEqual(service.submit_filter(teacher),
+                         'EA filter result')
+        self.assertEqual(calls[-1][2]['sim_constraints'],(202,))
+        self.assertEqual(service.submit_matching_filter(1,core),
+                         'EA matching result')
+        self.assertNotIn('sim_constraints',calls[-1][2])
+        self.assertEqual(actions[-1][0],'preserve')
+        self.assertEqual([a[0] for a in actions],[
+            'constrain','constrain','preserve'])
+        self.assertTrue(ctx['install_filter_hooks']()) # no double wrapping
+        self.assertEqual(service.submit_filter(teacher),'EA filter result')
+        self.assertEqual(len(calls),4)
+
     def test_filter_adapter_can_call_exact_original_unchanged_on_failure(self):
         src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
         f=next(n for n in ast.parse(src).body
@@ -250,7 +306,8 @@ class M57EAFilterTests(unittest.TestCase):
 
     def test_does_not_copy_or_modify_game_tunings(self):
         runtime=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
-        self.assertIn("('submit_matching_filter','submit_filter')",runtime)
+        self.assertIn("('submit_matching_filter','matching')",runtime)
+        self.assertIn("('submit_filter','filter')",runtime)
         self.assertIn("current_slot(allow_travel=True)",runtime)
         self.assertNotIn("set_trait(",runtime)
         self.assertNotIn("create_situation(",runtime)
