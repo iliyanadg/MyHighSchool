@@ -120,6 +120,7 @@ class M57EAFilterTests(unittest.TestCase):
             return 'EA success'
         fake=type('Svc',(),{})()
         ctx={'guid_for_filter':guid_for_filter,'SCHOOL_FILTERS':SCHOOL_FILTERS,
+             '_CONFLICTS':(),
              '_manifest':lambda:manifest(),
              'apply_constraints':apply_constraints,
              '_log':lambda *items:events.append(items)}
