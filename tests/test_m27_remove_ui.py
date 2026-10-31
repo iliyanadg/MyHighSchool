@@ -204,6 +204,8 @@ class UiTests(unittest.TestCase):
         picker.UiSimPicker=types.SimpleNamespace(
             TunableFactory=lambda:types.SimpleNamespace(default=factory.default))
         picker.SimPickerRow=Row
+        picker.UiDialogObjectPicker=types.SimpleNamespace(
+            _MaxSelectableUnlimited=NativeSelectable)
         self.mod._dialog_factory=load_ui()._dialog_factory
         with patch.dict(sys.modules,{
             'sims4.localization':loc,
