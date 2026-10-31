@@ -69,14 +69,20 @@ class TravelSlotGuard(object):
             self.last_source = 'unverified_school_zone'
             raise IdentityError('Nessun slot verificato prima del viaggio')
 
-        if stable is None or stable != self.stable_guid:
-            self.last_source = 'stable_guid_mismatch'
+        if stable is None:
+            self.last_source = 'stable_guid_temporarily_missing'
+            raise IdentityError('GUID stabile EA momentaneamente indisponibile')
+        if stable != self.stable_guid:
             self.reset()
+            self.last_source = 'stable_guid_mismatch'
             raise IdentityError('Identita salvataggio cambiata; nessun registro letto')
 
-        if household is None or household != self.household_id:
-            self.last_source = 'household_mismatch'
+        if household is None:
+            self.last_source = 'household_temporarily_missing'
+            raise IdentityError('Famiglia attiva EA non ancora caricata')
+        if household != self.household_id:
             self.reset()
+            self.last_source = 'household_mismatch'
             raise IdentityError('Nucleo attivo diverso; nessun registro letto')
 
         self.last_source = 'verified_zone_travel'
