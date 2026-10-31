@@ -1,0 +1,52 @@
+name: M55 one enrolled student school attendance test
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m55_attendance/**'
+      - 'tooling/build_m55_attendance_trial.py'
+      - 'tests/test_m55_attendance_trial.py'
+      - '.github/workflows/m55-attendance-trial.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: M54 baseline and M55 fail-closed new native action
+        run: |
+          PYTHONPATH=src/m2_registry:src/m53_staff:src/m55_attendance python -m unittest tests.test_m55_attendance_trial -v
+          PYTHONPATH=src/m2_registry:src/m53_staff python -m unittest tests.test_m54_human_staff_species -v
+      - name: Compile M55 with the game-compatible Python 3.7
+        run: python -m tooling.build_m55_attendance_trial dist/
+      - name: Inspect generated binary and archive
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.package')
+          z=Path('dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.ts4script')
+          info=inspect_bytes(p.read_bytes())
+          assert info['status']=='STATIC_GATE_PASSED'
+          assert info['resource_count']==63
+          assert info['category_count']==info['simdata_count']==10
+          with ZipFile(z) as f:
+              assert len(f.namelist())==21
+              assert all(f.read(n)[:4]==bytes((66,13,13,10)) for n in f.namelist())
+              assert 'mhs55_attendance_ui.pyc' in f.namelist()
+          print('Static validation completed; real Mac school test REQUIRED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M55_UNO_STUDENTE_LICEO_MAC_TEST
+          path: |
+            dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.package
+            dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.ts4script
+          if-no-files-found: error
