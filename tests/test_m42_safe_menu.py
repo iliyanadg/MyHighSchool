@@ -36,7 +36,10 @@ class TestM42(unittest.TestCase):
     def test_no_m41_attribute_error_with_hidden_actions(self):
         path=Path(__file__).resolve().parents[1]/'src'/'m39_visibility'/'mhs39_visibility_ui.py'
         source=path.read_text(encoding='utf-8')
-        self.assertNotIn('TestResult.FALSE',source.replace('nonexistent TestResult.FALSE',''))
+        # Check executable mixin body; documentation may mention the bad M41 constant.
+        check_start=source.index('class _MHS39VisibilityMixin(object):')
+        check_end=source.index('\\n\\nfor _module',check_start)
+        self.assertNotIn('TestResult.FALSE',source[check_start:check_end])
         # Import just the real mixin class with stubs in place of Sims 4
         # unavailable modules, to execute the exact code in a unit test.
         start=source.index('class _MHS39VisibilityMixin(object):')
