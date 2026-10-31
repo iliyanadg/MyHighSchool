@@ -52,3 +52,13 @@ def open_picker(klass,interaction):
         choices=candidate_rows(roster,klass,_lookup_sim_info)
         if not choices or actor is None:
             return False
+        before=roster_fingerprint(roster)
+        allowed=set(roster.class_members(klass))
+        limit=min(8,len(choices))
+        picker=UiSimPicker.TunableFactory().default(
+            actor,title=_str('Rimuovi studenti - Classe {}'.format(klass)),
+            text=_str('Seleziona gli iscritti. Spunta per rimuovere, X per annullare.'),
+            min_selectable=1,max_selectable=_max(limit),
+            should_show_names=True,hide_row_description=False)
+        for sim in choices:
+            picker.add_row(SimPickerRow(sim.sim_id,False,tag=sim.sim_id))
