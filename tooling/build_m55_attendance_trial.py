@@ -28,12 +28,15 @@ SLOT = ROOT/'src'/'m2_registry'/'mhs56_slot_identity.py'
 CORE = ROOT/'src'/'m55_attendance'/'mhs55_attendance_core.py'
 AUTO = ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py'
 UI = ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py'
-SCRIPTS = tuple(M54_SCRIPTS) + (SLOT, CORE, AUTO, UI)
+MANIFEST = ROOT/'src'/'m57_selection'/'mhs57_school_manifest.py'
+POLICY = ROOT/'src'/'m57_selection'/'mhs57_filter_policy.py'
+FILTER_RUNTIME = ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py'
+SCRIPTS = tuple(M54_SCRIPTS) + (SLOT, MANIFEST, POLICY, FILTER_RUNTIME, CORE, AUTO, UI)
 ACTION = 'Iliyana:MHS55_Attendance_One'
 ACTION_ID = fnv64_highbit(ACTION)
 LABEL_ID = 0x5A895200
-PACKAGE = 'MHS_M56_SLOT_STABILE_SCELTA_EA_MAC_TEST.package'
-SCRIPT = 'MHS_M56_SLOT_STABILE_SCELTA_EA_MAC_TEST.ts4script'
+PACKAGE = 'MHS_M57_FILTRO_SCUOLA_EA_MAC_TEST.package'
+SCRIPT = 'MHS_M57_FILTRO_SCUOLA_EA_MAC_TEST.ts4script'
 
 
 class M55BuildError(ValueError):
@@ -93,7 +96,7 @@ def _interaction(template):
 
 def transformed_resources():
     existing = resources(build_m54_package())
-    if len(existing) != 62 or len(SCRIPTS) != 23:
+    if len(existing) != 62 or len(SCRIPTS) != 26:
         raise M55BuildError('Unexpected M54 baseline')
     source = next((raw for typ, group, iid, raw in existing
                    if typ == TYPE_INTERACTION and
@@ -179,6 +182,8 @@ def release(directory):
             'automatic_full_roster_dispatch':True,
             'school_gate_diagnostic':True,
             'stable_save_guid_travel_guard':True,
+            'pre_spawn_EA_filter_constraints':True,
+            'legacy_additional_invites_disabled':True,
             'read_only_active_teens_roster_count':True,
             'batch_size_per_five_sim_minutes':3,
             'max_roster_students':24,
