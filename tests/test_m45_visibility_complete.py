@@ -81,7 +81,7 @@ class M45VisibilityTests(unittest.TestCase):
             'TestResult':FakeResult,
             'SimPickerInteraction':Picker,
             '_CONFIG':fake,
-            'current_slot':lambda:11,
+            'current_slot':lambda **kwargs:11,
             'available_from_settings':lambda settings,action,n:
                 allowed(settings.active,settings.class_count,action,n),
         }
