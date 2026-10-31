@@ -16,11 +16,10 @@ import inspect
 import os
 
 import services
-import sims4.collections
 from sims.sim_info_types import Age
 from sims4.localization import LocalizationHelperTuning
 from interactions.base.immediate_interaction import ImmediateSuperInteraction
-from ui.ui_dialog_picker import UiSimPicker, SimPickerRow
+from ui.ui_dialog_picker import UiSimPicker, SimPickerRow, UiDialogObjectPicker
 from ui.ui_dialog_notification import UiDialogNotification
 
 from mhs_m2_game_bridge import current_slot, teenager_checker
@@ -78,10 +77,21 @@ def _teens():
 
 
 def _max_selectable(limit):
-    """Use EA's tuned max_selectable record; never permit >8 in UI."""
-    cls=sims4.collections.make_immutable_slots_class(
-        {'multi_select','number_selectable','max_type'})
-    return cls({'multi_select':False,'number_selectable':limit,'max_type':1})
+    """Use a real EA picker strategy object, not obsolete ImmutableSlots.
+
+    TS4 now calls max_selectable.get_max_selectable() while building the
+    picker. The old 2015 ImmutableSlots recipe caused a runtime exception
+    on game patch 1.129. We use EA's known _MaxSelectableUnlimited type
+    rather than passing an invented structure. We still REJECT a choice
+    exceeding eight Sims in our game and backend callbacks; never save it.
+    """
+    if type(limit) is not int or not 1<=limit<=8:
+        raise ValueError('Limite di selezione non valido')
+    factory=UiDialogObjectPicker._MaxSelectableUnlimited
+    strategy=factory()
+    if not callable(getattr(strategy,'get_max_selectable',None)):
+        raise TypeError('La strategia EA del selettore non e compatibile')
+    return strategy
 
 
 def open_picker(klass,interaction):
