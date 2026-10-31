@@ -30,7 +30,7 @@ class Tests(unittest.TestCase):
             'roster_fingerprint':roster_fingerprint,
             'plan_removal':plan_removal,'canonical_sim_id':canonical_sim_id,
             'RosterError':RosterError,'_notice':lambda *args:notices.append(args),
-            '_txt':lambda msg:msg,'_max':lambda count:count,
+            '_txt':lambda msg:msg,'_str':lambda msg:msg,'_max':lambda count:count,
             'UiSimPicker':DialogFactory,
             'SimPickerRow':lambda sid,checked,tag:SimpleNamespace(sim_id=sid,tag=tag)}
         exec(compile(ast.Module(body=[fn],type_ignores=[]),
