@@ -62,3 +62,20 @@ def open_picker(klass,interaction):
             should_show_names=True,hide_row_description=False)
         for sim in choices:
             picker.add_row(SimPickerRow(sim.sim_id,False,tag=sim.sim_id))
+        done=[False]
+        def on_answer(result):
+            if done[0]:
+                return
+            done[0]=True
+            if not getattr(result,'accepted',False):
+                return
+            try:
+                ids=tuple(canonical_sim_id(t) for t in result.get_result_tags())
+                if not 1<=len(ids)<=limit or len(set(ids))!=len(ids):
+                    raise RosterError('Selezione non valida')
+                if not set(ids).issubset(allowed) or current_slot()!=slot:
+                    raise RosterError('Selezione o partita cambiata')
+                _SETTINGS.require_management(slot,klass)
+                current=_STORE.load(slot)
+                if roster_fingerprint(current)!=before:
+                    raise RosterError('Registro cambiato: riapri il menu')
