@@ -25,8 +25,9 @@ from tooling.simdata_release_gate import inspect_bytes, resources
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT/'src'/'m55_attendance'/'mhs55_attendance_core.py'
+AUTO = ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py'
 UI = ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py'
-SCRIPTS = tuple(M54_SCRIPTS) + (CORE, UI)
+SCRIPTS = tuple(M54_SCRIPTS) + (CORE, AUTO, UI)
 ACTION = 'Iliyana:MHS55_Attendance_One'
 ACTION_ID = fnv64_highbit(ACTION)
 LABEL_ID = 0x5A895200
@@ -42,8 +43,8 @@ def _stbl(raw, locale):
     old = parse_stbl(raw)
     if LABEL_ID in old:
         raise M55BuildError('STBL key already exists')
-    value = ('M55 TEST - Convoca 1 studente Classe 1' if locale == 'it'
-             else 'M55 TEST - Invite one Class 1 student')
+    value = ('M55 - Consulta presenze automatiche' if locale == 'it'
+             else 'M55 - View automatic school attendance')
     table = dict(old)
     table[LABEL_ID] = value
     body = bytearray()
@@ -91,7 +92,7 @@ def _interaction(template):
 
 def transformed_resources():
     existing = resources(build_m54_package())
-    if len(existing) != 62 or len(SCRIPTS) != 21:
+    if len(existing) != 62 or len(SCRIPTS) != 22:
         raise M55BuildError('Unexpected M54 baseline')
     source = next((raw for typ, group, iid, raw in existing
                    if typ == TYPE_INTERACTION and
@@ -174,7 +175,10 @@ def release(directory):
             'existing_resources_with_only_new_localization_or_injector':3,
             'new_interactions':1,'resource_count':63,
             'script_modules':len(SCRIPTS),
-            'automated_school_attendance':False,
+            'automatic_full_roster_dispatch':True,
+            'batch_size_per_five_sim_minutes':3,
+            'max_roster_students':24,
+            'EA_attendance_requires_in_game_validation':True,
             'package_sha256':hashlib.sha256(blob).hexdigest()}
 
 
