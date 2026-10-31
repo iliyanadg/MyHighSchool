@@ -44,7 +44,7 @@ Le operazioni sono ancora `ImmediateSuperInteraction` (spesso non funzionano fin
 1. Nel save TEST 11, con gioco completamente chiuso, **fare backup della cartella `MY_HIGH_SCHOOL_M25_TEST_DATA`**. La scrittura dei JSON esterni non segue Salva/Non salvare del gioco.
 2. Rimuovere dalla Mods tutte le vecchie coppie MHS, in particolare M37/M36/M35B, ma conservarle fuori da Mods per recupero. Inserire solo la coppia M41 (package + ts4script) con XML Injector già installato.
 3. Avviare il gioco, mettere in pausa. Cliccare cassetta postale. Se il menu non compare o Better Exceptions segnala `invalid category ID`, **NON usare alcun pulsante**; chiudere senza salvare, togliere M41 e ripristinare M35B (o M34), inviando screenshot report.
-4. Se il menu appare, verificare che `MY HIGH SCHOOL (M38 TEST)`/root sia l'unico ramo principale MHS, con `Attiva` quando il registro è spento. Nessun pulsante Classe 1/2/3 a livello radice. La label root rimane quella di M38 perché M39/M41 hanno preservato STBL.
+4. Se il menu appare, verificare che `MY HIGH SCHOOL`/root sia l'unico ramo principale MHS, con `Attiva` quando il registro è spento. Nessun pulsante Classe 1/2/3 a livello radice. Le etichette sono pulite in italiano e inglese.
 5. Attivare dalla radice con tempo avviato se necessario. Riaprire il menu: `Classe 1`, `Classe 2`, `Impostazioni` compaiono e Classe 3 è ancora nascosta quando la configurazione è 2 classi.
 6. Aprire Classe 1 e Classe 2 per vedere l'insieme completo (Iscrivi/Consulta/Rimuovi/Trasferisci), senza selezionare alcun studente.
 7. Aprire Impostazioni e selezionare `usa 3 classi` (possibilmente avviando tempo per eseguire l'interazione); verificare che Classe 3 ora compaia. Poi si può ripristinare lo stato precedente con 2 classi (Classe 3 vuota) e Disattiva; queste impostazioni scrivono nel JSON esterno.
@@ -52,5 +52,8 @@ Le operazioni sono ancora `ImmediateSuperInteraction` (spesso non funzionano fin
 
 **Obiettivo dopo prima prova M41:** non continuare a generare pacchetti per un click alla volta. Se l'albero funziona, terminare insieme la logica di conferma nativa e la scrittura delle operazioni mentre il gioco è in pausa, poi fare un test end-to-end complessivo.
 
-### Nota tecnica sulla denominazione
-Il root compare ancora `MY HIGH SCHOOL (M38 TEST)` e la Classe 1 riporta `Classe 1 - M35 PROVA` perché il builder M41 ha preservato le STBL già verificate: è normale in questa build. Le etichette definitive si applicheranno dopo il test del menu; **non confondere il nome temporaneo con la struttura**.
+### Nomi dei pulsanti aggiornati
+
+Il pacchetto M41 più recente utilizza nomi senza vecchi suffissi: MY HIGH SCHOOL, Classe 1, Classe 2, Classe 3 e Impostazioni. Etichette verificate in italiano e inglese senza modificare la logica delle interazioni.
+
+Build completa aggiornata con test superati: https://github.com/iliyanadg/MyHighSchool/actions/runs/41166160592
