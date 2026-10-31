@@ -24,6 +24,34 @@ _INSTALLED=False
 _HOOK_ERRORS=[]
 _STATS={'constrain':0,'preserve':0,'bypass':0,'error':0}
 _LAST_EVENT='Filtro M57 in attesa della selezione EA'
+_CONFLICTS=()
+
+
+def _find_conflicting_school_mods():
+    """One-time filename-only scan; never touch or delete another mod.
+
+    User-confirmed legacy school controllers conflict with native EA school
+    filters. This avoids activating two incompatible selectors together.
+    """
+    mods=os.path.join(os.path.expanduser('~'),'Documents',
+                      'Electronic Arts','The Sims 4','Mods')
+    patterns=('sonozaki','morestudents','more_students',
+              'rex_chooseclassmate','choosehighschoolclassmate',
+              'choose_high_school_classmates')
+    found=set()
+    try:
+        for root, folders, files in os.walk(mods):
+            for name in files:
+                lower=name.lower().replace(' ','_')
+                if lower.endswith(('.package','.ts4script')) and any(
+                        p in lower for p in patterns):
+                    found.add(name)
+    except Exception:
+        return ('Ricerca incompatibilita non disponibile',)
+    return tuple(sorted(found))
+
+
+_CONFLICTS=_find_conflicting_school_mods()
 
 
 def _log(status, filter_id=None, detail=''):
@@ -57,6 +85,9 @@ def _filtered(original, self, args, kwargs, method):
     tuning=kwargs.get('sim_filter',args[idx] if len(args)>idx else None)
     guid=guid_for_filter(tuning)
     if guid not in SCHOOL_FILTERS:
+        return original(self,*args,**kwargs)
+    if _CONFLICTS:
+        _log('preserve',guid,'Altro controller liceo installato')
         return original(self,*args,**kwargs)
     try:
         plan=_manifest()
@@ -147,7 +178,9 @@ def physical_status():
 def status():
     return ('Selezione M57: {}. Filtri limitati: {} | non modificati: {} '
             '| errori: {}. Ultimo: {}'.format(
-                'installata' if _INSTALLED else 'non installata',
+                'bloccata (altre mod liceo: {})'.format(
+                    ', '.join(_CONFLICTS[:2])) if _CONFLICTS
+                else ('installata' if _INSTALLED else 'non installata'),
                 _STATS['constrain'],_STATS['preserve']+_STATS['bypass'],
                 _STATS['error'],_LAST_EVENT))
 
