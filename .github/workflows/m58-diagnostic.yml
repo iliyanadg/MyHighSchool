@@ -7,8 +7,10 @@ on:
     paths:
       - 'src/m58_selection/**'
       - 'src/m55_attendance/mhs55_attendance_auto.py'
+      - 'src/m55_attendance/mhs55_attendance_ui.py'
       - 'tooling/build_m58_diagnostic.py'
       - 'tests/test_m58_situation_probe.py'
+      - 'tests/test_m58_notification.py'
       - '.github/workflows/m58-diagnostic.yml'
 permissions:
   contents: read
@@ -24,7 +26,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Run M58 pure diagnostic unit tests
-        run: python -m unittest tests.test_m58_situation_probe -v
+        run: python -m unittest tests.test_m58_situation_probe tests.test_m58_notification -v
       - name: Build Mac compatible diagnostic
         run: python -m tooling.build_m58_diagnostic dist/
       - name: Verify no guest mutation and Python 3.7 bytecode
