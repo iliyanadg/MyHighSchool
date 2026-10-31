@@ -18,6 +18,7 @@ from sims4.localization import LocalizationHelperTuning
 
 from mhs_m2_game_bridge import current_slot, slot_identity_status
 import mhs57_filter_runtime
+import mhs58_situation_probe
 from mhs_m2_store import RosterStore
 from mhs34_settings import SettingsStore
 from mhs55_attendance_core import (
@@ -267,6 +268,12 @@ def _start_zone(zone):
     _HANDLE = None
     _ZONE = zone
     _SESSION = None
+    # Read-only observation: no EA guest assignment or situation changes.
+    try:
+        from situations.situation_manager import SituationManager
+        mhs58_situation_probe.install_probe(SituationManager)
+    except Exception as exc:
+        _event('M58_DIAGNOSTICA', type(exc).__name__)
     # Bind the original save *before* the next possible trip when the live
     # home-zone proto has a positive slot. No registry data is modified.
     try:
@@ -319,6 +326,7 @@ def status_lines():
               mhs57_filter_runtime.status(),
               mhs57_filter_runtime.filter_observation_status(),
               mhs57_filter_runtime.physical_status(),
+              'M58 situazioni EA (sola lettura): {}'.format(mhs58_situation_probe.status()),
               _registration_diagnostic(),
               'Ultimo evento: {}'.format(_LAST_EVENT)]
     if _SESSION is None:
