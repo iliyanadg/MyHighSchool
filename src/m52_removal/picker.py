@@ -1,1 +1,3 @@
-# Native picker for classroom roster administration
+# Multi-student native picker for school enrollment records
+import inspect
+import services
