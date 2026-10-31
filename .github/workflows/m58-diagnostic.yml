@@ -6,6 +6,7 @@ on:
       - feature/m55-presenze-studente-test
     paths:
       - 'src/m58_selection/**'
+      - 'src/m57_selection/mhs57_filter_runtime.py'
       - 'src/m55_attendance/mhs55_attendance_auto.py'
       - 'src/m55_attendance/mhs55_attendance_ui.py'
       - 'tooling/build_m58_diagnostic.py'
