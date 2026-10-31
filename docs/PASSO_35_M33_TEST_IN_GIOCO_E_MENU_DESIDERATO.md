@@ -33,3 +33,11 @@ Tutti i comandi `*commit conferma` scrivono immediatamente sul JSON esterno di t
 - Dunque il picker fotografico del trasferimento **si apre** e produce una selezione preparata in memoria con un iscritto della Classe 1. Non è stato ancora confermato alcun `commit` al registro esterno; la convalida di `mhs32.transferpreview` è il prossimo test.
 - Per gli altri picker M33, **togliere la pausa prima di concludere che il comando non funziona**. Usare console di diagnostica dedicata se non compare la finestra dopo che il gioco è in esecuzione.
 - Rimane prioritario per l'UX finale il menu annidato MY HIGH SCHOOL → Classe 1/2/3 → operazioni, senza reintrodurre categorie invalide.
+
+## Aggiornamento 31 ottobre 2026, ore 01:30 — anteprima trasferimento e richiesta pausa
+- Il comando `mhs32.transferpreview` sulla M33 ha funzionato in gioco: un solo Sim **Amarachi Darong** da Classe 1 a Classe 3; Classe 1 prevista **1/8**, Classe 3 prevista **1/8**. È un'anteprima, **non** una scrittura del JSON.
+- **Nuovo requisito NON negoziabile dell'utente:** ogni operazione gestionale di MY HIGH SCHOOL (iscrizione, rimozione, trasferimento, consultazione e conferma) deve poter essere selezionata e confermata **anche quando il tempo in The Sims 4 è in pausa**, senza avviare l'orologio.
+- La M33 usa attualmente `ImmediateSuperInteraction` e il picker è stato eseguito dopo aver tolto la pausa: non dichiarare supporto alla pausa finché un nuovo meccanismo non è stato verificato nel client reale.
+- **Secondo requisito UX:** conferma della modifica e aggiornamento del registro tramite UI di gioco, senza dipendere da `*.commit conferma` digitati in console. Prevedere conferma esplicita e rollback, mantenendo l'anteprima prima di scrivere.
+- **Test di accettazione futuro:** gioco in pausa → interagire con PC/cassetta postale → selezionare Sim → confermare tramite UI → vedere subito il nuovo registro nello stesso slot mantenendo il tempo fermo; verificare annullamento e persistenza dopo riavvio; **nessuna cancellazione di Sim**.
+- Durante gli attuali test M33 NON usare commit; le operazioni console restano provvisorie e, se confermate, modificano il JSON esterno anche quando il .save non è salvato.
