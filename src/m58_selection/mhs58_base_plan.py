@@ -64,6 +64,8 @@ def plan_base_roster(manifest, core_roles=None, unavailable=()):
     ineligible = set(_ids(unavailable))
     if not ineligible.issubset(set(cohort)):
         raise M58PlanError('unavailable Sim outside roster')
+    if set(core) & ineligible:
+        raise M58PlanError('core role Sim is unavailable')
     npc = tuple(s for s in cohort if s not in playable and s not in core
                 and s not in ineligible)
     overflow = tuple(npc[BASE_STUDENT_CAPACITY:])
@@ -73,7 +75,7 @@ def plan_base_roster(manifest, core_roles=None, unavailable=()):
         'base_job':BASE_STUDENT_JOB,
         'base_guest_ids':slots,
         'overflow_ids':overflow,
-        'core_roles':dict(core_roles),
+        'core_roles':{role:str(sid) for role,sid in core_roles.items()},
         'playable_ids':tuple(s for s in cohort if s in playable),
         'unavailable_ids':tuple(s for s in cohort if s in ineligible),
         'unassigned_core_slots':tuple(
