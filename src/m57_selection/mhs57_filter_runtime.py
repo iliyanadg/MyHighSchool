@@ -235,6 +235,39 @@ def physical_status():
             type(exc).__name__)
 
 
+def m59_snapshot():
+    """Read-only aggregate matching of enrolled teens and actual on-zone Sims."""
+    result={'filter_calls':_FILTER_CALLS,
+            'school_filter_counts':{
+                str(k):v[0] for k,v in _FILTER_OBSERVATIONS.items()
+                if k in SCHOOL_FILTERS},
+            'constraint_success':_STATS['constrain'],
+            'constraint_preserved':_STATS['preserve'],
+            'errors':_STATS['error'],
+            'manifest_available':False}
+    try:
+        plan=_manifest()
+        if plan is None:
+            return result
+        result['manifest_available']=True
+        result['registered_students']=len(plan.all_student_ids)
+        manager=services.sim_info_manager()
+        if manager is None:
+            return result
+        actual=set()
+        for info in manager.get_all():
+            try:
+                if info.get_sim_instance() is not None:
+                    actual.add(str(info.sim_id))
+            except Exception:
+                continue
+        result['registered_present_on_zone']=len(actual.intersection(plan.all_student_ids))
+        result['registered_missing_on_zone']=len(plan.all_student_ids-actual)
+    except Exception as exc:
+        result['snapshot_error']=type(exc).__name__
+    return result
+
+
 def status():
     return ('Selezione M57d: {}. Filtri limitati: {} | non modificati: {} '
             '| errori: {}. Ultimo: {}. Ultimo errore: {}'.format(
