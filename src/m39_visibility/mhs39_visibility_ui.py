@@ -9,6 +9,7 @@ verification.  Use an actual TestResult(False) rather than the nonexistent
 TestResult.FALSE class constant (M41 caused repeat LastExceptions on the mailbox). No school-attendance override or pause-time execution yet.
 """
 from event_testing.results import TestResult
+from interactions.base.picker_interaction import SimPickerInteraction
 from mhs_m2_game_bridge import current_slot
 from mhs34_settings_ui import _CONFIG
 from mhs39_visibility_rules import available_from_settings
@@ -60,4 +61,20 @@ for _module,_name,_action,_klass in SPECS:
         {'__module__':__name__,
          '_mhs39_action':_action,
          '_mhs39_class':_klass}
+    )
+
+
+# M45: the three *visible* 'Prepara iscrizione' buttons are EA
+# SimPickerInteraction tunings. M39 deliberately left them unguarded,
+# so the class categories remained on screen after disabling the
+# school or Class 3 even though the other 19 actions disappeared.
+# Create distinct subclasses because all three tunings share the same
+# original SimPickerInteraction tuning class but have different class IDs.
+for _class_number in (1, 2, 3):
+    _class_name='MHS45ChooseClass{}'.format(_class_number)
+    globals()[_class_name]=type(
+        _class_name,(_MHS39VisibilityMixin,SimPickerInteraction),
+        {'__module__':__name__,
+         '_mhs39_action':'class',
+         '_mhs39_class':_class_number}
     )
