@@ -2,10 +2,8 @@
 
 Modifies exactly the three "Prepara iscrizione" affordance tuning XMLs,
 converting them from SimPickerInteraction to ImmediateSuperInteraction
-compatible with mhs47_enrollment_ui.MHS47EnrollmentImmediateBase. The
-interaction launches its own native SimPicker and an independent Yes/No
-confirmation, then invokes M46's validated transactional save only on
-confirmed callback. The other 32 DBPF resources are unchanged.
+compatible with mhs48_single_picker._EnrollmentAction. The native SimPicker checkmark immediately saves the validated batch;
+X closes without modifying the registry. There is no second dialog. The other 32 DBPF resources are unchanged.
 
 Existing M45 class categories, four Lot51 child SimData, all category
 parents and activation/visibility logic are untouched. Python 3.7 required.
@@ -32,7 +30,7 @@ from tooling.simdata_release_gate import resources,inspect_bytes
 
 ROOT=Path(__file__).resolve().parents[1]
 TXN=ROOT/'src'/'m2_registry'/'mhs46_enrollment_transaction.py'
-ENROLL_UI=ROOT/'src'/'m48_enrollment'/'mhs47_enrollment_ui.py'
+ENROLL_UI=ROOT/'src'/'m48_enrollment'/'mhs48_single_picker.py'
 SCRIPTS=tuple(M34_SCRIPTS)+(RULES,UI,TXN,ENROLL_UI)
 PACKAGE='MHS_M48_ISCRIZIONE_SPUNTA_UNICA_TEST.package'
 SCRIPT='MHS_M48_ISCRIZIONE_SPUNTA_UNICA_TEST.ts4script'
