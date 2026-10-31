@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'src'/'m55_attendance'))
 
 from mhs55_attendance_core import (
-    AttendanceError, valid_student, roster_plan, school_running,
+    AttendanceError, valid_student, roster_plan, resolve_save_slot, school_running,
     already_in_base_student, DailyAttendance, create_student_request,
     BASE_STUDENT_SITUATION, BASE_STUDENT_JOB)
 from tooling.build_m55_attendance_trial import (
@@ -29,6 +29,15 @@ def make_roster(assignments):
 
 
 class M55Tests(unittest.TestCase):
+    def test_two_live_ea_save_sources_and_travel_zero(self):
+        self.assertEqual(resolve_save_slot('3', 3), '3')
+        self.assertEqual(resolve_save_slot(None, 3), '3')
+        self.assertEqual(resolve_save_slot(0, 3), '3')
+        self.assertEqual(resolve_save_slot(3, 0), '3')
+        for first, second in ((3,4),(0,None),(None,0),(-1,3),('bad',3)):
+            with self.assertRaises(AttendanceError):
+                resolve_save_slot(first, second)
+
     def test_human_teen_only(self):
         teenager, adult, human, dog = 1, 2, 10, 20
         self.assertTrue(valid_student(SimpleNamespace(age=teenager,species=human),
