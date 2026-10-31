@@ -6,6 +6,7 @@ on:
       - feature/m55-presenze-studente-test
     paths:
       - 'src/m58_selection/**'
+      - 'tests/test_m61_guest_adapter.py'
       - 'src/m57_selection/mhs57_filter_runtime.py'
       - 'src/m57_selection/mhs57_filter_policy.py'
       - 'tests/test_m57_ea_filter_policy.py'
@@ -29,7 +30,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Run M58 pure diagnostic unit tests
-        run: PYTHONPATH=src/m57_selection:src/m2_registry:src/m53_staff python -m unittest tests.test_m58_situation_probe tests.test_m58_notification tests.test_m57_ea_filter_policy -v
+        run: PYTHONPATH=src/m57_selection:src/m2_registry:src/m53_staff python -m unittest tests.test_m58_situation_probe tests.test_m58_notification tests.test_m57_ea_filter_policy tests.test_m61_guest_adapter -v
       - name: Build Mac compatible diagnostic
         run: python -m tooling.build_m58_diagnostic dist/
       - name: Verify no guest mutation and Python 3.7 bytecode
@@ -45,8 +46,9 @@ jobs:
           assert result['resource_count']==63
           with ZipFile(z) as archive:
               names=archive.namelist()
-              assert len(names)==27
+              assert len(names)==29
               assert 'mhs58_situation_probe.pyc' in names
+              assert 'mhs61_pilot_command.pyc' in names
               assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
           code=Path('src/m58_selection/mhs58_situation_probe.py').read_text()
           assert 'guest_list.add_guest_info(' not in code
