@@ -128,7 +128,8 @@ class M57EAFilterTests(unittest.TestCase):
                  'SCHOOL_FILTERS':SCHOOL_FILTERS,'CORE_FILTERS':CORE_FILTERS,
                  '_CONFLICTS':(), '_manifest':invalid_early_manifest,
                  'apply_constraints':apply_constraints,
-                 '_log':lambda *a: events.append(('log',a))}
+                 '_log':lambda *a: events.append(('log',a)),
+                 '_record_filter_call':lambda *args:None}
         exec(compile(ast.Module(body=[fn],type_ignores=[]),
                      '<M57c early EA filter>','exec'),runtime)
         svc=object()
@@ -177,6 +178,7 @@ class M57EAFilterTests(unittest.TestCase):
             '_manifest':manifest,
             'apply_constraints':apply_constraints,
             '_log':lambda *args: actions.append(args),
+            '_record_filter_call':lambda *args:None,
             '_INSTALLED':False,
             'RuntimeError':RuntimeError,
         }
@@ -217,7 +219,8 @@ class M57EAFilterTests(unittest.TestCase):
              '_CONFLICTS':(),
              '_manifest':lambda:manifest(),
              'apply_constraints':apply_constraints,
-             '_log':lambda *items:events.append(items)}
+             '_log':lambda *items:events.append(items),
+             '_record_filter_call':lambda *args:None}
         exec(compile(ast.Module(body=[f],type_ignores=[]),'adapter_test','exec'),ctx)
         obj=type('filter_Student',(),{'guid64':280516})
         result=ctx['_filtered'](original,fake,(1,obj),{},'matching')
@@ -304,6 +307,42 @@ class M57EAFilterTests(unittest.TestCase):
         self.assertTrue(all(is_competing_high_school_mod(s) for s in actual))
         self.assertFalse(is_competing_high_school_mod('readme.md'))
         self.assertFalse(is_competing_high_school_mod(None))
+
+    def test_EA_filter_observation_is_bounded_and_read_only(self):
+        src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
+        funcs=[node for node in ast.parse(src).body
+               if isinstance(node,ast.FunctionDef)
+               and node.name in ('_record_filter_call','filter_observation_status')]
+        self.assertEqual(len(funcs),2)
+        state={'_FILTER_OBSERVATIONS':{},'_FILTER_RECENCY':[],
+               '_FILTER_CALLS':0,'_FILTER_LIMIT':64,
+               '_EA_GENERIC_FACULTY':280457,
+               'SCHOOL_FILTERS':SCHOOL_FILTERS}
+        exec(compile(ast.Module(body=funcs,type_ignores=[]),
+                     '<EA filter telemetry>','exec'),state)
+        record=state['_record_filter_call']
+        record(303766,'matching')
+        record(303766,'matching')
+        record(280457,'filter')
+        record(280516,'filter')
+        line=state['filter_observation_status']()
+        self.assertIn('chiamate 4',line)
+        self.assertIn('scuola riconosciuti 3',line)
+        self.assertIn('faculty generico 280457: 1',line)
+        self.assertIn('303766x2',line)
+        self.assertIn('280516x1',line)
+        for i in range(100):
+            record(600000+i,'matching')
+        self.assertLessEqual(len(state['_FILTER_OBSERVATIONS']),64)
+        self.assertEqual(state['_FILTER_CALLS'],104)
+        self.assertNotIn('sim_id',src[src.find('def _record_filter_call'):src.find('def _manifest')])
+
+    def test_diagnostics_separate_disabled_invites_from_ea_filter_selection(self):
+        src=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py').read_text()
+        self.assertIn('filter_observation_status()',src)
+        self.assertIn('le convocazioni aggiuntive M56 sono disattivate',src)
+        self.assertIn('NON sono assenze',src)
+        ast.parse(src)
 
     def test_does_not_copy_or_modify_game_tunings(self):
         runtime=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
