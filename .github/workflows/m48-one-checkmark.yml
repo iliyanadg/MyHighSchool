@@ -6,6 +6,7 @@ on:
       - 'src/m48_enrollment/mhs48_single_picker.py'
       - 'tooling/build_m48_single_checkmark.py'
       - 'tests/test_m48_one_step_enrollment.py'
+      - 'tests/test_m45_visibility_complete.py'
       - '.github/workflows/m48-one-checkmark.yml'
       - 'src/m39_visibility/mhs39_visibility_ui.py'
       - 'src/m2_registry/mhs46_enrollment_transaction.py'
