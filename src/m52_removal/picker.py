@@ -37,3 +37,18 @@ def _max(count):
         def get_max_selectable(self,*args,**kwargs):
             return count
     return Limit()
+
+def open_picker(klass,interaction):
+    actor=getattr(interaction,'sim',None)
+    if actor is None:
+        try:
+            actor=services.client_manager().get_first_client().active_sim
+        except Exception:
+            actor=None
+    try:
+        slot=current_slot()
+        _SETTINGS.require_management(slot,klass)
+        roster=_STORE.load(slot)
+        choices=candidate_rows(roster,klass,_lookup_sim_info)
+        if not choices or actor is None:
+            return False
