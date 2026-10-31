@@ -1,4 +1,4 @@
-name: M55 automatic attendance for all registered school pupils
+name: M55b fixed automatic school attendance for all enrolled pupils
 on:
   workflow_dispatch:
   push:
@@ -31,8 +31,8 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile
           from tooling.simdata_release_gate import inspect_bytes
-          p=Path('dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.package')
-          z=Path('dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.ts4script')
+          p=Path('dist/MHS_M55B_PRESENZE_COLLETTIVE_MAC_TEST.package')
+          z=Path('dist/MHS_M55B_PRESENZE_COLLETTIVE_MAC_TEST.ts4script')
           info=inspect_bytes(p.read_bytes())
           assert info['status']=='STATIC_GATE_PASSED'
           assert info['resource_count']==63
@@ -48,6 +48,6 @@ jobs:
         with:
           name: MHS_M55_UNO_STUDENTE_LICEO_MAC_TEST
           path: |
-            dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.package
-            dist/MHS_M55_UNO_STUDENTE_LICEO_TEST.ts4script
+            dist/MHS_M55B_PRESENZE_COLLETTIVE_MAC_TEST.package
+            dist/MHS_M55B_PRESENZE_COLLETTIVE_MAC_TEST.ts4script
           if-no-files-found: error
