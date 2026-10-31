@@ -45,6 +45,22 @@ class M57EAFilterTests(unittest.TestCase):
         self.assertEqual(ids,tuple(range(3,17)))
         self.assertEqual(role,'student')
 
+    def test_m60_prefers_missing_registered_students_and_never_unregistered(self):
+        m=manifest()
+        action,ids,note=choose_constraints(
+            m,280516,exclude_student_ids=(3,4,999))
+        self.assertEqual(action,'constrain')
+        self.assertEqual(ids,tuple(range(5,17)))
+        self.assertNotIn(999,ids)
+
+    def test_m60_preserves_ea_explicit_constraints_and_full_roster_fallback(self):
+        m=manifest()
+        self.assertEqual(choose_constraints(
+            m,280516,[3,4],exclude_student_ids=(3,4))[1],(3,4))
+        self.assertEqual(choose_constraints(
+            m,280516,exclude_student_ids=tuple(range(3,17)))[1],
+            tuple(range(3,17)))
+
     def test_explicit_ea_constraints_intersect_not_overwrite(self):
         m=manifest()
         action,ids,note=choose_constraints(m,280516,[4,7,999])
