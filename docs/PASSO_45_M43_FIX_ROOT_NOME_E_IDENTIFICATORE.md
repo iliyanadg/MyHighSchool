@@ -47,3 +47,24 @@ Staticamente: 35 risorse, 5 tuning categorie + 5 SimData accoppiate, 15 script b
 - cliccare conferma su GUI senza cheat/console, applicare le modifiche **anche mentre il tempo è in pausa**;
 - inserimento/presenza effettiva degli adolescenti nel liceo, assegnazione di aule, staff, eventi EA.
 - separazione salvataggi completa in caso di operazioni con JSON esterno.
+
+## Esito reale M43 su Mac — 31 ottobre 2026, ore 12:24–12:25
+
+La creatrice ha testato la M43 con screenshots della cassetta postale. **Il loop di Better Exceptions/MCCC non ricompare nelle schermate condivise**, e le tre classi hanno singoli sottomenu navigabili:
+- Classe 1: trasferisci in Classe 2; rimuovi; consulta; prepara iscrizione.
+- Classe 2: trasferisci in Classe 1; rimuovi; consulta; prepara iscrizione.
+- Classe 3: prepara iscrizione (coerente con possibile classe vuota, da verificare la configurazione attiva).
+
+**FAIL GERARCHIA**: MY HIGH SCHOOL contiene solo la voce «Disattiva MY HIGH SCHOOL»; Classe 1, 2, 3 appaiono direttamente al livello generale della cassetta postale. La sola coerenza del nuovo ID root con il nome, benché corretta staticamente, **NON ha risolto l'annidamento nel gioco**. Non dichiarare M43 funzionante rispetto alla specifica UI.
+
+### Test successivi, senza generare altri package alla cieca
+
+1. In-game, soltanto come controllo funzionale opzionale e su save TEST, controllare se in Impostazioni compare «Disabilita Classe 3» (con tre classi attive) o «Abilita Classe 3» (con due classi). La visibilità dei trasferimenti deve essere coerente. Non iscrivere/rimuovere studenti per indagare l'annidamento.
+2. Priorità: ispezionare il **pacchetto M43 installato** nel Lot51 TDesc Builder (File > Open Tuning or Package) o Sims 4 Studio, non il solo sorgente:
+   - categoria `Iliyana:MHS_MainMenu`, ID radice decimale `1942018511`, nessun parent;
+   - categoria `Iliyana:MHS_Class_1_`, il suo Parent deve essere **esattamente 1942018511**; stessi controlli per Classe 2, 3 e Impostazioni;
+   - controllare la **SimData effettiva** dei child con nome, parent e schema associato, preferibilmente esportata dal programma senza manipolazioni a offset.
+3. Il builder attuale copia byte a byte SimData da una categoria preesistente e cambia manualmente pochi offset (incluso parent a 0x5c). I test verificano i byte, NON che Olympus risolva effettivamente la gerarchia: confronto con un piccolo pacchetto generato da TDesc, con un parent/child di prova su un'istanza di salvataggio duplicata, prima di modificare la M43.
+4. Ricerca: la guida https://thesims4moddersreference.org/tutorials/creating-a-pie-menu/ spiega che TDesc genera il file SimData, che deve rappresentare ogni campo e che Parent è l'ID decimale della categoria superiore; questo conferma il tipo di controllo ma non diagnostica da solo l'errore M43.
+
+**Non fare reinstallazioni né ulteriori micro-build per i soli click delle singole classi.** La causa del mancato annidamento resta aperta.
