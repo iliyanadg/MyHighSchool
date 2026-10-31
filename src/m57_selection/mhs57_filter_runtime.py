@@ -13,7 +13,8 @@ from mhs_m2_store import RosterStore
 from mhs34_settings import SettingsStore
 from mhs53_staff_store import StaffStore
 from mhs57_school_manifest import make_manifest
-from mhs57_filter_policy import apply_constraints, guid_for_filter, SCHOOL_FILTERS
+from mhs57_filter_policy import (apply_constraints, guid_for_filter, SCHOOL_FILTERS,
+                                 is_competing_high_school_mod)
 
 _DIRECTORY=os.path.join(os.path.expanduser('~'),'Documents','Electronic Arts',
                         'The Sims 4','MY_HIGH_SCHOOL_M25_TEST_DATA')
@@ -30,21 +31,17 @@ _CONFLICTS=()
 def _find_conflicting_school_mods():
     """One-time filename-only scan; never touch or delete another mod.
 
-    User-confirmed legacy school controllers conflict with native EA school
-    filters. This avoids activating two incompatible selectors together.
+    Only known EP12 high-school controller filenames are considered. The
+    developer's name by itself is NOT a conflict: elementary school and
+    unrelated interactions must remain compatible by default.
     """
     mods=os.path.join(os.path.expanduser('~'),'Documents',
                       'Electronic Arts','The Sims 4','Mods')
-    patterns=('sonozaki','morestudents','more_students',
-              'rex_chooseclassmate','choosehighschoolclassmate',
-              'choose_high_school_classmates')
     found=set()
     try:
         for root, folders, files in os.walk(mods):
             for name in files:
-                lower=name.lower().replace(' ','_')
-                if lower.endswith(('.package','.ts4script')) and any(
-                        p in lower for p in patterns):
+                if is_competing_high_school_mod(name):
                     found.add(name)
     except Exception:
         return ('Ricerca incompatibilita non disponibile',)
