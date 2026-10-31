@@ -6,6 +6,7 @@ on:
       - 'src/m27_remove_ui/mhs27_remove_ui.py'
       - 'src/m34_settings/mhs34_settings_ui.py'
       - 'tooling/build_m52_removal_and_settings.py'
+      - 'tooling/build_m39_conditional_menu.py'
       - 'tests/test_m27_remove_ui.py'
       - 'tests/test_m52_removal_and_settings.py'
       - '.github/workflows/m52-bulk-removal.yml'
