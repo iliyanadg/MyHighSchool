@@ -102,7 +102,7 @@ def _current_save_slot():
     """Consult EA live persistence and active-client account, no cached slot."""
     proto_slot = None
     try:
-        proto_slot = current_slot()
+        proto_slot = current_slot(allow_travel=True)
     except Exception:
         proto_slot = None
     account_slot = None
