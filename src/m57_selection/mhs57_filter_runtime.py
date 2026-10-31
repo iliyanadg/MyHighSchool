@@ -28,6 +28,12 @@ _LAST_EVENT='Filtro M57 in attesa della selezione EA'
 _LAST_ERROR='nessuno'
 _ERROR_SAMPLES=[]
 _CONFLICTS=()
+# Bounded counters of EA filter tuning GUIDs, never SimIDs or names.
+_FILTER_OBSERVATIONS={}
+_FILTER_RECENCY=[]
+_FILTER_CALLS=0
+_FILTER_LIMIT=64
+_EA_GENERIC_FACULTY=280457
 
 
 def _find_conflicting_school_mods():
@@ -67,6 +73,41 @@ def _log(status, filter_id=None, detail=''):
             del _ERROR_SAMPLES[:-4]
 
 
+def _record_filter_call(guid, method):
+    """Observe EA service use even when filtering is not changed.
+
+    Use bounded counters only. Keep the recently-used GUIDs when more than
+    64 different filters run; do not store Sims or private save data.
+    """
+    global _FILTER_CALLS
+    _FILTER_CALLS += 1
+    if guid is None:
+        return
+    if guid in _FILTER_OBSERVATIONS:
+        old=_FILTER_OBSERVATIONS[guid]
+        _FILTER_OBSERVATIONS[guid]=(old[0]+1, old[1]+(1 if method=='matching' else 0))
+        _FILTER_RECENCY.remove(guid)
+    else:
+        if len(_FILTER_RECENCY)>=_FILTER_LIMIT:
+            _FILTER_OBSERVATIONS.pop(_FILTER_RECENCY.pop(0),None)
+        _FILTER_OBSERVATIONS[guid]=(1,1 if method=='matching' else 0)
+    _FILTER_RECENCY.append(guid)
+
+
+def filter_observation_status():
+    """Read-only counts of real EA calls, distinct from successful overrides."""
+    hits=sorted(_FILTER_OBSERVATIONS.items(),
+                key=lambda row:(-row[1][0],row[0]))
+    shown=', '.join('{}x{}'.format(guid,counts[0])
+                    for guid,counts in hits[:8]) or 'nessun GUID'
+    school_calls=sum(counts[0] for guid,counts in hits
+                     if guid in SCHOOL_FILTERS)
+    staff_generic=_FILTER_OBSERVATIONS.get(_EA_GENERIC_FACULTY,(0,0))[0]
+    return ('M57d API EA: chiamate {}; filtri scuola riconosciuti {}; '
+            'faculty generico 280457: {}; ID frequenti: {}'.format(
+                _FILTER_CALLS,school_calls,staff_generic,shown))
+
+
 def _manifest():
     """Never guess an old slot after travel and never persist any game state."""
     slot=current_slot(allow_travel=True)
@@ -90,6 +131,7 @@ def _filtered(original, self, args, kwargs, method):
     idx=1 if method=='matching' else 0
     tuning=kwargs.get('sim_filter',args[idx] if len(args)>idx else None)
     guid=guid_for_filter(tuning)
+    _record_filter_call(guid,method)
     if guid not in SCHOOL_FILTERS:
         return original(self,*args,**kwargs)
     if _CONFLICTS:
@@ -194,7 +236,7 @@ def physical_status():
 
 
 def status():
-    return ('Selezione M57c: {}. Filtri limitati: {} | non modificati: {} '
+    return ('Selezione M57d: {}. Filtri limitati: {} | non modificati: {} '
             '| errori: {}. Ultimo: {}. Ultimo errore: {}'.format(
                 'bloccata (altre mod liceo: {})'.format(
                     ', '.join(_CONFLICTS[:2])) if _CONFLICTS
