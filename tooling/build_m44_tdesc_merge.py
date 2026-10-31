@@ -8,8 +8,8 @@ resources into M43 while remapping interaction.category if IDs changed.
 It never rewrites student roster data or the 15 Python 3.7 scripts.
 
 Usage:
-    python -m tooling.build_m44_tdesc_merge <lot51_categories.package> <outdir>
-    Download Package in Lot51 from the five open pie category tabs only.
+    python -m tooling.build_m44_tdesc_merge <tdesc_1.package> ... <tdesc_5.package> <outdir>
+    Download Package in Lot51 from each of the five PIE_MENU_CATEGORY tabs (not actions).
 Do NOT install the Lot51 export directly; it omits our class interactions.
 
 Passing the offline gate does not prove the nesting works in the Mac game.
@@ -98,9 +98,12 @@ def transform(export_package):
             raise M44BuildError('SimData name does not match its tuning')
         xml_parent=node.find('./T[@n="_parent"]')
         parent=0 if xml_parent is None else int(xml_parent.text)
-        actual_parent=struct.unpack_from('<Q',binary,0x5c)[0]
+        # TDesc October-2026 exports store the TableSetReference in
+        # high 32 bits of the 64-bit slot starting at 0x5c.
+        # M43 hand-edited low 32 bits; THIS is the actual mismatch.
+        actual_ref=struct.unpack_from('<Q',binary,0x5c)[0]
         expected_parent=0 if name==ROOT_NAME else main
-        if parent!=expected_parent or actual_parent!=expected_parent:
+        if parent!=expected_parent or actual_ref!=(expected_parent<<32):
             raise M44BuildError(
                 'TDesc root/child parent mismatch in '+name)
         visible=node.find('./T[@n="_collapsible"]')
@@ -172,10 +175,45 @@ def package_bytes(export_package):
     return package,changes
 
 
-def release(export_path,dest):
-    export_path=Path(export_path)
+def merge_lot51_exports(export_paths):
+    """Combine separate Lot51 packages; ignore any accidental interaction tabs."""
+    all_categories=[]
+    seen=set()
+    for path in export_paths:
+        rows=resources(Path(path).read_bytes())
+        for typ,g,i,raw in rows:
+            if typ not in (CATEGORY_TYPE,SIMDATA_TYPE):
+                continue
+            key=(typ,g,i)
+            if key in seen:
+                raise M44BuildError('Duplicate category or SimData from Lot51 exports')
+            seen.add(key)
+            all_categories.append((typ,g,i,raw))
+    if len(all_categories)!=10:
+        raise M44BuildError(
+            'Needed 5 category XML + 5 binary SimData resources, got {}. '
+            'Make sure to export Class_1_, Class_2_, Class_3_, MainMenu, Settings '
+            'rather than ChooseClass1/2/3 interactions.'.format(len(all_categories)))
+    base=bytearray(original_m43()[:96])
+    payload=bytearray()
+    index=bytearray(struct.pack('<I',0))
+    for typ,g,i,raw in all_categories:
+        compressed=zlib.compress(raw,9)
+        index.extend(ENTRY.pack(typ,g,i>>32,i&0xffffffff,
+                                96+len(payload),len(compressed)|0x80000000,
+                                len(raw),0x5A42,1))
+        payload.extend(compressed)
+    struct.pack_into('<I',base,0x24,len(all_categories))
+    struct.pack_into('<I',base,0x2c,len(index))
+    struct.pack_into('<Q',base,0x40,96+len(payload))
+    return bytes(base+payload+index)
+
+
+def release(export_paths,dest):
+    if isinstance(export_paths,(str,Path)):
+        export_paths=[export_paths]
     dest=Path(dest)
-    blob,changes=package_bytes(export_path.read_bytes())
+    blob,changes=package_bytes(merge_lot51_exports(export_paths))
     dest.mkdir(parents=True,exist_ok=True)
     (dest/PACK_NAME).write_bytes(blob)
     compile_scripts(dest/SCRIPT_NAME)
@@ -186,6 +224,6 @@ def release(export_path,dest):
 
 
 if __name__=='__main__':
-    if len(sys.argv)!=3:
-        raise SystemExit('Usage: python -m tooling.build_m44_tdesc_merge <tdesc.package> <outdir>')
-    print(json.dumps(release(sys.argv[1],sys.argv[2]),indent=2))
+    if len(sys.argv)<3:
+        raise SystemExit('Usage: python -m tooling.build_m44_tdesc_merge <tdesc_1.package> [tdesc_2.package ...] <outdir>')
+    print(json.dumps(release(sys.argv[1:-1],sys.argv[-1]),indent=2))
