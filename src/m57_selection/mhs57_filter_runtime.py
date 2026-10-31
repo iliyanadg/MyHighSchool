@@ -14,7 +14,7 @@ from mhs34_settings import SettingsStore
 from mhs53_staff_store import StaffStore
 from mhs57_school_manifest import make_manifest
 from mhs57_filter_policy import (apply_constraints, guid_for_filter, SCHOOL_FILTERS,
-                                 is_competing_high_school_mod)
+                                 CORE_FILTERS, is_competing_high_school_mod)
 
 _DIRECTORY=os.path.join(os.path.expanduser('~'),'Documents','Electronic Arts',
                         'The Sims 4','MY_HIGH_SCHOOL_M25_TEST_DATA')
@@ -25,6 +25,8 @@ _INSTALLED=False
 _HOOK_ERRORS=[]
 _STATS={'constrain':0,'preserve':0,'bypass':0,'error':0}
 _LAST_EVENT='Filtro M57 in attesa della selezione EA'
+_LAST_ERROR='nessuno'
+_ERROR_SAMPLES=[]
 _CONFLICTS=()
 
 
@@ -52,10 +54,17 @@ _CONFLICTS=_find_conflicting_school_mods()
 
 
 def _log(status, filter_id=None, detail=''):
-    global _LAST_EVENT
+    global _LAST_EVENT, _LAST_ERROR
     if status in _STATS:
         _STATS[status]+=1
-    _LAST_EVENT='{} filtro {}: {}'.format(status,filter_id or '?',str(detail)[:90])
+    message='{} filtro {}: {}'.format(
+        status, filter_id if filter_id is not None else '?',str(detail)[:130])
+    _LAST_EVENT=message
+    if status=='error':
+        _LAST_ERROR=message
+        if message not in _ERROR_SAMPLES:
+            _ERROR_SAMPLES.append(message)
+            del _ERROR_SAMPLES[:-4]
 
 
 def _manifest():
@@ -86,6 +95,12 @@ def _filtered(original, self, args, kwargs, method):
     if _CONFLICTS:
         _log('preserve',guid,'Altro controller liceo installato')
         return original(self,*args,**kwargs)
+    # The five Core NPC positions (clubs, mean Sim, rivals) are owned by EA.
+    # They must NEVER depend on the MHS roster/staff manifest, which may not
+    # yet be loaded while EA is choosing morning school jobs.
+    if guid in CORE_FILTERS:
+        _log('preserve',guid,'Ruolo speciale EA, nessuna restrizione')
+        return original(self,*args,**kwargs)
     try:
         plan=_manifest()
         if plan is None:
@@ -96,7 +111,8 @@ def _filtered(original, self, args, kwargs, method):
     except Exception as exc:
         # Never risk a crash in school bouncer filtering, or choose an ID
         # belonging to a different save by using a stale manifest.
-        _log('error',guid,type(exc).__name__)
+        _log('error',guid,'{}: {}'.format(
+            type(exc).__name__,str(exc)[:105]))
         return original(self,*args,**kwargs)
     return original(self,*newargs,**newkwargs)
 
@@ -173,13 +189,13 @@ def physical_status():
 
 
 def status():
-    return ('Selezione M57: {}. Filtri limitati: {} | non modificati: {} '
-            '| errori: {}. Ultimo: {}'.format(
+    return ('Selezione M57c: {}. Filtri limitati: {} | non modificati: {} '
+            '| errori: {}. Ultimo: {}. Ultimo errore: {}'.format(
                 'bloccata (altre mod liceo: {})'.format(
                     ', '.join(_CONFLICTS[:2])) if _CONFLICTS
                 else ('installata' if _INSTALLED else 'non installata'),
                 _STATS['constrain'],_STATS['preserve']+_STATS['bypass'],
-                _STATS['error'],_LAST_EVENT))
+                _STATS['error'],_LAST_EVENT,_LAST_ERROR))
 
 
 install_filter_hooks()
