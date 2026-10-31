@@ -99,20 +99,13 @@ def _notice(title, message):
 
 
 def _current_save_slot():
-    """Consult EA live persistence and active-client account, no cached slot."""
-    proto_slot = None
-    try:
-        proto_slot = current_slot(allow_travel=True)
-    except Exception:
-        proto_slot = None
-    account_slot = None
-    try:
-        client = services.client_manager().get_first_client()
-        account = getattr(client, 'account', None)
-        account_slot = getattr(account, 'save_slot_id', None)
-    except Exception:
-        account_slot = None
-    return resolve_save_slot(proto_slot, account_slot)
+    """Read ONLY the M56 stable-GUID + household verified school slot.
+
+    The old account.save_slot_id fallback was unverified at Copperdale;
+    the guard is now our single authoritative source. Unrecognized saves
+    fail closed rather than loading a random registry.
+    """
+    return current_slot(allow_travel=True)
 
 
 def _game_day():
