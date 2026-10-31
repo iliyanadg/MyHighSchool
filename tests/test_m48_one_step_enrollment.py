@@ -82,6 +82,9 @@ class M48Tests(unittest.TestCase):
         tree=ast.parse(text)
         fn=next(n for n in tree.body
                 if isinstance(n,ast.FunctionDef) and n.name=='open_picker')
+        filter_fn=next(n for n in tree.body
+                if isinstance(n,ast.FunctionDef) and
+                n.name=='_unassigned_candidates')
         FakePicker.dialogs=[]
         calls={'preview':[],'commit':[],'notices':[],'events':[]}
         def preview(*args):
@@ -100,7 +103,7 @@ class M48Tests(unittest.TestCase):
             'current_slot':lambda:'11',
             '_SETTINGS':Settings(),
             '_ROSTERS':SimpleNamespace(load=lambda slot:SimpleNamespace(
-                class_members=lambda klass:[])),
+                assignments={},class_members=lambda klass:[])),
             '_teens':lambda:[SimpleNamespace(sim_id=11),
                              SimpleNamespace(sim_id=12)],
             'canonical_sim_id':lambda sid:str(int(sid)),
@@ -114,7 +117,7 @@ class M48Tests(unittest.TestCase):
             'confirm_enrollment':commit,
             'teenager_checker':lambda sid:True,
         }
-        exec(compile(ast.Module(body=[fn],type_ignores=[]),
+        exec(compile(ast.Module(body=[filter_fn,fn],type_ignores=[]),
                      '<M48 real picker>',mode='exec'),env)
         actor=SimpleNamespace(sim=object())
         return env,calls,actor
