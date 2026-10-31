@@ -19,7 +19,9 @@ ROOT=Path(__file__).resolve().parents[1]
 PROBE=ROOT/'src'/'m58_selection'/'mhs58_situation_probe.py'
 PACKAGE='MHS_M58_DIAGNOSTICA_SITUAZIONI_MAC_TEST.package'
 SCRIPT='MHS_M58_DIAGNOSTICA_SITUAZIONI_MAC_TEST.ts4script'
-SCRIPTS=tuple(M57_SCRIPTS)+(PROBE,)
+SCRIPTS=tuple(M57_SCRIPTS)+(PROBE,
+    ROOT/'src'/'m58_selection'/'mhs61_guest_adapter.py',
+    ROOT/'src'/'m58_selection'/'mhs61_pilot_command.py')
 
 
 def release(folder):
@@ -29,7 +31,7 @@ def release(folder):
     folder.mkdir(parents=True,exist_ok=True)
     blob=package_bytes()
     assert inspect_bytes(blob)['status']=='STATIC_GATE_PASSED'
-    assert len(SCRIPTS)==27
+    assert len(SCRIPTS)==29
     assert len(set(p.name for p in SCRIPTS))==27
     (folder/PACKAGE).write_bytes(blob)
     with tempfile.TemporaryDirectory() as temp:
@@ -40,8 +42,9 @@ def release(folder):
                 archive.write(str(target),arcname=source.name+'c')
     with zipfile.ZipFile(str(folder/SCRIPT)) as archive:
         names=archive.namelist()
-        assert len(names)==27
+        assert len(names)==29
         assert 'mhs58_situation_probe.pyc' in names
+        assert 'mhs61_pilot_command.pyc' in names
         assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
     return {'status':'DIAGNOSTIC_ONLY_MAC_GAME_TEST_REQUIRED',
             'package_resources':63,
