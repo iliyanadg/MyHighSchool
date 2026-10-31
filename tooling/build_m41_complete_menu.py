@@ -29,7 +29,11 @@ from tooling.build_m39_conditional_menu import (
     package_bytes as build_m39,compile_scripts as compile_m39_scripts)
 from tooling.build_m40_noncollapsible_parent import (
     category_xml,category_simdata)
-from tooling.build_m38_three_class_menu import SETTINGS_CATEGORY,CATEGORY_IDS
+from tooling.build_m38_three_class_menu import SETTINGS_CATEGORY,CATEGORY_IDS,SETTINGS_LABEL
+from tooling.build_m37_small_root import MAIN_LABEL
+from tooling.build_m30_nested_menu import NEW_KEYS
+from tooling.m1_links_and_strings import parse_stbl
+from tooling.build_m27_removal import TYPE_STBL
 from tooling.build_m37_small_root import NEW_ROOT
 from tooling.build_m27_removal import ENTRY
 from tooling.simdata_release_gate import resources,inspect_bytes
@@ -47,6 +51,41 @@ class M41BuildError(ValueError):
     pass
 
 
+def clean_label_tables(blob,locale):
+    """Strip old M35/M38 debug labels without changing interaction content."""
+    labels={
+        'it':{
+            MAIN_LABEL:'MY HIGH SCHOOL',
+            NEW_KEYS[0]:'Classe 1',
+            NEW_KEYS[1]:'Classe 2',
+            NEW_KEYS[2]:'Classe 3',
+            SETTINGS_LABEL:'Impostazioni',
+        },
+        'en':{
+            MAIN_LABEL:'MY HIGH SCHOOL',
+            NEW_KEYS[0]:'Class 1',
+            NEW_KEYS[1]:'Class 2',
+            NEW_KEYS[2]:'Class 3',
+            SETTINGS_LABEL:'Settings',
+        },
+    }[locale]
+    strings=parse_stbl(blob)
+    if not set(labels).issubset(strings):
+        raise M41BuildError('Missing original label keys')
+    strings.update(labels)
+    payload=bytearray()
+    total=0
+    for key,value in sorted(strings.items()):
+        chars=value.encode('utf-8')
+        payload.extend(struct.pack('<IBH',key,0,len(chars)))
+        payload.extend(chars)
+        total+=len(chars)+1
+    result=b'STBL'+struct.pack('<HBQ2sI',5,0,len(strings),bytes((0,0)),total)+bytes(payload)
+    if parse_stbl(result)!=strings:
+        raise M41BuildError('STBL text roundtrip mismatch')
+    return result
+
+
 def transformed_resources():
     source=resources(build_m39())
     transformed=[]
@@ -57,6 +96,11 @@ def transformed_resources():
                 raise M41BuildError('Unknown category ID')
             blob=category_xml(blob)
             touched.add(('xml',iid))
+        elif typ==TYPE_STBL:
+            locale={0:'en',11:'it'}.get(iid>>56)
+            if locale is None:
+                raise M41BuildError('Unsupported STBL locale')
+            blob=clean_label_tables(blob,locale)
         elif typ==SIMDATA_TYPE:
             if iid not in CATEGORY_TREE or group!=SIMDATA_GROUP:
                 raise M41BuildError('Unknown SimData TGI')
@@ -78,7 +122,7 @@ def transformed_resources():
     for old,new in zip(source,transformed):
         if old[:3]!=new[:3]:
             raise M41BuildError('Changed resource key')
-        if old[0] not in (CATEGORY_TYPE,SIMDATA_TYPE) and old!=new:
+        if old[0] not in (CATEGORY_TYPE,SIMDATA_TYPE,TYPE_STBL) and old!=new:
             raise M41BuildError('Changed unrelated action, script or localization')
     return transformed
 
