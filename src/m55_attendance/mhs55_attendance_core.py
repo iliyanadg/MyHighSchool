@@ -13,6 +13,34 @@ class AttendanceError(ValueError):
     pass
 
 
+
+def resolve_save_slot(proto_slot, account_slot):
+    """Read two EA-provided active-save identifiers without stale mod cache.
+
+    EA can expose 0 through the persistence proto after traveling. The
+    active client's account.save_slot_id is a second live source. If both
+    report nonzero but DISAGREE, do not read any saved class roster.
+    """
+    values = []
+    for raw in (proto_slot, account_slot):
+        if raw is None or raw == 0 or raw == '0' or raw == '':
+            continue
+        if isinstance(raw, bool):
+            raise AttendanceError('Slot EA non valido')
+        try:
+            n = int(raw)
+        except (ValueError, TypeError):
+            raise AttendanceError('Slot EA non verificabile')
+        if str(n) != str(raw) or not 1 <= n < 0xFFFFFFFE:
+            raise AttendanceError('Slot EA fuori intervallo')
+        values.append(str(n))
+    if not values:
+        raise AttendanceError('Identita del salvataggio non disponibile')
+    if len(set(values)) != 1:
+        raise AttendanceError('Identita del salvataggio in conflitto')
+    return values[0]
+
+
 def valid_student(info, teen_age, human_species):
     return (info is not None and getattr(info, 'age', None) == teen_age
             and getattr(info, 'species', None) == human_species)
