@@ -49,7 +49,7 @@ class M49Tests(unittest.TestCase):
             _MaxSelectableUnlimited=lambda:SimpleNamespace())}
         exec(compile(ast.Module(body=[fn],type_ignores=[]),
                      '<M49 invalid runtime>',mode='exec'),namespace)
-        with self.assertRaisesRegex(TypeError,'strategia EA'):
+        with self.assertRaisesRegex(TypeError,'selezione EA'):
             namespace['_max_selectable'](8)
 
     def test_over_eight_selected_never_writes(self):
