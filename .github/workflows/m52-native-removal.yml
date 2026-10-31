@@ -1,0 +1,52 @@
+name: M52 multi-select removal and occupied Class 3 warning
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/m52_removal/picker.py'
+      - 'src/m39_visibility/mhs39_visibility_ui.py'
+      - 'src/m34_settings/mhs34_settings_ui.py'
+      - 'tests/test_m52_multi_removal.py'
+      - 'tooling/build_m52_removal.py'
+      - '.github/workflows/m52-native-removal.yml'
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: All offline tests
+        run: python -m unittest discover -s tests -v
+      - name: Build Mac M52 package and script
+        run: python -m tooling.build_m52_removal dist/
+      - name: Inspect output
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.build_m52_removal import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          package=Path('dist/MHS_M52_RIMOZIONE_MULTIPLA_TEST.package')
+          script=Path('dist/MHS_M52_RIMOZIONE_MULTIPLA_TEST.ts4script')
+          assert package.read_bytes()==package_bytes()
+          report=inspect_bytes(package.read_bytes())
+          assert report['status']=='STATIC_GATE_PASSED'
+          assert report['category_count']==report['simdata_count']==5
+          with zipfile.ZipFile(script) as z:
+              assert len(z.namelist())==18
+              assert 'mhs52_picker.pyc' in z.namelist()
+              assert 'picker.pyc' not in z.namelist()
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in z.namelist())
+          print('M52 build verified, Mac test still required')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M52_MULTI_RIMOZIONE_E_AVVISO_CLASSE3_MAC
+          path: |
+            dist/MHS_M52_RIMOZIONE_MULTIPLA_TEST.package
+            dist/MHS_M52_RIMOZIONE_MULTIPLA_TEST.ts4script
+          if-no-files-found: error
