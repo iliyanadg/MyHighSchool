@@ -178,6 +178,17 @@ class M57EAFilterTests(unittest.TestCase):
         self.assertIn('altri adolescenti 2',text)
         self.assertIn('personale scelto 2/8',text)
 
+    def test_conflict_guard_blocks_school_filter_overrides(self):
+        src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
+        self.assertIn("_CONFLICTS=_find_conflicting_school_mods()",src)
+        self.assertIn("if _CONFLICTS:",src)
+        self.assertIn("'sonozaki'",src)
+        self.assertIn("'morestudents'",src)
+        self.assertIn("'rex_chooseclassmate'",src)
+        self.assertNotIn("os.remove(",src)
+        self.assertNotIn("os.unlink(",src)
+        ast.parse(src)
+
     def test_does_not_copy_or_modify_game_tunings(self):
         runtime=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
         self.assertIn("('submit_matching_filter','submit_filter')",runtime)
