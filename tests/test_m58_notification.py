@@ -23,6 +23,10 @@ class NotificationTests(unittest.TestCase):
         self.assertIn('Mensa:0',result)
         self.assertIn('NON presenze',result)
         self.assertLess(len(result),240)
+    def test_snapshot_is_saved_on_diagnostic_click(self):
+        source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py').read_text()
+        self.assertIn('mhs58_situation_probe.save_report(folder)',source)
+
     def test_ui_passes_short_report_to_notification(self):
         source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py').read_text()
         self.assertIn('text=_text(compact_diagnostic())',source)
