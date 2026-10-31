@@ -80,6 +80,15 @@ class RosterStore(object):
         before = original.to_json()
         after = roster.to_json()
         target = self.path(normalized)
+        if before != after:
+            # M34 includes this runtime-only gate in its .ts4script; legacy
+            # M25–M33 bundles don't include it and retain their old behavior.
+            try:
+                from mhs34_runtime_gate import validate_roster_write
+            except ImportError:
+                pass
+            else:
+                validate_roster_write(self.directory, normalized, original, roster)
         if before == after and os.path.isfile(target):
             return target
         if record_undo:
