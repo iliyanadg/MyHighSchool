@@ -46,3 +46,10 @@ Tutti i comandi `*commit conferma` scrivono immediatamente sul JSON esterno di t
 - L'utente ha eseguito `mhs32.transfercancel` in M33. La console mostra `Trasferimento annullato. Nessun dato scritto.` (Amarachi Darong era solo in preview, non trasferita).
 - Con gioco ripreso, `Consulta iscritti - Classe 1` apre davvero il selettore fotografico UI nella M33. Lo screenshot mostra **Amarachi Darong** e **Baby Ariel**, entrambi e soltanto i 2 iscritti Classe 1. Titolo/descrizione indicano sola consultazione, nessuna modifica al registro.
 - I controlli successivi da completare senza commit: consulta Classe 2, classe 3 vuota, rimuovi Classe 1 e verifica preview `mhs27.removepreview`, iscrizione Classe 3 e `mhs25.preview`, `mhs29.audit`, `mhs29.find Ariel`, `mhs28.roster` finale. Ricordare che oggi le immediate interactions vanno eseguite a tempo avviato; il requisito futuro è funzionamento anche in pausa.
+
+## Aggiornamento Mac 31/10 ore 01:37 — consultazione classi 2 e 3, annullamento rimozione
+- L'utente ha eseguito `mhs27.removecancel`: la console indica `M27: rimozione annullata senza scrittura.` Nessuno studente è stato rimosso.
+- In M33, `Consulta iscritti - Classe 2` apre una finestra con **soltanto Sofia Abrantes e Sofia Bjergsen**, entrambe con foto e nome. Verifica in gioco positiva.
+- `Consulta iscritti - Classe 3` non apre nessuna finestra perché Classe 3 è ancora vuota; è il comportamento deliberato di `open_view_picker` con `EMPTY | Classe 3` (da confermare eventualmente in diagnostica). Non confondere con errore di apertura dei picker.
+- **Miglioramento UX richiesto per release successiva**: se registro della classe vuoto, mostrare una notifica esplicita «La Classe 3 non ha ancora studenti iscritti», anziché nessuna reazione alla voce di consultazione.
+- Resta da testare il picker di iscrizione nella Classe 3 con `mhs25.preview` e solo successivamente la ricerca e l'audit senza scritture: `mhs29.find Ariel`, `mhs29.audit`, `mhs28.roster`.
