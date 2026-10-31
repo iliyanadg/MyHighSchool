@@ -11,9 +11,11 @@ import os
 REPORT_NAME='MHS_M58_SITUAZIONI_DIAGNOSTICA.json'
 
 
-def save_report(folder):
+def save_report(folder, additional=None):
     """Explicit snapshot, bounded aggregate counts without Sim names/IDs."""
     report=status()
+    if additional is not None:
+        report['m59_reconciliation']=additional
     os.makedirs(folder,exist_ok=True)
     destination=os.path.join(folder,REPORT_NAME)
     temp=destination+'.tmp'
