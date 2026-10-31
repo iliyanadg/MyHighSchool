@@ -29,3 +29,14 @@ La M54 corregge **solo il registro e l'interfaccia del personale**, non fa ancor
 ### Test Mac
 
 Salvare una copia della M53 funzionante e del registro JSON personale, rimuovere SOLO la coppia M53 dalla cartella Mods e inserire la coppia M54. Aprire `MY HIGH SCHOOL -> Personale scolastico -> Preside -> Scegli / sostituisci`, controllare che non siano visibili cani/gatti, ma che rimangano gli umani giovani adulti/adulti/anziani. Verificare se necessario il menu dei professori e mensa. Se un animale risultasse precedentemente assegnato, usare Rimuovi, non Assegna.
+
+
+## Esito test reale Mac — CONFERMATO (31/10/2026)
+
+La creatrice ha installato la coppia M54 nel gioco e, dopo la verifica del picker del personale richiesta, ha risposto: **«ok fatto funziona»**.
+
+**Stato verificato:** il filtro per il personale M54 funziona in gioco sul Mac; i candidati devono essere Sim umani giovani adulti/adulti/anziani. Il menu e le operazioni di registro già testate con M53/M52 rimangono la baseline da preservare.
+
+**Da non considerare ancora verificato:** presenza fisica del personale sul lotto EP12, frequenza reale degli studenti del registro, aule assegnate, lezioni simultanee, eventi scolastici. I test automatici sono distinti dalla verifica in gioco.
+
+**Prossimo lavoro M55:** analizzare i meccanismi di arrivo sul lotto di Vita da Liceali e progettare un primo test controllato di convocazione senza duplicare NPC o alterare registri e impostazioni. Procedere gradualmente da una classe, prima di valutare 2–3 classi fino a 8 studenti ciascuna. Usare questo repository come fonte dei sorgenti e del build, non ricostruire la mod dai file binari.
