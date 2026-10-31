@@ -4,6 +4,25 @@ Uses EA SituationManager.create_situation as the observation point. A wrapper
 installed in the actual game must be separately validated on the installed
 game version before shipping. No guest mutations, spawning or new situations.
 """
+import json
+import os
+
+# External diagnostic text only; never write to the EA save or Mods.
+REPORT_NAME='MHS_M58_SITUAZIONI_DIAGNOSTICA.json'
+
+
+def save_report(folder):
+    """Explicit snapshot, bounded aggregate counts without Sim names/IDs."""
+    report=status()
+    os.makedirs(folder,exist_ok=True)
+    destination=os.path.join(folder,REPORT_NAME)
+    temp=destination+'.tmp'
+    with open(temp,'w',encoding='utf-8') as stream:
+        json.dump(report,stream,sort_keys=True,indent=2)
+    os.replace(temp,destination)
+    return destination
+
+
 BASE_GUIDS={277733:'students',298052:'core',298096:'venue',278011:'cafeteria'}
 COUNTS={}
 LAST_ERROR='none'
