@@ -43,7 +43,22 @@ def _settings_notice(title,message):
         return False
 
 
-def _apply(operation):
+def _warning(actor,reason):
+    if actor is None:
+        return
+    try:
+        from sims4.localization import LocalizationHelperTuning
+        from ui.ui_dialog_notification import UiDialogNotification
+        txt=lambda text:lambda **_:LocalizationHelperTuning.get_raw_text(text)
+        dlg=UiDialogNotification.TunableFactory().default(
+            actor,title=txt('MY HIGH SCHOOL - Classe 3 non disattivata'),
+            text=txt(reason))
+        dlg.show_dialog()
+    except Exception:
+        pass
+
+
+def _apply(operation, actor=None):
     try:
         slot=current_slot()
         if operation=='enable':
@@ -90,7 +105,7 @@ class MHS34Disable(ImmediateSuperInteraction):
 
 class MHS34TwoClasses(ImmediateSuperInteraction):
     def _run_interaction_gen(self,timeline):
-        _apply('two')
+        _apply('two',getattr(self,'sim',None))
         result=super()._run_interaction_gen(timeline)
         if inspect.isgenerator(result):
             return (yield from result)
