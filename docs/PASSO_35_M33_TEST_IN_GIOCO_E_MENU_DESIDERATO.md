@@ -53,3 +53,19 @@ Tutti i comandi `*commit conferma` scrivono immediatamente sul JSON esterno di t
 - `Consulta iscritti - Classe 3` non apre nessuna finestra perché Classe 3 è ancora vuota; è il comportamento deliberato di `open_view_picker` con `EMPTY | Classe 3` (da confermare eventualmente in diagnostica). Non confondere con errore di apertura dei picker.
 - **Miglioramento UX richiesto per release successiva**: se registro della classe vuoto, mostrare una notifica esplicita «La Classe 3 non ha ancora studenti iscritti», anziché nessuna reazione alla voce di consultazione.
 - Resta da testare il picker di iscrizione nella Classe 3 con `mhs25.preview` e solo successivamente la ricerca e l'audit senza scritture: `mhs29.find Ariel`, `mhs29.audit`, `mhs28.roster`.
+
+## Aggiornamento 31/10/2026 ore 01:39 — conferma iscrizione e attivazione/configurazione dinamica
+- M33 in gioco: selezione di un adolescente con `Prepara iscrizione Classe 3` e comando `mhs25.preview` danno `M25 TEST: Classe 3 | 1 selezionati | slot 11`, `PREFLIGHT OK: cambiamenti 1, trasferiti 0, totale Classe 3=1/8`, e confermano che **nessun dato è ancora stato scritto**. Non eseguire `mhs25.commit conferma` durante i test non scriventi.
+- **Requisito utente vincolante: interruttore ATTIVA/DISATTIVA MY HIGH SCHOOL**, in Impostazioni generali PC/cassetta: prima dell'attivazione resta il liceo EA, quando disattiva lascia il liceo EA gestire le situazioni senza annullare le iscrizioni, gli insegnanti, i ruoli o gli abbinamenti. Riattivare non impone una nuova configurazione. NON si tratta di rimuovere file da Mods. L'effettivo ritorno alla gestione EA richiede implementazione e prova in-game: non considerarlo già funzionante.
+- **Requisito utente vincolante: modalità 2 CLASSI / 3 CLASSI** a scelta e modificabile. Classi 1 e 2 esistono sempre; la terza è facoltativa; capienza fissa max 8 per classe: 16 o 24 posti teorici; nessuna garanzia di presenze fisiche contemporanee fino alle prove di performance.
+- **Protezione Classe 3**: passaggio 3→2 classi non deve perdere o spostare iscritti automaticamente. Se Classe 3 è occupata, mostrare una conferma informativa/blocco con elenco degli studenti e chiedere che siano trasferiti o ritirati dal registro prima di spegnere la terza classe. Una Classe 3 vuota può essere disattivata; riattivazione con classe vuota e nessuna generazione automatica di NPC. Non cancellare i Sim, mai.
+- Attivazione/disattivazione e cambio 2↔3 classi devono essere **persistenti per save/slot**, separati tra partite e modificabili in pausa. Se una giornata scolastica è attiva, rendere effettive le modifiche della struttura dal **giorno scolastico successivo**; notificare chiaramente quando entrano in vigore. Vietate scritture implicite a dati del save principale.
+- **UX finale**: Cassetta postale/PC → MY HIGH SCHOOL → Impostazioni → Attiva/Disattiva + Numero classi (2/3); e sottocategorie MY HIGH SCHOOL → Classe 1 / Classe 2 / Classe 3 (Classe 3 solo se attiva). Evitare i category IDs non riconosciuti che hanno bloccato l'intero menu in M32; ricostruire e verificare in gioco con test specifici.
+- **Non ancora implementato nella M33.** Questi sono requisiti della prossima build cumulativa, da verificare in seguito. L'utente vuole finire i test M33 prima di altre installazioni.
+
+## Prossimi ultimi test non scriventi della M33
+1. `mhs25.discard` per cancellare la selezione di iscrizione preparata in Classe 3 senza scrivere.
+2. `mhs29.find Ariel`: il sistema deve mostrare Baby Ariel in Classe 1.
+3. `mhs29.audit`: leggere eventuali Sim non idonei; non rimuoverli.
+4. `mhs28.roster`: controllo finale atteso 2/8 Classe 1, 2/8 Classe 2, 0/8 Classe 3, a meno di scritture deliberate non riportate.
+5. Nessuna funzione `commit conferma` in questa sessione: cambierebbe il JSON esterno anche senza salvare il .save di The Sims 4.
