@@ -89,6 +89,19 @@ class M55Tests(unittest.TestCase):
         with self.assertRaises(AttendanceError):
             already_in_base_student(SimpleNamespace(),info)
 
+    def test_venue_school_gate_sees_core_npcs_and_playable_main(self):
+        for guid in (277733, 298052, 298096, 276686, 276681, 297168):
+            sim=object()
+            teen=SimpleNamespace(age=1,get_sim_instance=lambda:sim)
+            mgr=SimpleNamespace(get_situations_sim_is_in=
+                                lambda person:[SimpleNamespace(guid64=guid)])
+            self.assertTrue(school_running(mgr,[teen],1))
+        sim=object()
+        teen=SimpleNamespace(age=1,get_sim_instance=lambda:sim)
+        mgr=SimpleNamespace(get_situations_sim_is_in=
+                            lambda person:[SimpleNamespace(guid64=12345)])
+        self.assertFalse(school_running(mgr,[teen],1))
+
     def test_full_batch_plan_no_duplicate_or_retry(self):
         plan=tuple((i//8+1,str(i)) for i in range(1,25))
         day=DailyAttendance('3',99,7,plan)
