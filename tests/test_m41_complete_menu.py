@@ -8,6 +8,8 @@ from tooling.build_m41_complete_menu import (
     SIMDATA_GROUP,NEW_ROOT,CATEGORY_IDS,SETTINGS_CATEGORY)
 from tooling.build_m39_conditional_menu import package_bytes as m39
 from tooling.simdata_release_gate import resources,inspect_bytes
+from tooling.build_m41_complete_menu import MAIN_LABEL,NEW_KEYS,SETTINGS_LABEL
+from tooling.m1_links_and_strings import parse_stbl
 
 
 class M41EAReferenceTests(unittest.TestCase):
@@ -51,13 +53,27 @@ class M41EAReferenceTests(unittest.TestCase):
         self.assertEqual(len(self.old),len(self.new))
         for a,b in zip(self.old,self.new):
             self.assertEqual(a[:3],b[:3])
-            if a[0] not in (CATEGORY_TYPE,SIMDATA_TYPE):
+            if a[0] not in (CATEGORY_TYPE,SIMDATA_TYPE,0x220557DA):
                 self.assertEqual(a,b)
             elif a[0]==SIMDATA_TYPE:
                 test=bytearray(a[3])
                 self.assertEqual(test[0x40],1)
                 test[0x40]=0
                 self.assertEqual(bytes(test),b[3])
+
+    def test_final_labels_no_old_smoke_names(self):
+        for typ,grp,iid,blob in self.new:
+            if typ==0x220557DA:
+                names=parse_stbl(blob)
+                self.assertEqual(names[MAIN_LABEL],'MY HIGH SCHOOL')
+                if iid>>56==11:
+                    self.assertEqual(names[NEW_KEYS[0]],'Classe 1')
+                    self.assertEqual(names[NEW_KEYS[1]],'Classe 2')
+                    self.assertEqual(names[NEW_KEYS[2]],'Classe 3')
+                    self.assertEqual(names[SETTINGS_LABEL],'Impostazioni')
+                else:
+                    self.assertEqual(names[NEW_KEYS[0]],'Class 1')
+                    self.assertEqual(names[SETTINGS_LABEL],'Settings')
 
     def test_static_package_gate(self):
         report=inspect_bytes(package_bytes())
