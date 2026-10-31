@@ -57,7 +57,7 @@ def _replace_picker(raw,template,klass):
             category.text!=str(CATEGORY_IDS[klass-1])):
         raise M48BuildError('Missing original picker name/category')
     base.set('m','mhs48_single_picker')
-    base.set('c','MHS47EnrollClass{}'.format(klass))
+    base.set('c','MHS48EnrollClass{}'.format(klass))
     base.set('n',name)
     base.set('s',iid)
     base.find('./T[@n="category"]').text=category.text
