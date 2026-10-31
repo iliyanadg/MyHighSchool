@@ -6,6 +6,17 @@ This engine cannot guarantee that EA will instantiate or seat a Sim.
 """
 BASE_STUDENT_SITUATION = 277733
 BASE_STUDENT_JOB = 277894
+# IDs cross-checked against the project's archived EA tuning exports.
+# The active school can be represented by player, core classmates, or
+# base NPC student situations; do not require only the last one.
+SCHOOL_ACTIVE_SITUATIONS = frozenset((
+    277733,  # NPC_Base_Student
+    298052,  # NPC_Base_CoreClassNPCs
+    298096,  # NPC_Base_VenueNPCs
+    276686,  # Player_Main
+    276681,  # Player_AttendClass
+    297168,  # Background_Morning
+))
 CAPACITY_PER_CLASS = 8
 
 
@@ -71,7 +82,7 @@ def school_running(manager, all_sims, teen_age):
             getter = getattr(info, 'get_sim_instance', None)
             sim = getter() if callable(getter) else None
             if sim is not None:
-                if any(situation_guid(s) == BASE_STUDENT_SITUATION
+                if any(situation_guid(s) in SCHOOL_ACTIVE_SITUATIONS
                        for s in tuple(get_for_sim(sim) or ())):
                     return True
         except Exception:
