@@ -59,7 +59,8 @@ class M52Tests(unittest.TestCase):
         root=ast.parse(source)
         fn=next(n for n in root.body if isinstance(n,ast.FunctionDef)
                 and n.name=='open_remove_picker')
-        impl=ast.get_source_segment(source,fn)
+        impl=source[source.index('def open_remove_picker('):
+                    source.index('\nclass MHS27RemoveClass1')]
         self.assertIn('_SERVICE.commit(preview,current_slot())',impl)
         self.assertIn('result_dialog.get_result_tags()',impl)
         self.assertNotIn('UiDialogOkCancel',impl)
