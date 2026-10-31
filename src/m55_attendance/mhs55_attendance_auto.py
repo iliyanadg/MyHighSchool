@@ -317,6 +317,7 @@ def status_lines():
               'Controlli eseguiti: {} | {}'.format(_POLL_COUNT, _LAST_GATE),
               slot_identity_status(),
               mhs57_filter_runtime.status(),
+              mhs57_filter_runtime.filter_observation_status(),
               mhs57_filter_runtime.physical_status(),
               _registration_diagnostic(),
               'Ultimo evento: {}'.format(_LAST_EVENT)]
@@ -324,17 +325,21 @@ def status_lines():
         result.append('Giornata liceale: non ancora rilevata')
     else:
         c = _SESSION.summary()
-        result.extend([
-            'Slot {} / Giorno Sim {}'.format(_SESSION.slot, _SESSION.day),
-            'Iscritti previsti: {} / convocazioni richieste: {}'.format(
-                c['total'], c['requested']),
-            'Gia in situazione EA: {} / giocabili: {}'.format(
-                c['present'], c['playable']),
-            'Non idonei: {} / non trovati: {} / falliti: {} / da elaborare: {}'.format(
-                c['ineligible'], c['missing'], c['failed'], c['pending']),
-            'Il gioco EA puo comunque aggiungere NPC suoi. '
-            'Una richiesta non garantisce che lo studente sia fisicamente presente.'
-        ])
+        result.append('Slot {} / Giorno Sim {}. Iscritti pianificati: {}'.format(
+            _SESSION.slot, _SESSION.day, c['total']))
+        if mhs57_filter_runtime.installed():
+            result.append('M57: le convocazioni aggiuntive M56 sono disattivate; '
+                          'i numeri "da elaborare" del vecchio planner '
+                          'NON sono assenze. Controlla invece filtri EA e '
+                          'studenti fisicamente visibili.')
+        else:
+            result.extend([
+                'Richieste EA: {} / gia presenti: {} / giocabili: {}'.format(
+                    c['requested'], c['present'], c['playable']),
+                'Non idonei: {} / non trovati: {} / falliti: {} / '
+                'da elaborare: {}'.format(
+                    c['ineligible'], c['missing'], c['failed'], c['pending'])
+            ])
     return '\n'.join(result)
 
 
