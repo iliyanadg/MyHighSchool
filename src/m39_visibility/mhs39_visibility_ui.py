@@ -19,9 +19,9 @@ SPECS=(
  ('mhs25_confirmation','MHS25StageConfirmClass1','class',1),
  ('mhs25_confirmation','MHS25StageConfirmClass2','class',2),
  ('mhs28_controls','MHS28StageConfirmClass3','class',3),
- ('mhs52_picker','MHS27RemoveClass1','class',1),
- ('mhs52_picker','MHS27RemoveClass2','class',2),
- ('mhs52_picker','MHS28RemoveClass3','class',3),
+ ('mhs27_remove_ui','MHS27RemoveClass1','class',1),
+ ('mhs27_remove_ui','MHS27RemoveClass2','class',2),
+ ('mhs28_controls','MHS28RemoveClass3','class',3),
  ('mhs29_controls','MHS29ViewClass1','class',1),
  ('mhs29_controls','MHS29ViewClass2','class',2),
  ('mhs29_controls','MHS29ViewClass3','class',3),
@@ -54,7 +54,12 @@ class _MHS39VisibilityMixin(object):
 
 
 for _module,_name,_action,_klass in SPECS:
-    _base=getattr(__import__(_module),_name)
+    _runtime_module=('mhs52_picker'
+                     if _name in ('MHS27RemoveClass1',
+                                  'MHS27RemoveClass2',
+                                  'MHS28RemoveClass3')
+                     else _module)
+    _base=getattr(__import__(_runtime_module),_name)
     _wrapper='MHS39_'+_name
     globals()[_wrapper]=type(
         _wrapper,(_MHS39VisibilityMixin,_base),
