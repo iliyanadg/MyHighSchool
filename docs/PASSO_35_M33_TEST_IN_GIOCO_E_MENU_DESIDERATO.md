@@ -69,3 +69,14 @@ Tutti i comandi `*commit conferma` scrivono immediatamente sul JSON esterno di t
 3. `mhs29.audit`: leggere eventuali Sim non idonei; non rimuoverli.
 4. `mhs28.roster`: controllo finale atteso 2/8 Classe 1, 2/8 Classe 2, 0/8 Classe 3, a meno di scritture deliberate non riportate.
 5. Nessuna funzione `commit conferma` in questa sessione: cambierebbe il JSON esterno anche senza salvare il .save di The Sims 4.
+
+## AGGIORNAMENTO VALIDATO IN GIOCO — 31/10/2026 ore 01:43, quattro test finali M33
+L'utente ha fornito quattro screenshot in sequenza, tutti confermati nel client reale Mac.
+1. `mhs25.discard` → `M25: selezione preparata cancellata, nessun dato scritto.`
+2. `mhs29.find Ariel` → `Baby Ariel | Classe 1 | Sim ID 568605179472727670`. La ricerca nominale degli iscritti funziona.
+3. `mhs29.audit` → `MY HIGH SCHOOL - controllo registro TEST (slot 11)`, Classe 1 2/8, Classe 2 2/8, Classe 3 0/8; `Nessun iscritto mancante o non adolescente rilevato.` Nessuno rimosso.
+4. `mhs28.roster` → lettura finale confermata del registro JSON esterno: Classe 1 **Baby Ariel** + **Amarachi Darong** (2/8); Classe 2 **Sofia Bjergsen** + **Sofia Abrantes** (2/8); Classe 3 **0/8**. Nessun cambiamento delle iscrizioni dopo le prove.
+
+**Conclusione test non scriventi M33:** superati in-game menu postale e tutte le opzioni visibili; i 3 picker iscrizione (precedenti M29, e Classe 3 in M33), picker consultazione Classi 1/2, vuoto Classe 3, rimozione Classe 1, transfer Classe 1→3 con 1 ragazzo, preflight e annullamento, ricerca, audit, registro finale. Le finestre di rimozione Classi 2/3 e trasferimenti di tutte le altre direzioni non sono state ancora verificate singolarmente, né la scrittura `commit` e la persistenza dopo riavvio; non chiamare M33 interamente certificata.
+
+**Prossimo intervento raggruppato:** configurazione persistente per singolo save di attivazione/disattivazione mod (modalità liceo EA se disattivata), numero 2/3 classi (Classe 3 opzionale con blocco se occupata), sottomenu nativi per classe **senza** regressione invalid category ID, operazioni anche in pausa, conferma grafica senza console, notifica su Classe 3 vuota. Queste funzioni sono specifiche, NON già operative nella M33. La separazione tra registro JSON esterno e frequenza scolastica EA rimane da colmare prima della release definitiva.
