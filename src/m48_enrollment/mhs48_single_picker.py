@@ -77,21 +77,32 @@ def _teens():
 
 
 def _max_selectable(limit):
-    """Use a real EA picker strategy object, not obsolete ImmutableSlots.
+    """Keep EA's working picker strategy but cap actual checkable rows.
 
-    TS4 now calls max_selectable.get_max_selectable() while building the
-    picker. The old 2015 ImmutableSlots recipe caused a runtime exception
-    on game patch 1.129. We use EA's known _MaxSelectableUnlimited type
-    rather than passing an invented structure. We still REJECT a choice
-    exceeding eight Sims in our game and backend callbacks; never save it.
+    M49 proved _MaxSelectableUnlimited works on Mac. Subclass this SAME
+    EA object to supply the remaining seat count via get_max_selectable;
+    unlike the old ImmutableSlots implementation, we preserve the native
+    selection API. Rejection in the transaction is still a final guard.
     """
     if type(limit) is not int or not 1<=limit<=8:
-        raise ValueError('Limite di selezione non valido')
-    factory=UiDialogObjectPicker._MaxSelectableUnlimited
-    strategy=factory()
-    if not callable(getattr(strategy,'get_max_selectable',None)):
-        raise TypeError('La strategia EA del selettore non e compatibile')
-    return strategy
+        raise ValueError('Numero di posti non valido')
+
+    base=UiDialogObjectPicker._MaxSelectableUnlimited
+    if not callable(getattr(base,'get_max_selectable',None)):
+        raise TypeError('API di selezione EA non disponibile')
+
+    class _MaxSelectableRemainingSeats(base):
+        def get_max_selectable(self,*args,**kwargs):
+            return limit
+
+    return _MaxSelectableRemainingSeats()
+
+
+def _unassigned_candidates(students,roster):
+    """Exclude students already in ANY registered class (1, 2 or 3)."""
+    occupied=set(roster.assignments)
+    return [sim for sim in students
+            if canonical_sim_id(sim.sim_id) not in occupied]
 
 
 def open_picker(klass,interaction):
@@ -109,19 +120,25 @@ def open_picker(klass,interaction):
         slot=current_slot()
         _SETTINGS.require_management(slot,klass)
         roster=_ROSTERS.load(slot)
-        students=_teens()
+        seats=8-len(roster.class_members(klass))
+        if seats<=0:
+            _notify(actor,'MY HIGH SCHOOL - Classe completa',
+                    'Classe {}: tutti gli 8 posti sono occupati.'.format(klass))
+            return False
+        students=_unassigned_candidates(_teens(),roster)
         if not students:
-            _notify(actor,'MY HIGH SCHOOL','Non ci sono adolescenti idonei.')
+            _notify(actor,'MY HIGH SCHOOL',
+                    'Non ci sono adolescenti non ancora iscritti.')
             return False
         offered={canonical_sim_id(info.sim_id) for info in students}
-        max_count=8
+        max_count=min(seats,len(students))
         dialog=UiSimPicker.TunableFactory().default(
             actor,
             title=_text('Iscrivi studenti - Classe {}'.format(klass)),
-            text=_text('Seleziona fino a 8 adolescenti. '
-                       'Classe {} attualmente: {}/8 iscritti. '
+            text=_text('Posti liberi: {}/8. Seleziona al massimo {} '
+                       'adolescenti non iscritti. '
                        'Premi la spunta per iscriverli, X per uscire.'.format(
-                           klass,len(roster.class_members(klass)))),
+                           seats,max_count)),
             max_selectable=_max_selectable(max_count),
             min_selectable=1,should_show_names=True,
             hide_row_description=False)
@@ -139,8 +156,9 @@ def open_picker(klass,interaction):
             try:
                 values=tuple(answer.get_result_tags())
                 selected=tuple(canonical_sim_id(x) for x in values)
-                if not 1<=len(selected)<=8 or len(set(selected))!=len(selected):
-                    raise ValueError('Seleziona da 1 a 8 adolescenti senza duplicati')
+                if (not 1<=len(selected)<=max_count or
+                        len(set(selected))!=len(selected)):
+                    raise ValueError('Selezione non valida per i posti disponibili')
                 if not set(selected).issubset(offered):
                     raise ValueError('Sim non incluso nel selettore')
                 if current_slot()!=slot:
@@ -148,7 +166,8 @@ def open_picker(klass,interaction):
                 # Preview only validates; the SAME accepted checkmark then
                 # commits immediately. Cancel never reaches either operation.
                 plan=preview_enrollment(
-                    _ROSTERS,_SETTINGS,slot,klass,selected,teenager_checker)
+                    _ROSTERS,_SETTINGS,slot,klass,selected,teenager_checker,
+                    only_new=True)
                 result=confirm_enrollment(
                     _ROSTERS,_SETTINGS,current_slot(),plan,teenager_checker)
                 _record('SAVED','Classe {} | {} iscritti'.format(
