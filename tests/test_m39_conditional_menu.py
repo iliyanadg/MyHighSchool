@@ -61,6 +61,9 @@ class ConditionalTuningTests(unittest.TestCase):
             else:
                 a=ET.fromstring(before[3])
                 b=ET.fromstring(after[3])
+                if a.get('c')=='SimPickerInteraction':
+                    self.assertEqual(before,after)
+                    continue
                 self.assertEqual(b.get('m'),'mhs39_visibility_ui')
                 self.assertEqual(b.get('c'),'MHS39_'+a.get('c'))
                 b.set('c',a.get('c'))
