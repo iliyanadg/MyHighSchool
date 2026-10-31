@@ -16,7 +16,7 @@ from sims.sim_info_types import Age, Species
 from ui.ui_dialog_notification import UiDialogNotification
 from sims4.localization import LocalizationHelperTuning
 
-from mhs_m2_game_bridge import current_slot
+from mhs_m2_game_bridge import current_slot, slot_identity_status
 from mhs_m2_store import RosterStore
 from mhs34_settings import SettingsStore
 from mhs55_attendance_core import (
@@ -309,6 +309,7 @@ def _install_zone_hook():
 def status_lines():
     result = ['Automazione M55: {}'.format(_HOOK_STATE),
               'Controlli eseguiti: {} | {}'.format(_POLL_COUNT, _LAST_GATE),
+              slot_identity_status(),
               _registration_diagnostic(),
               'Ultimo evento: {}'.format(_LAST_EVENT)]
     if _SESSION is None:
