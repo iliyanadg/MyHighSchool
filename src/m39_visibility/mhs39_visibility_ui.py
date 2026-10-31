@@ -83,3 +83,18 @@ for _class_number in (1, 2, 3):
          '_mhs39_class':_class_number}
     )
 
+
+
+# M53: existing M52 affordances keep their exact tunings and menu classes.
+# New staff actions use the proven M39 per-save visibility mixin. Their
+# native UI and persistence live in mhs53_staff_ui / mhs53_staff_store.
+from mhs53_staff_ui import STAFF_ACTIONS
+for _token,_role,_mode,_klass in STAFF_ACTIONS:
+    _staff_name='MHS53'+_token
+    _staff_base=getattr(__import__('mhs53_staff_ui'),_staff_name)
+    globals()['MHS39_'+_staff_name]=type(
+        'MHS39_'+_staff_name,
+        (_MHS39VisibilityMixin,_staff_base),
+        {'__module__':__name__,
+         '_mhs39_action':'class',
+         '_mhs39_class':_klass})
