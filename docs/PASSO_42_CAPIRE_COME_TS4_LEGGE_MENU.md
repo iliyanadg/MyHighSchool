@@ -41,3 +41,18 @@
 6. La gestione della frequenza scolastica EA, delle tre aule e dei docenti è ancora lavoro separato.
 
 Non redistribuire i file originali EA nella repo pubblica; usare risorse locali solo per confronto.
+
+## Conferma con due tuning EA esportati dalla creatrice
+
+La creatrice ha estratto da Lot51 TDesc due esempi EA (qui riportiamo solo i campi essenziali e non redistribuiamo il tuning EA):
+- `sim_Friendly`: `s=15507`, `_collapsible=False`, nessun `_parent` esplicito, `_display_priority=9`, icona propria.
+- `sim_SubCat_Friendly_Activities`: `s=318696`, `_collapsible=False`, `_parent=15507`.
+
+Quindi il valore parent si riferisce al tuning ID *decimale* esatto del padre, e il flag `_collapsible` è esplicitamente `False` per entrambi. L'esempio dà riscontro alla modifica di M40 (root + child `_collapsible=False` e SimData 0), ma **non dimostra che M40 sia già funzionante nel gioco**. Il controllo delle coppie SimData resta necessario: l'XML da solo non dimostra che il client risolva le categorie.
+
+Fonti esterne supplementari:
+- https://thesims4moddersreference.org/tutorials/creating-a-pie-menu/ spiega il comportamento di `Collapsible`: con una sola interazione la categoria può sparire a favore dell'interazione.
+- https://modthesims.info/showthread.php?t=645711 segnala la necessità di un `_collapsible=False` coerente nel tuning e nel companion SimData.
+- https://modthesims.info/download.php?c=1&ht=0&page=3&pp=25&t=652181 conferma un caso risolto impostando `_collapsible=False` e SimData `_collapsible=0`.
+
+M40 compilata: https://github.com/iliyanadg/MyHighSchool/actions/runs/41164792986 , artefatto `MHS_M40_MENU_COLLAPSIBLE_FALSE_SOLO_TEST`. Usare solo per prova isolata nella partita TEST, con backup M35B/M37 fuori Mods. Verificare prima che la cassetta si apra; poi che Classe 1 appaia DENTRO MY HIGH SCHOOL, non nel menu radice. Non effettuare rimozioni o commit.
