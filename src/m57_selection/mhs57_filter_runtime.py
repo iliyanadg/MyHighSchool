@@ -126,6 +126,21 @@ def _manifest():
     return make_manifest(roster,staff,count,teen_ids)
 
 
+def _m60_present_ids():
+    """Aggregate current on-zone Sim IDs; read-only and only for base pupils."""
+    manager=services.sim_info_manager()
+    if manager is None:
+        return ()
+    seen=[]
+    for info in manager.get_all():
+        try:
+            if info.get_sim_instance() is not None:
+                seen.append(str(info.sim_id))
+        except Exception:
+            continue
+    return tuple(seen)
+
+
 def _filtered(original, self, args, kwargs, method):
     # Avoid any file reads for the vast majority of EA filters.
     idx=1 if method=='matching' else 0
@@ -148,7 +163,13 @@ def _filtered(original, self, args, kwargs, method):
         if plan is None:
             _log('preserve',guid,'Gestione scuola inattiva')
             return original(self,*args,**kwargs)
-        newargs,newkwargs,report=apply_constraints(args,kwargs,method,plan)
+        # M60: for the six Base Student filter requests, prefer enrolled teens
+        # not physically on-zone yet. All other filters remain unchanged.
+        # When offline tests execute the isolated EA adapter, this optional
+        # observation is absent and the original registry constraints apply.
+        present=(_m60_present_ids() if guid==280516 else ())
+        newargs,newkwargs,report=apply_constraints(
+            args,kwargs,method,plan,exclude_student_ids=present)
         _log(report[0],guid,report[2])
     except Exception as exc:
         # Never risk a crash in school bouncer filtering, or choose an ID
