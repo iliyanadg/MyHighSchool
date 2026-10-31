@@ -1,0 +1,31 @@
+name: M41 EA schema diagnostics (read-only)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/m41-schema-diagnostic.yml"
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Compare existing custom SimData to EA TDesc schema metadata
+        run: |
+          python - <<'PY'
+          import struct
+          from tooling.build_m37_small_root import package_bytes
+          from tooling.simdata_release_gate import resources
+          rows=resources(package_bytes())
+          for typ,group,iid,raw in rows:
+              if typ==0x545AC67A:
+                  print('Instance',iid,'size',len(raw),'magic',raw[:4])
+                  print('EA Oct2026 schema E2EAA141 present:',struct.pack('<I',0xE2EAA141) in raw)
+                  print('Old schema 022065C1 present:',struct.pack('<I',0x022065C1) in raw)
+                  print('Name and field strings:',[key for key in (b'PieMenuCategory',b'_collapsible',b'always_show_disabled_interactions') if key in raw])
+                  print('Header hex',raw[:112].hex())
+          PY
