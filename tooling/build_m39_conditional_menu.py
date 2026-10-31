@@ -59,12 +59,15 @@ def transformed_resources():
         if t==TYPE_INTERACTION:
             root=ET.fromstring(blob)
             pair=(root.get('m'),root.get('c'))
-            if pair not in mapping:
-                raise M39BuildError('No guard for action {}'.format(pair))
-            touched.add(pair)
-            root.set('m','mhs39_visibility_ui')
-            root.set('c',mapping[pair])
-            blob=ET.tostring(root,encoding='utf-8')
+            if pair in mapping:
+                touched.add(pair)
+                root.set('m','mhs39_visibility_ui')
+                root.set('c',mapping[pair])
+                blob=ET.tostring(root,encoding='utf-8')
+            elif pair!=('interactions.base.picker_interaction','SimPickerInteraction'):
+                raise M39BuildError('No guard for unexpected action {}'.format(pair))
+            # EA SimPickerInteraction is a supporting picker tuning, not one
+            # of the school menu's 19 clickable affordances. Keep unchanged.
         result.append((t,g,i,blob))
     if touched!=set(mapping):
         raise M39BuildError('Not all 19 game actions guarded')
