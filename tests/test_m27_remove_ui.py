@@ -103,6 +103,10 @@ class UiTests(unittest.TestCase):
         self.mod=load_ui()
         from mhs26_remove import RemovalService
         self.mod._SERVICE=RemovalService(self.store)
+        from mhs34_settings import SettingsStore
+        self.mod._SETTINGS=SettingsStore(self.tmp.name)
+        self.mod._SETTINGS.set_active('11',True)
+        self.mod._SETTINGS.set_class_count('11',3,self.store.load('11'))
         self.mod.current_slot=lambda:'11'
         self.all={str(i):types.SimpleNamespace(sim_id=i)
                   for i in (101,102,201,202,999)}
@@ -150,6 +154,9 @@ class UiTests(unittest.TestCase):
         picker.UiSimPicker=types.SimpleNamespace(
             TunableFactory=lambda:types.SimpleNamespace(default=factory.default))
         picker.SimPickerRow=Row
+        picker.UiDialogObjectPicker=types.SimpleNamespace(
+            _MaxSelectableUnlimited=type('EASelectable',(object,),{
+                'get_max_selectable':lambda self,*a,**k:8}))
         self.mod._dialog_factory=load_ui()._dialog_factory
         with patch.dict(sys.modules,{
             'sims4.localization':localization,
@@ -189,9 +196,8 @@ class UiTests(unittest.TestCase):
         class NativeFactory(object):
             dialog=None
             def default(self, *args, **kwargs):
-                if 'max_selectable' in kwargs:
-                    raise AssertionError('Picker must use EA selectable policy')
-                self.dialog=GuardDialog(NativeSelectable())
+                assert 'max_selectable' in kwargs
+                self.dialog=GuardDialog(kwargs['max_selectable'])
                 return self.dialog
 
         factory=NativeFactory()
@@ -216,20 +222,20 @@ class UiTests(unittest.TestCase):
         self.click(2)
         self.assertEqual({x.tag for x in self.dialog.rows},{201,202})
 
-    def test_confirm_stages_but_never_writes(self):
+    def test_native_checkmark_removes_student_from_test_registry(self):
         d=self.click(1)
         original=Path(self.store.path(11)).read_bytes()
         d.accept((101,))
-        self.assertEqual(self.mod._PENDING['removed'],1)
-        self.assertEqual(original,Path(self.store.path(11)).read_bytes())
-
-    def test_commit_only_after_console_confirmation(self):
-        self.click(2).accept((201,202))
-        self.mod.mhs27_removecommit('no')
+        self.assertIsNone(self.mod._PENDING)
+        self.assertNotEqual(original,Path(self.store.path(11)).read_bytes())
+        self.assertEqual(self.store.load('11').class_members(1),['102'])
         self.assertEqual(self.store.load('11').class_members(2),['201','202'])
-        self.mod.mhs27_removecommit('conferma')
+
+    def test_checkmark_removes_multiple_in_one_transaction(self):
+        self.click(2).accept((201,202))
         self.assertEqual(self.store.load('11').class_members(1),['101','102'])
         self.assertEqual(self.store.load('11').class_members(2),[])
+        self.assertIn('REMOVED',[evt for evt,msg in self.mod._EVENTS])
 
     def test_wrong_class_result_rejected(self):
         self.click(1).accept((201,))
@@ -256,10 +262,10 @@ class UiTests(unittest.TestCase):
         d.accept((101,))
         self.assertIsNone(self.mod._PENDING)
 
-    def test_list_preserved_after_not_confirming(self):
+    def test_console_cancel_cannot_undo_a_confirmed_native_removal(self):
         self.click(1).accept((101,))
         self.mod.mhs27_removecancel()
-        self.assertEqual(self.store.load('11').class_members(1),['101','102'])
+        self.assertEqual(self.store.load('11').class_members(1),['102'])
 
     def test_not_allowed_without_enrollment(self):
         from mhs_m2_roster import SchoolRoster
