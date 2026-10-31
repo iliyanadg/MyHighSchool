@@ -25,7 +25,7 @@ class NotificationTests(unittest.TestCase):
         self.assertLess(len(result),240)
     def test_snapshot_is_saved_on_diagnostic_click(self):
         source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py').read_text()
-        self.assertIn('mhs58_situation_probe.save_report(folder)',source)
+        self.assertIn('mhs58_situation_probe.save_report(folder, mhs57_filter_runtime.m59_snapshot())',source)
 
     def test_ui_passes_short_report_to_notification(self):
         source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py').read_text()
