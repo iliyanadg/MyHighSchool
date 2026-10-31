@@ -13,7 +13,8 @@ from mhs53_staff_store import StaffRoster
 from mhs57_school_manifest import make_manifest
 from mhs57_filter_policy import (
     STUDENT_FILTER, STAFF_FILTERS, CORE_FILTERS, SCHOOL_FILTERS,
-    guid_for_filter, choose_constraints, apply_constraints)
+    guid_for_filter, choose_constraints, apply_constraints,
+    is_competing_high_school_mod)
 
 
 def manifest():
@@ -179,16 +180,37 @@ class M57EAFilterTests(unittest.TestCase):
         self.assertIn('altri adolescenti 2',text)
         self.assertIn('personale scelto 2/8',text)
 
-    def test_conflict_guard_blocks_school_filter_overrides(self):
+    def test_conflict_guard_blocks_only_actual_high_school_controllers(self):
         src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
         self.assertIn("_CONFLICTS=_find_conflicting_school_mods()",src)
         self.assertIn("if _CONFLICTS:",src)
-        self.assertIn("'sonozaki'",src)
-        self.assertIn("'morestudents'",src)
-        self.assertIn("'rex_chooseclassmate'",src)
+        self.assertIn("is_competing_high_school_mod(name)",src)
         self.assertNotIn("os.remove(",src)
         self.assertNotIn("os.unlink(",src)
         ast.parse(src)
+
+        # These are the EXACT filenames shown by the user in game (M57).
+        unrelated=[
+            '!_SonozakiSisters_KatieMods_MegaInteractions_ALLMERGED_Traduzione_ITA_[bySha_Tsita].package',
+            'SonozakiSisters_Elementary_School_Management_IT.package',
+            'SonozakiSisters_MegaInteractions.ts4script',
+            'Sims4_Drama_Translation_ITA.package',
+            'Zerbu_Go_To_School_v5.ts4script',
+            'SonozakiSisters_High_School_Management_TRADUZIONE_ITA.package',
+        ]
+        actual=[
+            'SonozakiSisters_High_School_Management_2.2.1.package',
+            'SonozakiSisters_High_School_Management_2.2.1.ts4script',
+            'MoreStudents18.package',
+            'ksuihuh_More_Students.package',
+            'Choose_Your_High_School_Classmates.package',
+            'Rex_ChooseHighSchoolClassmates.ts4script',
+            'HighSchoolMoreClassmates.package',
+        ]
+        self.assertTrue(all(not is_competing_high_school_mod(s) for s in unrelated))
+        self.assertTrue(all(is_competing_high_school_mod(s) for s in actual))
+        self.assertFalse(is_competing_high_school_mod('readme.md'))
+        self.assertFalse(is_competing_high_school_mod(None))
 
     def test_does_not_copy_or_modify_game_tunings(self):
         runtime=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
