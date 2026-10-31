@@ -20,15 +20,22 @@ def roster_fingerprint(roster):
     return hashlib.sha256(roster.to_json().encode('utf-8')).hexdigest()
 
 
-def preview_enrollment(store, settings, slot, klass, selected, is_teen):
+def preview_enrollment(store, settings, slot, klass, selected, is_teen, only_new=False):
     """Validate the entire batch and calculate a read-only confirmation summary."""
     slot=canonical_save_slot(slot)
     settings.require_management(slot,klass)
     roster=store.load(slot)
+    if only_new:
+        from mhs_m2_roster import canonical_sim_id
+        if any(canonical_sim_id(sim_id) in roster.assignments
+               for sim_id in selected):
+            raise EnrollmentTransactionError(
+                'Uno studente risulta gia iscritto: usa Rimuovi o Trasferisci')
     updated,stats=roster.assign_many(klass,selected,is_teen)
     chosen=tuple(sorted((str(sim_id) for sim_id in selected),key=int))
     return {
         'slot':slot,
+        'only_new':bool(only_new),
         'class':klass,
         'selected':chosen,
         'snapshot':roster_fingerprint(roster),
@@ -62,6 +69,12 @@ def confirm_enrollment(store,settings,slot,plan,is_teen):
     roster=store.load(slot)
     if roster_fingerprint(roster)!=plan.get('snapshot'):
         raise EnrollmentTransactionError('Registro modificato dopo anteprima: ripeti selezione')
+    if plan.get('only_new',False):
+        from mhs_m2_roster import canonical_sim_id
+        if any(canonical_sim_id(sim_id) in roster.assignments
+               for sim_id in selected):
+            raise EnrollmentTransactionError(
+                'Studente iscritto nel frattempo: nessuna modifica')
     proposed,stats=roster.assign_many(klass,selected,is_teen)
     # Do not trust UI state or a stale preview. The full preflight counts
     # must be the same immediately before the write.
