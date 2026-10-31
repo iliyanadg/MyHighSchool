@@ -4,7 +4,7 @@ import unittest
 import xml.etree.ElementTree as ET
 import zlib
 from tooling.build_m44_tdesc_merge import (
-    transform,package_bytes,M44BuildError,ROOT_NAME,
+    transform,package_bytes,M44BuildError,ROOT_NAME,merge_lot51_exports,
     CATEGORY_TYPE,SIMDATA_TYPE,SIMDATA_GROUP)
 from tooling.build_m43_matched_root import package_bytes as m43
 from tooling.build_m27_removal import ENTRY
@@ -28,7 +28,7 @@ def dbpf_with_resources(rows):
     return bytes(header+data+index)
 
 
-def exported_categories(new_priority=None):
+def exported_categories(new_priority=None, legacy_low_parent=False):
     current=resources(m43())
     rows=[]
     root_id=next(i for typ,g,i,raw in current
@@ -36,6 +36,13 @@ def exported_categories(new_priority=None):
     for typ,g,i,raw in current:
         if typ not in (CATEGORY_TYPE,SIMDATA_TYPE):
             continue
+        if typ==SIMDATA_TYPE and i!=root_id and not legacy_low_parent:
+            # TDesc emits the child TableSetReference in high 32 bits.
+            data=bytearray(raw)
+            parent=struct.unpack_from('<Q',data,0x5c)[0]
+            assert parent==root_id
+            struct.pack_into('<Q',data,0x5c,parent<<32)
+            raw=bytes(data)
         if i==root_id and new_priority is not None:
             if typ==CATEGORY_TYPE:
                 node=ET.fromstring(raw)
@@ -52,9 +59,9 @@ def exported_categories(new_priority=None):
 
 
 class M44Tests(unittest.TestCase):
-    def test_tdesc_identity_avoids_redundant_game_test(self):
-        with self.assertRaisesRegex(M44BuildError,'UNCHANGED'):
-            transform(exported_categories())
+    def test_reject_handpatched_low_half_simdata_reference(self):
+        with self.assertRaisesRegex(M44BuildError,'parent mismatch'):
+            transform(exported_categories(legacy_low_parent=True))
 
     def test_tdesc_changes_only_category_resources(self):
         blob,changes=package_bytes(exported_categories(8))
