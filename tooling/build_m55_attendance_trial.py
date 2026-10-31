@@ -31,8 +31,8 @@ SCRIPTS = tuple(M54_SCRIPTS) + (CORE, AUTO, UI)
 ACTION = 'Iliyana:MHS55_Attendance_One'
 ACTION_ID = fnv64_highbit(ACTION)
 LABEL_ID = 0x5A895200
-PACKAGE = 'MHS_M55B_PRESENZE_COLLETTIVE_MAC_TEST.package'
-SCRIPT = 'MHS_M55B_PRESENZE_COLLETTIVE_MAC_TEST.ts4script'
+PACKAGE = 'MHS_M55C_DIAGNOSTICA_PRESENZE_MAC_TEST.package'
+SCRIPT = 'MHS_M55C_DIAGNOSTICA_PRESENZE_MAC_TEST.ts4script'
 
 
 class M55BuildError(ValueError):
@@ -176,6 +176,8 @@ def release(directory):
             'new_interactions':1,'resource_count':63,
             'script_modules':len(SCRIPTS),
             'automatic_full_roster_dispatch':True,
+            'school_gate_diagnostic':True,
+            'read_only_active_teens_roster_count':True,
             'batch_size_per_five_sim_minutes':3,
             'max_roster_students':24,
             'EA_attendance_requires_in_game_validation':True,
