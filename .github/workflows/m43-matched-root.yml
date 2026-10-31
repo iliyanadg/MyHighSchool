@@ -1,0 +1,45 @@
+name: M43 coherent root ID and fixed class visibility (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tooling/build_m43_matched_root.py'
+      - 'tests/test_m43_matched_root.py'
+      - '.github/workflows/m43-matched-root.yml'
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Full regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Build corrected M43 pair
+        run: python -m tooling.build_m43_matched_root dist/
+      - name: Audit five menu categories and Python bytecode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist/MHS_M43_MENU_GERARCHIA_E_FIX_TEST.package')
+          s=Path('dist/MHS_M43_MENU_GERARCHIA_E_FIX_TEST.ts4script')
+          a=inspect_bytes(p.read_bytes())
+          assert a['status']=='STATIC_GATE_PASSED'
+          assert a['category_count']==5 and a['simdata_count']==5
+          with zipfile.ZipFile(s) as z:
+              assert len(z.namelist())==15
+              assert all(z.read(name)[:4]==bytes((66,13,13,10)) for name in z.namelist())
+          print('M43 static validation passed; hierarchy requires in-game Mac test.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M43_MENU_COMPLETO_FIX_ROOT_E_EXCEPTION
+          path: |
+            dist/MHS_M43_MENU_GERARCHIA_E_FIX_TEST.package
+            dist/MHS_M43_MENU_GERARCHIA_E_FIX_TEST.ts4script
+          if-no-files-found: error
