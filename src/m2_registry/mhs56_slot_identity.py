@@ -26,6 +26,17 @@ def positive_id(raw):
     return text
 
 
+def stable_token(raw):
+    """Treat EA save GUID as an opaque identifier; never parse as slot index."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    value = str(raw).strip()
+    if (not value or len(value) > 128 or
+            value.lower() in ('0', '0x0', 'none', 'null')):
+        return None
+    return value
+
+
 def positive_slot(raw):
     sid = positive_id(raw)
     if sid is not None and 1 <= int(sid) < 0xFFFFFFFE:
@@ -46,7 +57,7 @@ class TravelSlotGuard(object):
 
     def resolve(self, raw_slot, stable_guid, household_id, allow_travel=False):
         current = positive_slot(raw_slot)
-        stable = positive_id(stable_guid)
+        stable = stable_token(stable_guid)
         household = positive_id(household_id)
         if current is not None:
             # A *real* slot is available: this is the only place where an
