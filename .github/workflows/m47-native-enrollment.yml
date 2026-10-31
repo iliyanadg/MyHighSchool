@@ -8,6 +8,7 @@ on:
       - 'src/m39_visibility/mhs39_visibility_ui.py'
       - 'src/m2_registry/mhs46_enrollment_transaction.py'
       - 'tests/test_m47_native_enrollment.py'
+      - 'tests/test_m45_visibility_complete.py'
       - '.github/workflows/m47-native-enrollment.yml'
 jobs:
   validate:
