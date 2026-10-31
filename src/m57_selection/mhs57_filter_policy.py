@@ -82,7 +82,7 @@ def guid_for_filter(tuning):
     return None
 
 
-def choose_constraints(manifest,filter_guid,original_constraints=None):
+def choose_constraints(manifest,filter_guid,original_constraints=None,exclude_student_ids=()):
     """(action, filtered_ids) where action=constrain, preserve or bypass.
 
     For a registered role, exclude IDs from the currently active household,
@@ -106,6 +106,13 @@ def choose_constraints(manifest,filter_guid,original_constraints=None):
     if not selected:
         return ('preserve',None,'No enrolled candidates for '+role)
     selected=set(int(x) for x in selected)
+    # M60 trial: prefer enrolled students NOT already instantiated on this zone.
+    # Preserve original EA candidates if all are already present, or when EA
+    # requested explicit constraints. Never add non-registered students.
+    if guid==STUDENT_FILTER and original_constraints is None and exclude_student_ids:
+        missing=selected.difference(int(x) for x in exclude_student_ids)
+        if missing:
+            selected=missing
     if original_constraints is not None:
         try:
             old=set(int(x) for x in original_constraints)
@@ -119,7 +126,7 @@ def choose_constraints(manifest,filter_guid,original_constraints=None):
     return ('constrain',tuple(sorted(selected)),role)
 
 
-def apply_constraints(args,kwargs,method,manifest):
+def apply_constraints(args,kwargs,method,manifest,exclude_student_ids=()):
     """Return cloned arguments plus a diagnostic, never change originals.
 
     submit_matching_filter positional sim_filter index 1, constraints index 4;
@@ -139,7 +146,7 @@ def apply_constraints(args,kwargs,method,manifest):
         return tuple(args),dict(kwargs),('bypass',guid,'Not school filter')
     original=options.get(
         'sim_constraints',copied[constraints_i] if len(copied)>constraints_i else None)
-    action, ids, note=choose_constraints(manifest,guid,original)
+    action, ids, note=choose_constraints(manifest,guid,original,exclude_student_ids)
     if action!='constrain':
         return tuple(args),dict(kwargs),(action,guid,note)
     if len(copied)>constraints_i:
