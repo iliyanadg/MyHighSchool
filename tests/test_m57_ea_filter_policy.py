@@ -111,6 +111,42 @@ class M57EAFilterTests(unittest.TestCase):
         self.assertEqual(b,kw)
         self.assertEqual(report[0],'bypass')
 
+    def test_core_filters_never_load_manifest_during_early_ea_spawn(self):
+        # Reproduces user's screenshot: 26 ManifestError calls for core GUID
+        # 303766. Core jobs must be delegated to EA before reading any MHS
+        # classroom/staff registry.
+        src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
+        fn=next(n for n in ast.parse(src).body
+                if isinstance(n,ast.FunctionDef) and n.name=='_filtered')
+        events=[]
+        def ea_original(self,*args,**kw):
+            events.append(('EA',args,kw))
+            return 'vanilla result'
+        def invalid_early_manifest():
+            raise RuntimeError('Must never be read for Core NPC')
+        runtime={'guid_for_filter':guid_for_filter,
+                 'SCHOOL_FILTERS':SCHOOL_FILTERS,'CORE_FILTERS':CORE_FILTERS,
+                 '_CONFLICTS':(), '_manifest':invalid_early_manifest,
+                 'apply_constraints':apply_constraints,
+                 '_log':lambda *a: events.append(('log',a))}
+        exec(compile(ast.Module(body=[fn],type_ignores=[]),
+                     '<M57c early EA filter>','exec'),runtime)
+        svc=object()
+        for guid in CORE_FILTERS:
+            tuning=type('EAFilter',(),{'guid64':guid})
+            self.assertEqual(runtime['_filtered'](
+                ea_original,svc,(1,tuning),{},'matching'),'vanilla result')
+        self.assertEqual(len([e for e in events if e[0]=='EA']),len(CORE_FILTERS))
+        self.assertEqual(len([e for e in events if e[0]=='log']),len(CORE_FILTERS))
+        self.assertTrue(all(e[1][0]=='preserve'
+                            for e in events if e[0]=='log'))
+
+    def test_error_message_includes_manifest_error_details(self):
+        src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
+        self.assertIn("type(exc).__name__,str(exc)[:105]",src)
+        self.assertIn("'Ultimo errore: {}'.format(",src)
+        self.assertIn("_LAST_ERROR=message",src)
+
     def test_filter_adapter_can_call_exact_original_unchanged_on_failure(self):
         src=(ROOT/'src'/'m57_selection'/'mhs57_filter_runtime.py').read_text()
         f=next(n for n in ast.parse(src).body
