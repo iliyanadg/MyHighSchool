@@ -169,6 +169,39 @@ class M55Tests(unittest.TestCase):
         self.assertIn('mhs55_attendance_core.py',names)
         self.assertIn('mhs55_attendance_ui.py',names)
 
+    def test_mac_school_hook_alarm_uses_real_ea_signature(self):
+        # Actual game-style alarms.add_alarm has no repeat_interval keyword.
+        source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py').read_text()
+        tree=ast.parse(source)
+        function=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
+                      and n.name=='_start_zone')
+        events=[]
+        calls=[]
+        zone=object()
+        class AlarmStub(object):
+            def add_alarm(self,owner,span,callback,repeating=False):
+                calls.append((owner,span,callback,repeating))
+                return object()
+            def cancel_alarm(self,handle):
+                events.append('cancelled')
+        context={'_HANDLE':None,'_ZONE':None,'_SESSION':None,
+                 '_POLL_MINUTES':5,
+                 'alarms':AlarmStub(),
+                 'create_time_span':lambda minutes:minutes,
+                 '_tick':lambda handle:None,
+                 '_event':lambda *items:events.append(items),
+                 'AttendanceError':AttendanceError}
+        exec(compile(ast.Module(body=[function],type_ignores=[]),
+                     'actual_m55_hook', 'exec'),context)
+        context['_start_zone'](zone)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(calls[0][0],zone)
+        self.assertEqual(calls[0][1],5)
+        self.assertTrue(calls[0][3])
+        self.assertIs(context['_ZONE'],zone)
+        self.assertIsNotNone(context['_HANDLE'])
+        self.assertEqual(events[-1][0],'CONTROLLO_AVVIATO')
+
     def test_auto_invites_without_picker_or_roster_write(self):
         auto=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_auto.py').read_text()
         ui=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py').read_text()
