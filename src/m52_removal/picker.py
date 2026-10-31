@@ -79,3 +79,17 @@ def open_picker(klass,interaction):
                 current=_STORE.load(slot)
                 if roster_fingerprint(current)!=before:
                     raise RosterError('Registro cambiato: riapri il menu')
+                updated,stats=plan_removal(current,klass,ids)
+                _STORE.save(slot,updated)
+                _notice(actor,'MY HIGH SCHOOL - Studenti rimossi',
+                    'Classe {}: {} rimossi, restano {}/8.'.format(
+                        klass,stats['removed'],stats['remaining']))
+            except Exception as exc:
+                _notice(actor,'MY HIGH SCHOOL - Nessuna modifica',
+                    str(exc)[:130])
+        picker.add_listener(on_answer)
+        picker.show_dialog()
+        return True
+    except Exception as exc:
+        _notice(actor,'MY HIGH SCHOOL - Impossibile aprire',str(exc)[:130])
+        return False
