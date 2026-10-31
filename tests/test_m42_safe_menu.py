@@ -38,7 +38,7 @@ class TestM42(unittest.TestCase):
         source=path.read_text(encoding='utf-8')
         # Check executable mixin body; documentation may mention the bad M41 constant.
         check_start=source.index('class _MHS39VisibilityMixin(object):')
-        check_end=source.index('\\n\\nfor _module',check_start)
+        check_end=source.index('\n\nfor _module',check_start)
         self.assertNotIn('TestResult.FALSE',source[check_start:check_end])
         # Import just the real mixin class with stubs in place of Sims 4
         # unavailable modules, to execute the exact code in a unit test.
