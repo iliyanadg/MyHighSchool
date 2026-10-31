@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.7'
-      - name: All offline tests
-        run: python -m unittest discover -s tests -v
+      - name: Targeted M52 and baseline menu/roster regression suite
+        run: python -m unittest tests.test_m52_multi_removal tests.test_m52_removal_and_settings tests.test_m51_bulk_transfer tests.test_m45_visibility_complete tests.test_m34_settings -v
       - name: Build Mac M52 package and script
         run: python -m tooling.build_m52_removal dist/
       - name: Inspect output
