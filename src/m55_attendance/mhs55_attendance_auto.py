@@ -35,6 +35,10 @@ _SESSION = None
 _HOOK_STATE = 'non ancora installato'
 _LAST_EVENT = 'In attesa di una giornata scolastica EA'
 _EVENTS = []
+_LAST_GATE = 'In attesa del primo controllo'
+_POLL_COUNT = 0
+_LAST_SLOT = None
+_LAST_DAY = None
 _BATCH = 3
 _POLL_MINUTES = 5
 
@@ -44,6 +48,40 @@ def _event(kind, message=''):
     _LAST_EVENT = '{}: {}'.format(kind, str(message)[:170])
     _EVENTS.append(_LAST_EVENT)
     del _EVENTS[:-25]
+
+
+def _gate(code, message=''):
+    """Update the status every poll without spamming UI or logs."""
+    global _LAST_GATE
+    value = '{}{}'.format(code, (': '+str(message)[:95]) if message else '')
+    _LAST_GATE = value
+
+
+def _registration_diagnostic():
+    """Read-only roster summary including playable, unregistered adolescents.
+
+    A playable teenager must count as ONE of eight classroom slots. Never
+    automatically enrol active family members and never write the roster.
+    """
+    try:
+        slot = _current_save_slot()
+        roster = _ROSTERS.load(slot)
+        settings = _SETTINGS.load(slot)
+        class_sizes = [len(roster.class_members(k)) for k in range(1, settings.class_count + 1)]
+        household = services.active_household()
+        members = tuple(getattr(household, 'sim_info_gen', lambda:())()) if household else ()
+        teens = [s for s in members if valid_student(s, Age.TEEN, Species.HUMAN)]
+        registered = set(roster.assignments)
+        missing = [s for s in teens if str(getattr(s, 'sim_id', '')) not in registered]
+        missing_names = ', '.join(('{} {}'.format(
+            getattr(s,'first_name',''), getattr(s,'last_name','')).strip())
+            for s in missing[:4])
+        return ('Registro slot {}: {}. Giocabili adolescenti della famiglia: {}. '
+                'Non iscritti: {}{}'.format(
+                    slot, ', '.join('C{} {}/8'.format(i+1,n) for i,n in enumerate(class_sizes)),
+                    len(teens), len(missing), (': '+missing_names) if missing_names else ''))
+    except Exception as exc:
+        return 'Registro: diagnosi non disponibile ({})'.format(type(exc).__name__)
 
 
 def _notice(title, message):
@@ -164,26 +202,35 @@ def _process(session, situation_mgr, sim_mgr):
 
 
 def _tick(_handle=None):
-    global _SESSION
+    global _SESSION, _POLL_COUNT, _LAST_SLOT, _LAST_DAY
+    _POLL_COUNT += 1
     try:
         zone = services.current_zone()
         if zone is None or zone is not _ZONE:
+            _gate('BLOCCATO', 'Zona EA cambiata o assente')
             return
         slot = _current_save_slot()  # Verified from live EA sources only.
+        _LAST_SLOT = slot
         settings = _SETTINGS.load(slot)
         if not settings.active:
+            _gate('BLOCCATO', 'MY HIGH SCHOOL disattivata')
             return
         day = _game_day()
+        _LAST_DAY = day
         current = _SESSION
         if current is not None and current.same_session(slot, _zone_id(zone), day):
             if current.done:
+                _gate('GIORNATA_ELABORATA', 'Controlla richieste e presenze')
                 return
         situation_mgr = services.get_zone_situation_manager()
         sim_mgr = services.sim_info_manager()
         if situation_mgr is None or sim_mgr is None:
+            _gate('ATTESA', 'Gestori Sims/situazioni EA non pronti')
             return
         if not school_running(situation_mgr, sim_mgr.get_all(), Age.TEEN):
+            _gate('ATTESA', 'Situazione EA liceo Base_Student non rilevata')
             return
+        _gate('SCUOLA_RILEVATA', 'Piano presenze attivo')
         if current is None or not current.same_session(slot, _zone_id(zone), day):
             roster = _ROSTERS.load(slot)
             planned, invalid = roster_plan(
@@ -206,6 +253,7 @@ def _tick(_handle=None):
                             counts['failed'] + counts['missing'] + counts['ineligible']))
     except Exception as exc:
         # Retain the school session; do not loop unsafe retries.
+        _gate('ERRORE', '{}: {}'.format(type(exc).__name__, str(exc)[:95]))
         _event('ATTESA_O_BLOCCO', '{}: {}'.format(type(exc).__name__, str(exc)[:95]))
 
 
@@ -259,7 +307,10 @@ def _install_zone_hook():
 
 
 def status_lines():
-    result = ['Automazione M55: {}'.format(_HOOK_STATE), _LAST_EVENT]
+    result = ['Automazione M55: {}'.format(_HOOK_STATE),
+              'Controlli eseguiti: {} | {}'.format(_POLL_COUNT, _LAST_GATE),
+              _registration_diagnostic(),
+              'Ultimo evento: {}'.format(_LAST_EVENT)]
     if _SESSION is None:
         result.append('Giornata liceale: non ancora rilevata')
     else:
