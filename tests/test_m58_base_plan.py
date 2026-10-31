@@ -49,6 +49,7 @@ class M58BasePlanTests(unittest.TestCase):
                        {'core_roles':{'unknown':'3'}},
                        {'core_roles':{'cheer':'3','chess':'3'}},
                        {'core_roles':{'mean':'999'}},
+                       {'core_roles':{'mean':'3'},'unavailable':('3',)},
                        {'unavailable':('999',)}):
             with self.subTest(kwargs=kwargs):
                 with self.assertRaises(M58PlanError):
