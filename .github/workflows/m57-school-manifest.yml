@@ -1,0 +1,25 @@
+name: M57 school manifest regression tests
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m57_selection/**'
+      - 'tests/test_m57_school_manifest.py'
+      - '.github/workflows/m57-school-manifest.yml'
+concurrency:
+  group: mhs-m57-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  manifest:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Strict source-of-truth student/staff manifest (no EA override)
+        run: python -m unittest tests.test_m57_school_manifest -v
