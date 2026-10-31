@@ -12,7 +12,7 @@ import os
 
 import services
 from interactions.base.immediate_interaction import ImmediateSuperInteraction
-from sims.sim_info_types import Age
+from sims.sim_info_types import Age, Species
 from sims4.localization import LocalizationHelperTuning
 from ui.ui_dialog_picker import UiSimPicker,SimPickerRow,UiDialogObjectPicker
 from ui.ui_dialog_notification import UiDialogNotification
@@ -83,13 +83,24 @@ def _actor(interaction):
         return None
 
 
+def _eligible_human_adult(sim):
+    """Require BOTH human species and adult age (pets may have Age.ADULT).
+
+    A missing species is NOT presumed human: fail closed on unknown
+    species, dogs, cats, horses and any other animal.
+    """
+    return (sim is not None
+            and getattr(sim,'species',None)==Species.HUMAN
+            and getattr(sim,'age',None) in _ADULT_AGES)
+
+
 def _adult_infos():
     mgr=services.sim_info_manager()
     if mgr is None:
         raise StaffError('Archivio Sims non disponibile')
     result={}
     for sim in mgr.get_all():
-        if sim is None or getattr(sim,'age',None) not in _ADULT_AGES:
+        if not _eligible_human_adult(sim):
             continue
         try:
             sid=canonical_sim_id(getattr(sim,'sim_id',None))
@@ -104,7 +115,7 @@ def _adult_infos():
 def _still_adult(sid):
     try:
         sim=services.sim_info_manager().get(int(canonical_sim_id(sid)))
-        return sim is not None and getattr(sim,'age',None) in _ADULT_AGES
+        return _eligible_human_adult(sim)
     except Exception:
         return False
 
@@ -182,13 +193,22 @@ def open_staff(role,mode,klass,interaction):
                         '{}: non ci sono persone assegnate.'.format(_role_label(role)))
                 return False
             wanted=set(members)
-            candidates=[info for info in _adult_infos()
-                        if canonical_sim_id(info.sim_id) in wanted]
+            # Removing an already-assigned animal must remain possible,
+            # to clean up bad entries created with the older M53 build.
+            # A pet can NEVER be newly assigned by the human-only picker.
+            mgr=services.sim_info_manager()
+            candidates=[]
+            if mgr is not None:
+                for sid in members:
+                    info=mgr.get(int(sid))
+                    if info is not None and canonical_sim_id(
+                            info.sim_id) in wanted:
+                        candidates.append(info)
             max_allowed=min(len(candidates),CAP[role])
         else:
             occupied=before.all_ids()
-            # An assigned person cannot occupy a second role. Replacements
-            # are chosen from currently unassigned existing adults.
+            # A staff appointment must be an eligible HUMAN adult and
+            # must not duplicate an already-occupied staff role.
             candidates=[info for info in _adult_infos()
                         if canonical_sim_id(info.sim_id) not in occupied]
             max_allowed=(1 if role in SINGLE else
@@ -229,6 +249,12 @@ def open_staff(role,mode,klass,interaction):
                         or len(set(selected))!=len(selected)
                         or not set(selected).issubset(offered)):
                     raise StaffError('Selezione non valida per i posti disponibili')
+                # Re-check species BEFORE the save, so stale selections,
+                # dog/cat/horse IDs and modified live Sims cannot be
+                # appointed even if an old picker handed back their IDs.
+                if mode=='assign' and not all(_still_adult(sid)
+                                              for sid in selected):
+                    raise StaffError('Il personale deve essere un Sim umano adulto')
                 if current_slot()!=slot:
                     raise StaffError('Salvataggio cambiato')
                 _SETTINGS.require_management(slot,klass)
