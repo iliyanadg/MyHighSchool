@@ -1,38 +1,36 @@
-# Passo 63 — M55: prima convocazione controllata di UNO studente iscritto
+# Passo 63 — M55: presenze automatiche di TUTTI gli studenti iscritti (test Mac)
 
-## Baseline verificata (31 ottobre 2026)
+## Decisione della creatrice — 31 ottobre 2026
 
-La M54 (menu, iscrizioni/rimozioni/trasferimenti, personale solo umano) ha superato il test in gioco sul Mac. Le sue **62 risorse DBPF**, il menu e le 10 categorie con SimData Lot51 sono la baseline da conservare.
+La creatrice ha rifiutato l'approccio «un Sim alla volta» e ha richiesto una versione M55 **collettiva, automatica e quotidiana**: i ragazzi selezionati nel registro di Classe 1/2/3 devono essere richiamati alla scuola senza scegliere manualmente uno studente dal menu ogni volta.
 
-**Nuova azione di prova** in `MY HIGH SCHOOL → Classe 1 → M55 TEST - Convoca 1 studente Classe 1`. Non si usano console, generazione di NPC né nuove situazioni automatiche per tutti gli iscritti.
+## Realizzato nei sorgenti su branch dedicato
 
-## Funzione del test
+- Attivazione: MY HIGH SCHOOL deve essere attiva nelle impostazioni M34. Il registro esterno di ciascuno slot rimane immutato.
+- Automa: dopo il caricamento di una zona il runtime installa un solo allarme di gioco che verifica ogni 5 minuti Sim se è già attiva una vera situazione `situation_HighSchool_Active_NPC_Base_Student` (GUID 277733).
+- Solo nel contesto che presenta effettive situazioni scolastiche EA, pianifica una giornata per **tutti** gli iscritti alle 2 o 3 classi attive (massimo 8 per ciascuna, fino a 24). Esegue al massimo 3 richieste ogni allarme, riducendo il picco di situazioni create contemporaneamente.
+- L'elenco viene congelato all'inizio della giornata: trasferimenti o nuove iscrizioni durante la scuola non cambiano la convocazione della giornata già pianificata; varranno dal giorno successivo.
+- Per ogni studente verifica che esista ancora, sia umano e adolescente. Non genera sostituti casuali.
+- I Sim della famiglia giocata non vengono convertiti in NPC scolastici dalla mod (richiedono il flusso EA dei liceali giocabili).
+- Chi è già presente nella situazione EA non viene convocato nuovamente. Per gli altri il runtime usa la situazione base 277733 e il job EA 277894, con UNA richiesta per ciascun ID. Nessun retry nella stessa sessione di scuola anche se il motore rifiuta una richiesta.
+- Il controllo per save-slot avviene nel momento dell'attivazione: se EA dichiara slot 0/ignoto dopo il viaggio, la convocazione si blocca, **non** usa uno slot obsoleto di una partita diversa.
+- Stato in memoria consultabile in `MY HIGH SCHOOL → Classe 1 → M55 - Consulta presenze automatiche`. Il messaggio mostra quanti sono stati richiesti, già presenti, giocabili, non idonei e non riusciti. Non è un registro storico delle assenze.
+- Il `.package` conserva le 10 categorie Lot51/SimData e le interazioni funzionanti della M54. Aggiunge soltanto una interazione di consultazione, due localizzazioni e un injector aggiornato (63 risorse invece di 62). La `.ts4script` include i 19 moduli esistenti + pianificatore + automatismo + interfaccia = **22 moduli**. Va compilata per Python 3.7 attraverso GitHub Actions.
+- Il tentativo di convocazione non cambia l'appartenenza alle aule tramite trait EA, non modifica i ruoli del personale EA, non riscrive la giornata di EA e non elimina situazioni dei liceali casuali.
 
-- UI nativa: mostra soltanto gli adolescenti umani **già iscritti** alla Classe 1 del registro esterno. Spunta ✓ = singolo tentativo; X = nessuna modifica.
-- Dopo ✓ verifica **slot del salvataggio**, attivazione MY HIGH SCHOOL, iscrizione ancora valida, età e specie, e presenza di una situazione liceale EA `situation_HighSchool_Active_NPC_Base_Student` (GUID 277733).
-- Se il Sim è già membro di una situazione Base Student osservabile, mostra «già presente» senza duplicare.
-- Se EA espone il ruolo `job_HighSchool_Active_Base_NPC_Student` (GUID 277894), invia **una sola** richiesta `create_situation` con esattamente il Sim scelto. Blocca i tentativi ripetuti per Sim+slot nella stessa sessione; nessuna invocazione automatica o in background.
-- **Non** scrive il registro, non tocca il personale, **non** modifica i tratti EA per cambiare classe, non programma il ritorno quotidiano e non forza la presenza fisica in aula.
-- Se il salvataggio al liceo è identificato come slot 0 o lo school-day non risulta riconoscibile, **non** tenta di convocare nessuno. È un limite noto da studiare, NON un invito a bypassare la verifica.
-- La prima prova è sulla Classe 1; lo scopo della M55 non è ancora portare 24 Sims insieme nello stesso lotto.
+## Limiti da non confondere con funzionalità collaudate
 
-## Composizione
+**Test automatici e codice non garantiscono che tutti i 24 Sim siano effettivamente presenti sul lotto.** Il motore di gioco può rifiutare le situazioni, imporre limiti di popolazione, generare i propri NPC, o cambiare ruoli EA. Anche il numero di aule è limitato: l'EP Vita da Liceali possiede nativamente due aule; i ragazzi di Classe 3 sono convocabili come Sim ma **non viene creata una terza lezione/una terza lavagna EA**. L'appartenenza a Classe 1/2 del nostro registro non pilota ancora l'assegnazione EA a una lavagna. Anche il personale M54 resta nel registro e non è ancora incaricato nel lotto EA. Per una mod completa come immaginata restano necessari un controller delle lezioni, lo staff reale e una politica per gli studenti spontanei di EA.
 
-`tooling/build_m55_attendance_trial.py` parte dal package M54/M53, conserva 59 TGI byte-identici, aggiunge una sola interaction di Classe 1, modifica esclusivamente l'iniettore e i due STBL per esporre il comando. Package: 63 risorse, sempre 10 categorie e 10 SimData. La ts4script contiene i 19 moduli M54 + i 2 nuovi moduli M55 = 21; compilazione **Python 3.7**.
+**Il runtime usa un hook sul caricamento della zona**: ogni aggiornamento del gioco va testato sul Mac. Se l'API di fine caricamento non esiste o lo slot è ignoto, fallisce senza invocare alcun Sim; consultare lo stato. Nei test del progetto precedenti EA poteva leggere slot 0 dopo il viaggio al liceo. La M55 non aggira questo problema usando un vecchio valore di slot: il controllo può bloccare la convocazione, in attesa di una fonte di identità valida.
 
-`tests/test_m55_attendance_trial.py` controlla la selezione singola, il controllo duplicati, il gate alle situazioni e ai GUID EA, il singolo invio, l'assenza di alterazioni del menu M54, e il roundtrip DBPF.
+## Come testare quando GitHub Actions termina con successo
 
-## Test Mac quando la CI sarà verde
+1. Eseguire le prime prove **solo in una partita di prova separata**. Fare copia della coppia M54 e della cartella `MY_HIGH_SCHOOL_M25_TEST_DATA`; non salvare sopra la partita narrativa principale.
+2. Chiudere The Sims 4. Rimuovere la coppia M54 e installare **entrambi** i file M55 provenienti dalla stessa run CI riuscita. Non mescolare versioni.
+3. Verificare MY HIGH SCHOOL attiva, Classe 1 e 2 popolate con Sim scelti; Classe 3 se richiesta.
+4. Andare al liceo con una Sim giocabile durante la normale giornata scolastica e **non premere alcun comando per convocare persone**. L'automazione controlla quando EA ha avviato le situazioni scolastiche.
+5. Aprire `MY HIGH SCHOOL → Classe 1 → M55 - Consulta presenze automatiche`. Controllare il riepilogo, quanti studenti sono apparsi realmente e se il gioco consente le lezioni.
+6. In caso di slot 0, eccezioni, problemi di freeze o schermi bloccati: uscire senza sovrascrivere il salvataggio di prova, tornare alla M54 e comunicare l'errore.
 
-1. **Salvataggio TEST**, con copia separata dei dati esterni `MY_HIGH_SCHOOL_M25_TEST_DATA`. Non provare per la prima volta sul salvataggio narrativo principale.
-2. Chiudere il gioco; conservare la coppia M54. Sostituire esclusivamente i due file M54 con i due file M55 della **stessa compilazione GitHub Actions**. Non installare M54 e M55 insieme.
-3. Avviare il salvataggio di prova con MY HIGH SCHOOL attiva e almeno 1 adolescente umano iscritto in Classe 1.
-4. Visitare il lotto del liceo di Copperdale durante una giornata attiva in cui siano visibili studenti EA. Aprire MY HIGH SCHOOL → Classe 1 → M55 TEST e selezionare **un solo** studente non già presente.
-5. Dopo ✓, riferire il testo esatto del messaggio e verificare **a vista** se lo studente arriva e se può seguire le lezioni. Non interpretare «richiesta inviata» come conferma dell'arrivo.
-6. Se appare «slot non verificabile», «giornata liceo non rilevata», errori API o eccezioni, **fermarsi**; non ripetere rapidamente. Conservare M54 come rollback.
-
-## Cosa resta dopo questo test
-
-Presenza giornaliera persistente, sostituzione dei NPC casuali di EA, prof. e preside attivi, routing lavagne/aula 1/2, Classe 3 virtuale e controllo carico 24 adolescenti **non sono implementati**. La terza aula non ha un ruolo EA preesistente; non possiamo fingere che il test M55 la abiliti.
-
-**Stato**: M55 codice e test offline; da validare in GitHub CI e poi nel gioco Mac, prima di qualunque merge in main.
+**Stato**: sorgenti per il comportamento collettivo in branch M55 e CI automatica. Test Mac, compatibilità con altre mod, convocazione fisica, capienze e 3 lezioni reali non ancora confermati. Non effettuare merge in main prima del test.
