@@ -317,6 +317,7 @@ def status_lines():
               'Controlli eseguiti: {} | {}'.format(_POLL_COUNT, _LAST_GATE),
               slot_identity_status(),
               mhs57_filter_runtime.status(),
+              mhs57_filter_runtime.physical_status(),
               _registration_diagnostic(),
               'Ultimo evento: {}'.format(_LAST_EVENT)]
     if _SESSION is None:
