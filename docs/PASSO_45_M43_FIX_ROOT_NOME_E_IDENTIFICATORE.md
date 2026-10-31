@@ -68,3 +68,24 @@ La creatrice ha testato la M43 con screenshots della cassetta postale. **Il loop
 4. Ricerca: la guida https://thesims4moddersreference.org/tutorials/creating-a-pie-menu/ spiega che TDesc genera il file SimData, che deve rappresentare ogni campo e che Parent è l'ID decimale della categoria superiore; questo conferma il tipo di controllo ma non diagnostica da solo l'errore M43.
 
 **Non fare reinstallazioni né ulteriori micro-build per i soli click delle singole classi.** La causa del mancato annidamento resta aperta.
+
+
+## Audit eseguito sui file M43 REALMENTE caricati dall'utente (31/10/2026)
+
+Analisi diretta di `MHS_M43_MENU_GERARCHIA_E_FIX_TEST.package` e `MHS_M43_MENU_GERARCHIA_E_FIX_TEST.ts4script` caricati nella chat, NON solo delle fonti del builder GitHub. Il DBPF contiene **35 risorse** e l'archivio .ts4script contiene **15 moduli .pyc**, ZIP integro e magic byte Python 3.7 `420d0d0a`.
+
+Tutti i cinque tuning `PieMenuCategory` sono accompagnati da una risorsa SimData (tipo `545AC67A`, gruppo `00E9D967`) con la stessa Instance ID:
+
+| Categoria | ID | Parent XML | Parent SimData |
+| --- | ---: | ---: | ---: |
+| Iliyana:MHS_MainMenu | 1942018511 | 0 | 0 |
+| Iliyana:MHS_Class_1_ | 869446548 | 1942018511 | 1942018511 |
+| Iliyana:MHS_Class_2_ | 869619243 | 1942018511 | 1942018511 |
+| Iliyana:MHS_Class_3_ | 869875458 | 1942018511 | 1942018511 |
+| Iliyana:MHS_Settings | 126543528 | 1942018511 | 1942018511 |
+
+Il pacchetto include 22 SuperInteraction tuning, di cui 19 hanno `category` esplicita; **nessuna delle 22 include `interaction_category_tags` espliciti**. Esempi di implementazioni che usano questa lista per custom pie menu esistono, ma la sua assenza NON identifica da sola la causa del *parent hoisting*: le sottocategorie vengono visualizzate in game e i dati parent sono presenti.
+
+Conclusione: il package installato ha ID e riferimento Parent corretto sia in XML che nella SimData. La precedente ipotesi di un disallineamento id/name root non è sufficiente: M43 non ha risolto il problema sul Mac. Evitare nuove micro-build che cambiano soltanto `_parent` o gli ID. Distinguere prima tra contaminazione da copie MHS/altre mod, cache o salvataggio, e problema vero del parser UI. Test controllato suggerito: solo coppia M43 + XML Injector richiesto, con una copia isolata di `Mods` e salvataggio di TEST duplicato o nuovo, senza alterare la partita principale; usare stessa cassetta per comparare l'albero menu.
+
+Riferimenti tecnici: https://thesims4moddersreference.org/tutorials/creating-a-pie-menu/ e https://modthesims.info/t/581879 .
