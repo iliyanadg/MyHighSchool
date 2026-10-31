@@ -11,6 +11,52 @@ forced without validated role assignments: fallback to vanilla for them.
 """
 from mhs57_school_manifest import ManifestError
 
+def is_competing_high_school_mod(file_name):
+    """Conservative filename check for known HIGH-SCHOOL selection controllers.
+
+    Do not block on the name of a creator. Sonozaki also publishes unrelated
+    Elementary School and Mega Interactions content: those cannot be treated
+    as proof that an EP12 high-school selection controller is installed.
+
+    This is a name-based warning, not a definitive package-content scanner.
+    Unknown mods may still conflict; only known school-controller names
+    trigger the automatic fail-closed guard.
+    """
+    if not isinstance(file_name, str):
+        return False
+    lower=file_name.lower()
+    if not lower.endswith(('.package', '.ts4script')):
+        return False
+    base=lower.rsplit('/',1)[-1].rsplit('\\\\',1)[-1]
+    normalized=''.join(ch for ch in base if ch.isascii() and ch.isalnum())
+
+    # Translation-only and unrelated mods should not disable EP12 controls.
+    # Check the stronger controller marker BEFORE interpreting the creator.
+    markers=(
+        'highschoolmanagement',
+        'choosehighschoolclassmate',
+        'chooseyourhighschoolclassmate',
+        'highschoolmoreclassmate',
+        'highschoolmorestudent',
+        'morestudents18',
+        'ksuihuhmorestudents',
+        'copperdalestories',
+        'hsclassmatecontroller',
+    )
+    if any(marker in normalized for marker in markers):
+        if ('traduzione' in normalized or 'translation' in normalized or
+                'localization' in normalized) and not (
+                'merged' in normalized or 'allinone' in normalized):
+            return False
+        return True
+    # Some old More Students mods ship without author or school in filename.
+    # They are known to replace the active school population.
+    if normalized.startswith('morestudents') and not (
+            'translation' in normalized or 'traduzione' in normalized):
+        return True
+    return False
+
+
 STUDENT_FILTER=280516
 STAFF_FILTERS={
     296396:'teacher1',
