@@ -13,6 +13,7 @@ from ui.ui_dialog_notification import UiDialogNotification
 from mhs55_attendance_auto import status_lines
 import mhs58_situation_probe
 import mhs57_filter_runtime
+import mhs61_pilot_command
 
 
 def _text(value):
