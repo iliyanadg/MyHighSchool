@@ -49,3 +49,11 @@ La M34 implementa **solo la gestione delle impostazioni del registro**; le ultim
 
 ## Test automatici
 - Default off/2, persistenza attiva/disattiva, isolamento slot, classe 3 facoltativa, rifiuto classe 3 non vuota, fallimento in sicurezza su JSON corrotto, guard su scritture disattivate, presenza tuning e traduzioni, conservazione singola categoria.
+
+## 31 ottobre 2026, ore 02:09 — prova M34 Mac e menu desiderato chiarito
+- Foto del gioco M34: `mhs34.settings` prima della modifica = Slot 11, Gestione iscrizioni DISATTIVA, Classi disponibili 2, Classe 3 iscritti 0.
+- Dopo clic sulla voce `Attiva MY HIGH SCHOOL (registro TEST)`, `mhs34.settings` restituisce **ATTIVA**, Classi disponibili **2**, Classe 3 iscritti **0**, con `SAVED slot 11 | Attiva | 2 classi`. Il test dell'attivazione del registro per lo slot 11 è confermato.
+- Seconda foto: la cassetta postale continua a mostrare il **menu piatto M34**, con tutte le opzioni di consultazione, trasferimento e attivazione distribuite su diverse pagine. L'utente ha richiamato espressamente la struttura finale: **clic sulla voce MY HIGH SCHOOL → Attiva/Disattiva → (se attivo) Classe 1 e Classe 2, eventualmente Classe 3 → sotto-ogni-classe tutte le operazioni della sua classe**.
+- Quando DISATTIVA, le voci delle classi NON dovrebbero essere visibili/attive, lasciando visibile l'opzione ATTIVA. Quando ATTIVA, il menu deve mostrare DISATTIVA, Classe 1 e Classe 2, più Classe 3 **solo quando abilitata** tramite la scelta 2/3 classi. Per scelta 2/3, prevedere sezione Impostazioni persistente (per singolo salvataggio). Le opzioni devono poter funzionare in pausa e confermare nel gioco, senza necessità di console. **Questa UX non è implementata nella M34.**
+- La precedente soluzione per sottocategorie M30/M32 ha causato `invalid category ID` e menu cassetta bloccato, quindi la prossima soluzione non va data per pronta senza prova live su Mac; mantenere un percorso di recupero con menu valido.
+- Prossima verifica funzionale M34 da eseguire: scegliere `Impostazioni: usa 3 classi` nella cassetta con tempo attivo e leggere `mhs34.settings`. Attesi ATTIVA e 3 classi, registro studenti invariato.
