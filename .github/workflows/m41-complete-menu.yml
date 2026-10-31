@@ -1,0 +1,45 @@
+name: M41 full MY HIGH SCHOOL EA-aligned menu (Python 3.7)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tooling/build_m41_complete_menu.py"
+      - "tests/test_m41_complete_menu.py"
+      - ".github/workflows/m41-complete-menu.yml"
+jobs:
+  offline-build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+      - name: Full offline regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Compile complete M41 pair
+        run: python -m tooling.build_m41_complete_menu dist/
+      - name: Validate native package and correct bytecode version
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist/MHS_M41_MENU_COMPLETO_EA_SCHEMA_TEST.package')
+          s=Path('dist/MHS_M41_MENU_COMPLETO_EA_SCHEMA_TEST.ts4script')
+          info=inspect_bytes(p.read_bytes())
+          assert info['status']=='STATIC_GATE_PASSED'
+          assert info['category_count']==5 and info['simdata_count']==5
+          with zipfile.ZipFile(s) as z:
+              assert len(z.namelist())==15
+              assert all(z.read(f)[:4]==bytes((66,13,13,10)) for f in z.namelist())
+          print('M41 XML/SimData structure tests passed; Mac runtime not verified')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M41_MENU_COMPLETO_EA_SCHEMA_TEST
+          path: |
+            dist/MHS_M41_MENU_COMPLETO_EA_SCHEMA_TEST.package
+            dist/MHS_M41_MENU_COMPLETO_EA_SCHEMA_TEST.ts4script
+          if-no-files-found: error
