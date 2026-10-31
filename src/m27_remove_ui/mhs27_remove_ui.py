@@ -1,9 +1,8 @@
-"""M27 prototype — class-scoped student removal from MY HIGH SCHOOL menu.
+"""M52: class-scoped multi-student removal using one native picker.
 
-Native Sim portraits are built only from current classroom enrollment.
-The picker NEVER writes. Only mhs27.removecommit conferma can write to the
-same isolated M25 test JSON, after save-slot and roster-snapshot checks.
-Compatibility of UiSimPicker factory must be validated in-game.
+Checkmark removes selected Sims from the isolated registry JSON immediately;
+X cancels. No Sim is deleted from the EA save. Legacy M27 console debug
+commands are kept but not used in the native picker.
 """
 import inspect
 import os
@@ -17,11 +16,13 @@ from mhs_m2_roster import RosterError
 from mhs_m2_store import RosterStore, StoreError
 from mhs26_remove import (RemovalService, RemovalError, candidate_rows,
                           roster_fingerprint)
+from mhs34_settings import SettingsStore
 
 _DATA_DIR = os.path.join(os.path.expanduser('~'), 'Documents',
                          'Electronic Arts', 'The Sims 4',
                          'MY_HIGH_SCHOOL_M25_TEST_DATA')
 _SERVICE = RemovalService(RosterStore(_DATA_DIR))
+_SETTINGS = SettingsStore(_DATA_DIR)
 _PENDING = None
 _EVENTS = []
 
@@ -51,96 +52,141 @@ def _lookup_sim_info(sid):
     return None
 
 
-def _dialog_factory(klass, sim_infos, actor, title_text=None, description_text=None):
-    """Direct native picker; no Sim not present in sim_infos is added."""
-    from sims4.localization import LocalizationHelperTuning
-    from ui.ui_dialog_picker import SimPickerRow, UiSimPicker
+def _remove_limit(count):
+    """EA native picker policy: allow 1..8 current students in ONE window."""
+    from ui.ui_dialog_picker import UiDialogObjectPicker
+    if type(count) is not int or not 1<=count<=8:
+        raise RosterError('Numero candidati rimozione non valido')
+    base=UiDialogObjectPicker._MaxSelectableUnlimited
+    if not callable(getattr(base,'get_max_selectable',None)):
+        raise TypeError('Selettore EA non compatibile')
 
-    title = lambda **_: LocalizationHelperTuning.get_raw_text(
-        title_text or 'Rimuovi studenti - Classe {}'.format(klass))
-    description = lambda **_: LocalizationHelperTuning.get_raw_text(
-        description_text or 'Seleziona gli iscritti da rimuovere dal registro. I Sim non verranno eliminati.')
-    # The old M27 implementation supplied a hand-built ImmutableSlots as
-    # max_selectable. The October 2026 game calls get_max_selectable() on
-    # this object while building the picker, causing a silent UI failure:
-    # AttributeError: 'ImmutableSlots' object has no attribute ...
-    # Let the game's TunableFactory supply its own valid selectable policy.
-    # Only enrolled students are offered (hard limit of eight per class).
-    # RemovalService independently rejects invalid or oversized selections.
-    dialog = UiSimPicker.TunableFactory().default(
-        actor, text=description, title=title,
-        min_selectable=1, should_show_names=True, hide_row_description=False)
+    class _RemovalSeats(base):
+        def get_max_selectable(self,*args,**kwargs):
+            return count
+
+    return _RemovalSeats()
+
+
+def _remove_text(value):
+    from sims4.localization import LocalizationHelperTuning
+    return lambda **_:LocalizationHelperTuning.get_raw_text(str(value))
+
+
+def _remove_notice(actor,title,body):
+    _event('NOTICE',title+': '+body)
+    if actor is None:
+        return False
+    try:
+        from ui.ui_dialog_notification import UiDialogNotification
+        dlg=UiDialogNotification.TunableFactory().default(
+            actor,title=_remove_text(title),text=_remove_text(body))
+        dlg.show_dialog()
+        return True
+    except Exception as exc:
+        _event('NOTICE_FAILED',type(exc).__name__)
+        return False
+
+
+def _dialog_factory(klass, sim_infos, actor, title_text=None, description_text=None):
+    """Native multi-select; only students enrolled in this class appear."""
+    from ui.ui_dialog_picker import SimPickerRow, UiSimPicker
+    dialog=UiSimPicker.TunableFactory().default(
+        actor,
+        title=_remove_text(title_text or
+            'Rimuovi studenti - Classe {}'.format(klass)),
+        text=_remove_text(description_text or
+            'Seleziona gli iscritti da rimuovere. Spunta = rimuovi dal registro. '
+            'X = chiudi senza modifiche. I Sim resteranno nel gioco.'),
+        max_selectable=_remove_limit(len(sim_infos)),
+        min_selectable=1,should_show_names=True,hide_row_description=False)
     for sim_info in sim_infos:
-        dialog.add_row(SimPickerRow(sim_info.sim_id, False, tag=sim_info.sim_id))
+        dialog.add_row(SimPickerRow(sim_info.sim_id,False,tag=sim_info.sim_id))
     return dialog
 
 
 def open_remove_picker(klass, interaction):
-    """Read-only opening and staging. Failure does not mutate school state."""
-    global _PENDING
-    _PENDING = None
-    try:
-        slot = current_slot()
-        roster = _SERVICE.store.load(slot)
-        allowed_ids = tuple(roster.class_members(klass))
-        if not allowed_ids:
-            _event('EMPTY', 'Classe {} non ha iscritti'.format(klass))
-            return False
+    """M52: one checkmark removes ALL selected registered Sims, never deletes Sims.
 
-        choices = candidate_rows(roster, klass, _lookup_sim_info)
+    The legacy M27 console staging commands remain only for compatibility;
+    this interaction directly validates and commits a single atomic JSON
+    change. Clicking X is always a no-op.
+    """
+    global _PENDING
+    _PENDING=None
+    actor=getattr(interaction,'sim',None)
+    if actor is None:
+        try:
+            actor=services.client_manager().get_first_client().active_sim
+        except Exception:
+            actor=None
+    try:
+        slot=current_slot()
+        _SETTINGS.require_management(slot,klass)
+        roster=_SERVICE.store.load(slot)
+        ids=tuple(roster.class_members(klass))
+        if not ids:
+            _event('EMPTY','Classe {} senza studenti'.format(klass))
+            _remove_notice(actor,'MY HIGH SCHOOL',
+                'Classe {}: nessuno studente da rimuovere.'.format(klass))
+            return False
+        choices=candidate_rows(roster,klass,_lookup_sim_info)
         if not choices:
-            _event('BLOCKED', 'Iscritti non presenti nel SimInfoManager')
+            _event('BLOCKED','Sim iscritti non disponibili')
+            _remove_notice(actor,'MY HIGH SCHOOL',
+                'Studenti iscritti non disponibili nel salvataggio.')
             return False
-        actor = getattr(interaction, 'sim', None)
         if actor is None:
-            client = services.client_manager().get_first_client()
-            actor = getattr(client, 'active_sim', None)
-        if actor is None:
-            _event('BLOCKED', 'Actor Sim non disponibile')
+            _event('BLOCKED','Sim attivo non disponibile')
             return False
-        snapshot = roster_fingerprint(roster)
-        dialog = _dialog_factory(klass, choices, actor)
+        available={str(info.sim_id) for info in choices}
+        snapshot=roster_fingerprint(roster)
+        dialog=_dialog_factory(klass,choices,actor)
+        processed=[False]
 
         def _selection_callback(result_dialog):
-            global _PENDING
-            _PENDING = None
-            if not getattr(result_dialog, 'accepted', False):
-                _event('CANCELLED', 'Classe {}'.format(klass))
+            if processed[0]:
+                return
+            processed[0]=True
+            if not getattr(result_dialog,'accepted',False):
+                _event('CANCELLED','Classe {}'.format(klass))
                 return
             try:
-                tags = tuple(result_dialog.get_result_tags())
-                if not tags:
-                    _event('BLOCKED', 'Nessuno studente selezionato')
-                    return
-                # Refuse a stale save slot even before staging.
-                if current_slot() != slot:
-                    _event('BLOCKED', 'Partita cambiata')
-                    return
-                preview = _SERVICE.preview(slot, klass, tags)
-                if preview['snapshot'] != snapshot:
-                    _event('BLOCKED', 'Registro aggiornato durante la scelta')
-                    return
-                # A real filtered UI candidate list MUST cover all chosen IDs.
-                if not set(preview['selected']).issubset(set(allowed_ids)):
-                    _event('BLOCKED', 'Picker ha restituito un ID non iscritto')
-                    return
-                _PENDING = preview
-                _event('READY', 'Classe {} | {} da rimuovere. mhs27.removepreview'.format(
-                    klass, preview['removed']))
+                from mhs_m2_roster import canonical_sim_id
+                chosen=tuple(canonical_sim_id(sid)
+                             for sid in result_dialog.get_result_tags())
+                if (not 1<=len(chosen)<=len(choices) or
+                        len(set(chosen))!=len(chosen) or
+                        not set(chosen).issubset(available)):
+                    raise RosterError('Selezione non valida: scegli soltanto gli iscritti')
+                if current_slot()!=slot:
+                    raise RosterError('Il salvataggio e cambiato')
+                _SETTINGS.require_management(slot,klass)
+                current=_SERVICE.store.load(slot)
+                if roster_fingerprint(current)!=snapshot:
+                    raise RosterError('Registro cambiato: riapri Rimuovi studenti')
+                preview=_SERVICE.preview(slot,klass,chosen)
+                result=_SERVICE.commit(preview,current_slot())
+                _event('REMOVED','Classe {} | {} rimossi'.format(
+                    klass,result['removed']))
+                _remove_notice(actor,'MY HIGH SCHOOL - Rimozione completata',
+                    '{} studenti rimossi dal registro della Classe {}. '
+                    'Rimangono {}/8 iscritti. Nessun Sim e stato eliminato.'.format(
+                        result['removed'],klass,result['remaining']))
             except Exception as exc:
-                _event('BLOCKED', type(exc).__name__)
+                _event('BLOCKED',type(exc).__name__)
+                _remove_notice(actor,'MY HIGH SCHOOL - Nessuna modifica',
+                    'Rimozione non eseguita: {}'.format(str(exc)[:120]))
+
         dialog.add_listener(_selection_callback)
-        # Do not override the dialog header icon with a (None, SimInfo)
-        # tuple. The live game expects an icon data object with
-        # icon_resource; passing a tuple crashes the picker on open.
-        # The SimPickerRow entries still provide native Sim portraits.
         dialog.show_dialog()
-        _event('OPEN', 'Classe {} | candidati {}'.format(klass, len(choices)))
+        _event('OPEN','Classe {} | {} studenti'.format(klass,len(choices)))
         return True
     except Exception as exc:
-        _event('ERROR', '{}: {}'.format(type(exc).__name__, str(exc)[:60]))
+        _event('ERROR','{}: {}'.format(type(exc).__name__,str(exc)[:100]))
+        _remove_notice(actor,'MY HIGH SCHOOL - Impossibile aprire',
+            '{}'.format(str(exc)[:125]))
         return False
-
 
 class MHS27RemoveClass1(ImmediateSuperInteraction):
     def _run_interaction_gen(self, timeline):
@@ -220,4 +266,4 @@ def mhs27_report(_connection=None):
     out('M27 - ultimi eventi diagnostici:')
     for code,info in _EVENTS[-8:]:
         out('{} | {}'.format(code,info))
-    out('Nessuna scrittura da apertura picker o click sulla spunta.')
+    out('Le azioni native M52 ora rimuovono con la spunta; X annulla.')
