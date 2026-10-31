@@ -41,3 +41,8 @@ Tutti i comandi `*commit conferma` scrivono immediatamente sul JSON esterno di t
 - **Secondo requisito UX:** conferma della modifica e aggiornamento del registro tramite UI di gioco, senza dipendere da `*.commit conferma` digitati in console. Prevedere conferma esplicita e rollback, mantenendo l'anteprima prima di scrivere.
 - **Test di accettazione futuro:** gioco in pausa → interagire con PC/cassetta postale → selezionare Sim → confermare tramite UI → vedere subito il nuovo registro nello stesso slot mantenendo il tempo fermo; verificare annullamento e persistenza dopo riavvio; **nessuna cancellazione di Sim**.
 - Durante gli attuali test M33 NON usare commit; le operazioni console restano provvisorie e, se confermate, modificano il JSON esterno anche quando il .save non è salvato.
+
+## Aggiornamento Mac 31/10 ore 01:33: confermati Annulla + Consulta Classe 1
+- L'utente ha eseguito `mhs32.transfercancel` in M33. La console mostra `Trasferimento annullato. Nessun dato scritto.` (Amarachi Darong era solo in preview, non trasferita).
+- Con gioco ripreso, `Consulta iscritti - Classe 1` apre davvero il selettore fotografico UI nella M33. Lo screenshot mostra **Amarachi Darong** e **Baby Ariel**, entrambi e soltanto i 2 iscritti Classe 1. Titolo/descrizione indicano sola consultazione, nessuna modifica al registro.
+- I controlli successivi da completare senza commit: consulta Classe 2, classe 3 vuota, rimuovi Classe 1 e verifica preview `mhs27.removepreview`, iscrizione Classe 3 e `mhs25.preview`, `mhs29.audit`, `mhs29.find Ariel`, `mhs28.roster` finale. Ricordare che oggi le immediate interactions vanno eseguite a tempo avviato; il requisito futuro è funzionamento anche in pausa.
