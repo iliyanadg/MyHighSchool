@@ -65,7 +65,9 @@ class M45VisibilityTests(unittest.TestCase):
                 'src/m39_visibility/mhs39_visibility_ui.py').read_text()
         start=source.index('class _MHS39VisibilityMixin(object):')
         end=source.index('\n\nfor _module',start)
-        wrappers=source[source.index('for _class_number in (1, 2, 3):'):]
+        wrappers_start=source.index('for _class_number in (1, 2, 3):')
+        wrappers_end=source.index('\n\n# M53:',wrappers_start)
+        wrappers=source[wrappers_start:wrappers_end]
         # The experimental M47 extension has been retired; M45 remains intact.
         self.assertNotIn('TestResult.FALSE',source[start:end])
 
