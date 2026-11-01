@@ -14,6 +14,7 @@ from mhs55_attendance_auto import status_lines
 import mhs58_situation_probe
 import mhs57_filter_runtime
 import mhs61_pilot_command
+from mhs85_ui_bridge import capture_status, short_line
 
 
 def _text(value):
@@ -60,9 +61,10 @@ def show_attendance_status(interaction):
             mhs58_situation_probe.save_report(folder, mhs57_filter_runtime.m59_snapshot())
         except Exception:
             pass  # File diagnostic is optional; never block native UI.
+        result85=capture_status(folder)
         dialog = UiDialogNotification.TunableFactory().default(
             actor, title=_text('MY HIGH SCHOOL - Presenze automatiche'),
-            text=_text(compact_diagnostic()))
+            text=_text(compact_diagnostic()+' '+short_line(result85)))
         dialog.show_dialog()
         return True
     except Exception:
