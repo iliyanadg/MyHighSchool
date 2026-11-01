@@ -29,7 +29,8 @@ class NotificationTests(unittest.TestCase):
 
     def test_ui_passes_short_report_to_notification(self):
         source=(ROOT/'src'/'m55_attendance'/'mhs55_attendance_ui.py').read_text()
-        self.assertIn('text=_text(compact_diagnostic())',source)
+        self.assertIn("text=_text(compact_diagnostic()+' '+short_line(result85))",source)
+        self.assertIn('result85=capture_status(folder)',source)
 
 
 if __name__=='__main__':
