@@ -9,7 +9,7 @@ from mhs88_replace_guest import (replace_unassigned_guest,
 
 BASE=277733
 
-def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_applied=None):
+def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_applied=None, on_exhausted=None):
     """resolver(manager, situation_type, guest_list) -> (student_id, verified_zone, active)
 
     The resolver MUST validate school zone, save identity, Sim eligibility,
@@ -50,6 +50,20 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
         except Exception:
             new_list=None
         if new_list is None:
+            # A fully allocated, VERIFIED cohort must not fall back to
+            # another random EA pupil. Opt-in only: the coordinator must
+            # attest that all required Base slots have already succeeded.
+            # An unverified or incomplete cohort always preserves vanilla.
+            if callable(on_exhausted):
+                try:
+                    if (not tuple(guest_list.guest_info_gen()) and
+                            on_exhausted(self,situation_type,guest_list) is True):
+                        # EA SituationManager uses a falsy result for no
+                        # situation. This returns no new EA situation; it
+                        # does NOT create, terminate or delete Sims.
+                        return None
+                except Exception:
+                    pass
             return previous(self,situation_type,*args,**kwargs)
         if 'guest_list' in kwargs:
             copied=dict(kwargs)
