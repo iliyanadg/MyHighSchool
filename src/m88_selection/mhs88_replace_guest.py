@@ -60,3 +60,43 @@ def replace_unassigned_guest(situation_guid, guest_list, student_id, job_tuning,
         return replacement
     except Exception:
         return None
+
+
+def build_guest_for_empty_ea_request(situation_guid, guest_list, student_id,
+                                     job_tuning, guest_info_cls, purpose,
+                                     verified_school_zone=False, active=False):
+    """Fill EA's *empty* Base Student guest request with one registered Sim.
+
+    WeeklyScheduleDay.start_long_term_situation in the user's EA Python
+    starts Base Student situations with SituationGuestList containing ZERO
+    guests; the previous M88 single-unassigned-guest path could never match.
+    Instead construct a NEW invitation-only list for the SAME original call.
+    Never create an additional situation or mutate EA's original guest list.
+    """
+    try:
+        if not verified_school_zone or not active or int(situation_guid)!=277733:
+            return None
+        if getattr(job_tuning,'guid64',None)!=277894:
+            return None
+        if isinstance(student_id,bool) or not str(student_id).isdigit():
+            return None
+        if int(student_id)<=0:
+            return None
+        if guest_list is None or tuple(guest_list.guest_info_gen()):
+            return None
+        # EA's constructor accepts invite_only=True. Do not use clone:
+        # an empty vanilla guest list is NOT necessarily invite-only.
+        new_list=type(guest_list)(invite_only=True)
+        if new_list is guest_list:
+            return None
+        info=guest_info_cls.construct_from_purpose(
+            int(student_id),job_tuning,purpose)
+        new_list.add_guest_info(info)
+        actual=tuple(new_list.guest_info_gen())
+        if len(actual)!=1 or int(getattr(actual[0],'sim_id',0))!=int(student_id):
+            return None
+        if getattr(getattr(actual[0],'job_type',None),'guid64',None)!=277894:
+            return None
+        return new_list
+    except Exception:
+        return None
