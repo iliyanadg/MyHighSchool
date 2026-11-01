@@ -27,6 +27,13 @@ def approved_base_count(schedule_guid, situation_guid, plan):
         return None
     if plan.get('status')!='READY_FOR_ADAPTER' or plan.get('core_jobs_verified') is not True:
         return None
+    # The EA CoreClassNPCs situation can be created AFTER the Base count
+    # is computed. Reading currently active core occupants alone is not
+    # enough: role reservations must be locked BEFORE EA's first invitation.
+    # This token can only be set by a future early core reservation engine;
+    # M94 cannot supply it and this adapter remains safely uninstalled.
+    if plan.get('core_roles_reserved_before_ea') is not True:
+        return None
     groups=plan.get('classes')
     if (not isinstance(groups,(tuple,list)) or len(groups)!=2 or
             any(not isinstance(g,(tuple,list)) or len(g)!=8 for g in groups)):
