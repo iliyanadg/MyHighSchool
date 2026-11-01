@@ -4,7 +4,8 @@ Wrap only EA's existing create_situation request. Never create an extra situatio
 Activation requires a caller-supplied, verified save/zone roster resolver.
 No changes to EA core situations, staff, or already explicit invitations.
 """
-from mhs88_replace_guest import replace_unassigned_guest
+from mhs88_replace_guest import (replace_unassigned_guest,
+    build_guest_for_empty_ea_request)
 
 BASE=277733
 
@@ -42,6 +43,10 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
                         provenance and provenance.get('ea_auto_generated')),
                     registered_ids=provenance.get('registered_ids',())
                     if provenance else ())
+                if new_list is None:
+                    new_list=build_guest_for_empty_ea_request(
+                        guid,guest_list,student_id,job_tuning,
+                        guest_info_class,purpose,verified_zone,active)
         except Exception:
             new_list=None
         if new_list is None:
