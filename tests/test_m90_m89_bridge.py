@@ -12,7 +12,9 @@ from tests.test_m89_precreate_hook import Situation,manager
 
 A=tuple(str(i) for i in range(1,9))
 B=tuple(str(i) for i in range(9,17))
-PLAN={'status':'READY_FOR_ADAPTER','all_16':A+B}
+PLAN={'status':'READY_FOR_ADAPTER','all_16':A+B,
+      'classes':(A,B),'playable':(),'core':(),
+      'base_invites_needed':16,'core_jobs_verified':True}
 
 class BridgeTests(unittest.TestCase):
     def test_sixteen_exact_students_in_one_school_day(self):
@@ -49,6 +51,36 @@ class BridgeTests(unittest.TestCase):
         # If EA still requests another base student, do not duplicate an ID.
         instance.create_situation(Situation(),guest_list=EmptyEAList())
         self.assertEqual(len(instance.requests[-1][1].items),0)
+
+    def test_core_not_live_verified_blocks_hook(self):
+        Manager=manager()
+        session=SelectionSession((A,B))
+        plan=dict(PLAN,core_jobs_verified=False)
+        self.assertFalse(connect(Manager,session,lambda:(A+B,()),
+                                 lambda:True,Job(),GuestInfo,1,full_plan=plan))
+
+    def test_core_students_counted_but_never_invited_as_base(self):
+        Manager=manager()
+        session=SelectionSession((A,B),playable_ids=('1','9'),excluded_ids=('2','10'))
+        plan=dict(PLAN,playable=('1','9'),core=('2','10'),
+                  base_invites_needed=12)
+        self.assertTrue(connect(Manager,session,lambda:(A+B,()),
+                                lambda:True,Job(),GuestInfo,1,full_plan=plan))
+        instance=Manager()
+        for _ in range(12):
+            instance.create_situation(Situation(),guest_list=EmptyEAList())
+        selected=[guests.items[0].sim_id for _,guests,_ in instance.requests]
+        self.assertEqual(len(selected),12)
+        self.assertTrue(set((1,2,9,10)).isdisjoint(set(selected)))
+        self.assertEqual(session.issued,12)
+
+    def test_missing_core_exclusion_blocks_hook(self):
+        Manager=manager()
+        session=SelectionSession((A,B))
+        plan=dict(PLAN,playable=('1','9'),core=('2','10'),
+                  base_invites_needed=12)
+        self.assertFalse(connect(Manager,session,lambda:(A+B,()),
+                                 lambda:True,Job(),GuestInfo,1,full_plan=plan))
 
     def test_missing_full_plan_blocks_hook(self):
         Manager=manager()
