@@ -92,4 +92,4 @@ jobs:
         with:
           python-version: '3.11'
       - name: Verify school day deterministic count and anti-random guest fallback
-        run: python -m unittest tests.test_m96_exact_school_count tests.test_m90_m89_bridge tests.test_m89_precreate_hook tests.test_m92_atomic_16 -v
+        run: python -m unittest tests.test_m97_early_role_plan tests.test_m96_exact_school_count tests.test_m90_m89_bridge tests.test_m89_precreate_hook tests.test_m92_atomic_16 -v
