@@ -63,6 +63,17 @@ class M89Tests(unittest.TestCase):
         instance=Manager()
         instance.create_situation(Situation(),guest_list=List([Guest(99)]))
         self.assertEqual(instance.requests[0][1].items[0].sim_id,99)
+    def test_failing_acknowledgement_never_creates_duplicate(self):
+        Manager=manager()
+        def failed(_sid):
+            raise RuntimeError('ack failed')
+        self.assertTrue(install(Manager,lambda *args:(555,True,True),
+                                Job(),GuestInfo,1,on_applied=failed))
+        instance=Manager()
+        self.assertEqual(instance.create_situation(
+            Situation(),guest_list=List([Guest(0)])),42)
+        self.assertEqual(len(instance.requests),1)
+        self.assertEqual(instance.requests[0][1].items[0].sim_id,555)
     def test_fail_closed_resolver(self):
         Manager=manager()
         def broken(*args):raise RuntimeError('unavailable')
