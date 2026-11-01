@@ -81,7 +81,9 @@ def plan_change(current,role,student_id,enrolled_ids,eligible_for_job,
 
     student_id=None removes an appointment; no automatic replacement.
     enrolled_ids is the live roster; eligible_for_job(job_id,sim_id)
-    is a CURRENT game age/species/filter check, not just an ID presence check.
+    is a CURRENT game age/species/household gate. Saving an appointment
+    alone NEVER proves that EA's separate job-specific SimFilter accepts it.
+    The M97 early adapter must evaluate that filter before activation.
     """
     if not isinstance(current,CoreRoleRoster) or role not in ROLE_TO_JOB:
         raise CoreRosterError('Ruolo scolastico non valido')
