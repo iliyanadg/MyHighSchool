@@ -93,3 +93,43 @@ jobs:
           python-version: '3.11'
       - name: Verify school day deterministic count and anti-random guest fallback
         run: python -m unittest tests.test_m97_core_filter_policy tests.test_m97_core_role_store tests.test_m97_early_role_plan tests.test_m96_exact_school_count tests.test_m90_m89_bridge tests.test_m89_precreate_hook tests.test_m92_atomic_16 -v
+
+  m98_mac_native_role_menu:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Run native role menu and saved roles tests
+        run: python -m unittest tests.test_m97_core_role_store tests.test_mhs98_roles_release -v
+      - name: Compile M98 Mac role menu
+        run: python -m tooling.build_mhs98_roles dist_m98/
+      - name: Validate 76 DBPF resources and Python3.7 scripts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          root=Path('dist_m98')
+          package=root/'MHS_M98_RUOLI_SPECIALI_MAC_TEST.package'
+          script=root/'MHS_M98_RUOLI_SPECIALI_MAC_TEST.ts4script'
+          report=inspect_bytes(package.read_bytes())
+          assert report['status']=='STATIC_GATE_PASSED'
+          assert (report['resource_count'],report['category_count'],report['simdata_count'])==(76,11,11)
+          with ZipFile(str(script)) as z:
+              names=z.namelist()
+              assert len(names)==35
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+              assert 'mhs98_core_role_ui.pyc' in names
+              assert 'mhs97_core_role_store.pyc' in names
+          print('M98 Mac menu compiled, but game menu still needs testing')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M98_RUOLI_SPECIALI_MAC_TEST
+          path: |
+            dist_m98/MHS_M98_RUOLI_SPECIALI_MAC_TEST.package
+            dist_m98/MHS_M98_RUOLI_SPECIALI_MAC_TEST.ts4script
+            dist_m98/MHS_M98_BUILD_REPORT.json
+          if-no-files-found: error
