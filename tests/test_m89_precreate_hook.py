@@ -74,6 +74,19 @@ class M89Tests(unittest.TestCase):
             Situation(),guest_list=List([Guest(0)])),42)
         self.assertEqual(len(instance.requests),1)
         self.assertEqual(instance.requests[0][1].items[0].sim_id,555)
+    def test_ea_exception_must_not_retry_school_creation(self):
+        class RejectManager:
+            calls=0
+            def create_situation(self,kind,guest_list=None,user_facing=True):
+                self.calls+=1
+                raise RuntimeError('EA rejected request')
+        self.assertTrue(install(RejectManager,lambda *args:(555,True,True),
+                                Job(),GuestInfo,1))
+        instance=RejectManager()
+        with self.assertRaises(RuntimeError):
+            instance.create_situation(Situation(),guest_list=List([Guest(0)]))
+        self.assertEqual(instance.calls,1)
+
     def test_fail_closed_resolver(self):
         Manager=manager()
         def broken(*args):raise RuntimeError('unavailable')
