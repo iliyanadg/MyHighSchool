@@ -274,7 +274,8 @@ class M55Tests(unittest.TestCase):
         self.assertIn('session.record(sid, \'requested\')',auto)
         self.assertNotIn('_ROSTERS.save(',auto)
         self.assertNotIn('UiSimPicker',ui)
-        self.assertIn('status_lines()',ui)
+        self.assertIn('capture_status(folder)',ui)
+        self.assertIn('short_line(result85)',ui)
 
     def test_stbl_has_new_readonly_status_action(self):
         tables=[parse_stbl(x[3]) for x in transformed_resources()
