@@ -21,6 +21,23 @@ class BridgeTests(unittest.TestCase):
         instance.create_situation(Situation(),guest_list=List([Guest(0)]))
         self.assertEqual([g.items[0].sim_id for _,g,_ in instance.requests],[10,20])
         self.assertEqual(session.issued,2)
+    def test_sixteen_registered_ids_in_one_school_day(self):
+        Manager=manager()
+        a=tuple(str(i) for i in range(1,9))
+        b=tuple(str(i) for i in range(9,17))
+        session=SelectionSession((a,b))
+        self.assertTrue(connect(Manager,session,lambda:(a+b,()),
+                                lambda:True,Job(),GuestInfo,1))
+        instance=Manager()
+        for _ in range(16):
+            instance.create_situation(Situation(),guest_list=List([Guest(0)]))
+        chosen=[g.items[0].sim_id for _,g,_ in instance.requests]
+        self.assertEqual(chosen,list(range(1,17)))
+        self.assertEqual(len(set(chosen)),16)
+        self.assertEqual(session.issued,16)
+        # A seventeenth EA request is left to EA rather than duplicating IDs.
+        instance.create_situation(Situation(),guest_list=List([Guest(0)]))
+        self.assertEqual(instance.requests[-1][1].items[0].sim_id,0)
     def test_no_verified_school_preserves_ea(self):
         Manager=manager()
         session=SelectionSession((('10',),))
