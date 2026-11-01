@@ -5,7 +5,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 for path in ('src/m88_selection','src/m58_selection'):
     sys.path.insert(0,str(ROOT/path))
-from mhs88_replace_guest import replace_unassigned_guest
+from mhs88_replace_guest import (replace_unassigned_guest,
+    build_guest_for_empty_ea_request)
 
 class Job:
     guid64=277894
@@ -24,6 +25,15 @@ class List:
         self.items.remove(item)
     def add_guest_info(self,item):
         self.items.append(item)
+class EmptyEAList:
+    def __init__(self,invite_only=False):
+        self.items=[]
+        self.invite_only=invite_only
+    def guest_info_gen(self):
+        return iter(self.items)
+    def add_guest_info(self,item):
+        self.items.append(item)
+
 class GuestInfo:
     @staticmethod
     def construct_from_purpose(sid,job,purpose):
@@ -43,6 +53,28 @@ class M88Tests(unittest.TestCase):
         self.assertIsNotNone(replacement)
         self.assertEqual([x.sim_id for x in original.items],[0])
         self.assertEqual([x.sim_id for x in replacement.items],[555])
+    def test_real_ea_schedule_empty_guest_list_fills_one_registered(self):
+        original=EmptyEAList()
+        replacement=build_guest_for_empty_ea_request(
+            277733,original,555,Job(),GuestInfo,1,True,True)
+        self.assertIsNotNone(replacement)
+        self.assertTrue(replacement.invite_only)
+        self.assertEqual([g.sim_id for g in replacement.items],[555])
+        self.assertEqual(original.items,[])
+    def test_empty_request_never_modified_when_not_school(self):
+        original=EmptyEAList()
+        self.assertIsNone(build_guest_for_empty_ea_request(
+            298052,original,555,Job(),GuestInfo,1,True,True))
+        self.assertIsNone(build_guest_for_empty_ea_request(
+            277733,original,555,Job(),GuestInfo,1,False,True))
+        self.assertIsNone(build_guest_for_empty_ea_request(
+            277733,original,555,Job(),GuestInfo,1,True,False))
+        self.assertEqual(original.items,[])
+    def test_nonempty_guest_list_is_not_double_invited(self):
+        original=EmptyEAList()
+        original.add_guest_info(Guest(90))
+        self.assertIsNone(build_guest_for_empty_ea_request(
+            277733,original,555,Job(),GuestInfo,1,True,True))
     def test_ea_existing_explicit_guest_never_overwritten(self):
         self.assertIsNone(run(List([Guest(44)])))
     def test_verified_ea_random_explicit_can_be_replaced(self):
