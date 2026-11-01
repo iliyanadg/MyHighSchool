@@ -31,10 +31,13 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
         try:
             candidate=resolver(self,situation_type,guest_list)
             if candidate is not None:
-                student_id,verified_zone,active=candidate
+                student_id,verified_zone,active=candidate[:3]
+                provenance=candidate[3] if len(candidate)>3 else None
                 new_list=replace_unassigned_guest(
                     guid,guest_list,student_id,job_tuning,
-                    guest_info_class,purpose,verified_zone,active)
+                    guest_info_class,purpose,verified_zone,active,
+                    ea_generated_explicit=bool(provenance and provenance.get('ea_auto_generated')),
+                    registered_ids=provenance.get('registered_ids',()) if provenance else ())
                 if new_list is not None:
                     # Mark only after EA accepts the original create request.
                     if 'guest_list' in kwargs:
