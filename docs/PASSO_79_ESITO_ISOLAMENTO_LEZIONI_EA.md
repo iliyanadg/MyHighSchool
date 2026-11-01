@@ -14,8 +14,10 @@ Confronto riferito in precedenza:
 
 Conclusione limitata: la selezione pre-spawn dei filtri EA introdotta in M57/M60
 è un forte sospettato dell'interferenza sul normale funzionamento scolastico.
-La prova NON dimostra ancora che gli studenti seduti corrispondano ai 16 iscritti
-nel registro o che personale, aula e situazione EA siano quelli previsti.
+**Conferma successiva dall'utente:** gli studenti seduti sono casuali di EA,
+non gli iscritti scelti nel registro MHS. Quindi la build di isolamento
+**ripristina le lezioni EA ma NON controlla le presenze né l'assegnazione degli
+studenti alle classi**. Il personale scelto e le aule MHS restano da verificare.
 Non sono stati validati l'orario delle 14, la mensa o il prom in questa prova.
 
 ## Esatta configurazione della build che funziona
@@ -41,22 +43,28 @@ lezioni come baseline funzionante durante le prossime modifiche.
 
 ## Prossimo lavoro tecnico
 
-1. Verificare con contatori/letture non invasive la differenza fra
-   iscritti (C1=8, C2=8) e studenti in situazioni scolastiche EA reali.
-2. Usare solo la API `SituationManager` / `SituationGuestList` già indagata
+1. Considerare la selezione casuale EA un bug ancora aperto: il registro MHS
+   (C1=8, C2=8) non governa i partecipanti. Conservare una baseline riproducibile
+   con lezioni EA funzionanti senza reiterare test già conclusi. Aggiungere
+   un test statico contro la regressione dei filtri.
+2. Preparare selezione di **un solo iscritto idoneo** nella situazione EA
+   esistente, senza creare una situazione aggiuntiva, con controllo di job,
+   zona, eleggibilità, fallback EA e idempotenza.
+3. Usare solo la API `SituationManager` / `SituationGuestList` già indagata
    nel Passo 78, dopo validazione di firma e lifecycle nel gioco attuale,
    per programmare la sostituzione selettiva di candidati negli **stessi**
    job/situazioni EA, senza interferire con la transizione alle lezioni.
-3. Procedere incrementale: un solo studente NPC non-core, conferma di
+4. Procedere incrementale: un solo studente NPC non-core, conferma di
    partecipazione a scuola e aula; poi ulteriori studenti e personale.
-4. Separare sempre presenza sul lotto, ruolo EA corretto, assegnazione
+5. Separare sempre presenza sul lotto, ruolo EA corretto, assegnazione
    alla classe e presenza effettiva ai banchi. Non promettere 16/16.
-5. Non alterare il registro, i menu verificati, il salvataggio o `main`
+6. Non alterare il registro, i menu verificati, il salvataggio o `main`
    (M54 rollback).
 
 ### Riscontro atteso dal prossimo test
 
-Una sola lettura diagnostica, non una nuova prova senza mod:
-quanti iscritti risultano presenti sul lotto **e in job EA scolastico**,
-senza interazione che li convochi. Se le lezioni si rompono, rollback alla
-build 41257486408.
+Solo **quando** una nuova build introduce una selezione effettiva e delimitata:
+verificare a scuola se il candidato del registro entra nel vero job EA,
+segue le lezioni alle 10:00 e non soppianta gli altri studenti. Le
+convocazioni additive M55/M61 restano fuori dal test. Se le lezioni si
+rompono, rollback alla build 41257486408.
