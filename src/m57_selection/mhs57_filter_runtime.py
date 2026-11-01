@@ -141,13 +141,15 @@ def _m60_present_ids():
     return tuple(seen)
 
 
+MHS_EA_FILTER_CONSTRAINTS_ENABLED=False  # isolation build: never modify EA selection
+
 def _filtered(original, self, args, kwargs, method):
     # Avoid any file reads for the vast majority of EA filters.
     idx=1 if method=='matching' else 0
     tuning=kwargs.get('sim_filter',args[idx] if len(args)>idx else None)
     guid=guid_for_filter(tuning)
     _record_filter_call(guid,method)
-    if guid not in SCHOOL_FILTERS:
+    if not MHS_EA_FILTER_CONSTRAINTS_ENABLED or guid not in SCHOOL_FILTERS:
         return original(self,*args,**kwargs)
     if _CONFLICTS:
         _log('preserve',guid,'Altro controller liceo installato')
@@ -291,7 +293,7 @@ def m59_snapshot():
 
 
 def status():
-    return ('Selezione M57d: {}. Filtri limitati: {} | non modificati: {} '
+    return ('Selezione M57d [ISOLAMENTO: vincoli EA DISATTIVATI]: {}. Filtri limitati: {} | non modificati: {} '
             '| errori: {}. Ultimo: {}. Ultimo errore: {}'.format(
                 'bloccata (altre mod liceo: {})'.format(
                     ', '.join(_CONFLICTS[:2])) if _CONFLICTS
