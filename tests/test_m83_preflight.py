@@ -16,6 +16,7 @@ def gate(**kwargs):
     values={'game_version':'1.129.39.1230','class_members':CLASSES,
             'verified_human_teen_ids':tuple(str(i) for i in range(1,17)),
             'playable_ids':('1','9','99'),'verified_core_student_ids':('2','10'),
+            'verified_ea_base_eligible_ids':tuple(str(i) for i in range(1,17)),
             'available_base_student_slots':12,'verified_phase_caps':PHASES,
             'installed_other_mods':('SonozakiSisters_Elementary_School_Management_IT.package',)}
     values.update(kwargs)
@@ -47,6 +48,10 @@ class M83Tests(unittest.TestCase):
         self.assertEqual(gate(verified_human_teen_ids=None)['status'],'BLOCKED')
         self.assertEqual(gate(verified_core_student_ids=None)['status'],'BLOCKED')
         self.assertEqual(gate(verified_core_student_ids=('1',))['status'],'BLOCKED')
+    def test_ea_student_filter_career_and_npc_exclusions_are_mandatory(self):
+        self.assertEqual(gate(verified_ea_base_eligible_ids=None)['status'],'BLOCKED')
+        self.assertEqual(gate(verified_ea_base_eligible_ids=('3','4'))['status'],'BLOCKED')
+        self.assertEqual(gate(verified_ea_base_eligible_ids=('3','4','5','6','7','8','11','12','13','14','15','16'))['status'],'OFFLINE_PLAN_ONLY')
     def test_six_vanilla_base_seats_not_sixteen(self):
         out=gate(available_base_student_slots=6)
         self.assertEqual(out['status'],'BLOCKED')
