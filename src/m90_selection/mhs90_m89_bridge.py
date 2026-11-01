@@ -20,10 +20,17 @@ def connect(manager_class, session, eligibility_provider, zone_checker,
         # EA core jobs 278965/6/7/8, 303765 can spawn additional pupils.
         # Never activate with merely assumed core member headcounts.
         return False
-    if len(full_plan.get('playable',())) + len(full_plan.get('core',())) + int(
-            full_plan.get('base_invites_needed',-1)) != 16:
+    base_count=full_plan.get('base_invites_needed')
+    playable=set(str(x) for x in full_plan.get('playable',()))
+    core=set(str(x) for x in full_plan.get('core',()))
+    if type(base_count) is not int or base_count<0:
         return False
-    if set(full_plan.get('playable',())) & set(full_plan.get('core',())):
+    if len(playable)+len(core)+base_count!=16 or playable & core:
+        return False
+    if set(session.playable)!=playable or set(session.excluded)!=core:
+        return False
+    classes=full_plan.get('classes',())
+    if len(classes)!=2 or any(len(group)!=8 for group in classes):
         return False
     expected=tuple(str(x) for x in full_plan.get('all_16',()))
     if len(expected)!=16 or len(set(expected))!=16:
