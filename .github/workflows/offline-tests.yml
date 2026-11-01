@@ -12,3 +12,40 @@ jobs:
           python-version: '3.11'
       - name: Run offline roster tests
         run: python -m unittest discover -s tests -v
+
+  capacity_mac_beta:
+    runs-on: ubuntu-22.04
+    needs: roster
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify integrated M85 and original EA tuning resources
+        run: python -m unittest tests.test_mhs_capacity_beta tests.test_m90_m89_bridge tests.test_m88_replace_guest -v
+      - name: Compile integrated M85 Mac beta
+        run: python -m tooling.build_mhs_capacity_beta dist_capacity/
+      - name: Check Mac bytecode and DBPF count
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import resources, inspect_bytes
+          p=Path('dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.package')
+          t=Path('dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.ts4script')
+          assert len(resources(p.read_bytes()))==69
+          assert inspect_bytes(p.read_bytes())['status']=='STATIC_GATE_PASSED'
+          with ZipFile(str(t)) as z:
+              names=z.namelist()
+              assert len(names)==32
+              assert all(z.read(name)[:4]==bytes((66,13,13,10)) for name in names)
+          print('PASS: Mac package and Python 3.7 archive, static only')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M85_CAPIENZA_8X8_MAC_BETA_NOT_FULL_ROSTER
+          path: |
+            dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.package
+            dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.ts4script
+            dist_capacity/MHS_CAPACITY_BETA_AUDIT.json
+          if-no-files-found: error
