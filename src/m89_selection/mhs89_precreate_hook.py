@@ -8,7 +8,7 @@ from mhs88_replace_guest import replace_unassigned_guest
 
 BASE=277733
 
-def install(manager_class, resolver, job_tuning, guest_info_class, purpose):
+def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_applied=None):
     """resolver(manager, situation_type, guest_list) -> (student_id, verified_zone, active)
 
     The resolver MUST validate school zone, save identity, Sim eligibility,
@@ -36,13 +36,20 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose):
                     guid,guest_list,student_id,job_tuning,
                     guest_info_class,purpose,verified_zone,active)
                 if new_list is not None:
+                    # Mark only after EA accepts the original create request.
                     if 'guest_list' in kwargs:
                         copied=dict(kwargs)
                         copied['guest_list']=new_list
-                        return previous(self,situation_type,*args,**copied)
+                        result=previous(self,situation_type,*args,**copied)
+                        if result and callable(on_applied):
+                            on_applied(student_id)
+                        return result
                     if args:
                         new_args=(new_list,)+args[1:]
-                        return previous(self,situation_type,*new_args,**kwargs)
+                        result=previous(self,situation_type,*new_args,**kwargs)
+                        if result and callable(on_applied):
+                            on_applied(student_id)
+                        return result
         except Exception:
             pass
         return previous(self,situation_type,*args,**kwargs)
