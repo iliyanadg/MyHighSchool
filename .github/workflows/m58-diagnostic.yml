@@ -54,6 +54,8 @@ jobs:
               assert 'mhs58_situation_probe.pyc' in names
               assert 'mhs61_pilot_command.pyc' in names
               assert 'mhs85_ui_bridge.pyc' in names
+              assert 'mhs85_reconcile.pyc' in names
+              assert 'mhs85_live_snapshot.pyc' in names
               assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
           code=Path('src/m58_selection/mhs58_situation_probe.py').read_text()
           assert 'guest_list.add_guest_info(' not in code
