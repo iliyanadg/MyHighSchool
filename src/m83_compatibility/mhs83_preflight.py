@@ -39,6 +39,7 @@ def _other_school_controller(name):
 
 def full_roster_preflight(game_version,class_members,verified_human_teen_ids,
                           playable_ids=(),verified_core_student_ids=None,
+                          verified_ea_base_eligible_ids=None,
                           available_base_student_slots=None,verified_phase_caps=None,
                           installed_other_mods=()):
     """Offline capacity gate; requires live-version evidence for all capacities.
@@ -73,6 +74,12 @@ def full_roster_preflight(game_version,class_members,verified_human_teen_ids,
     if core is None or not set(core).issubset(roster) or set(core)&set(playable):
         return stop('invalid or conflicting EA core role identities')
     regular=tuple(s for s in roster if s not in playable and s not in core)
+    # Being a human teen is not proof of passing EA filter 280516: career,
+    # hidden state, special NPC traits and other filter terms can exclude Sims.
+    ea_eligible=_ids(verified_ea_base_eligible_ids)
+    if ea_eligible is None or not set(regular).issubset(ea_eligible):
+        return stop('EA base-student filter eligibility not verified',
+                    required_base_npcs=regular)
     if available_base_student_slots is None or type(available_base_student_slots) is not int:
         return stop('current EA base-student situation capacity unknown',
                     required_base_slots=len(regular))
