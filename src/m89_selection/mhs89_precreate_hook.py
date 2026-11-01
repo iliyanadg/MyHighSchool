@@ -28,40 +28,39 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
         guest_list=kwargs.get('guest_list', args[0] if args else None)
         if guest_list is None:
             return previous(self,situation_type,*args,**kwargs)
+        # Candidate preparation may fail; fall back before the EA call only.
         try:
             candidate=resolver(self,situation_type,guest_list)
+            new_list=None
             if candidate is not None:
                 student_id,verified_zone,active=candidate[:3]
                 provenance=candidate[3] if len(candidate)>3 else None
                 new_list=replace_unassigned_guest(
                     guid,guest_list,student_id,job_tuning,
                     guest_info_class,purpose,verified_zone,active,
-                    ea_generated_explicit=bool(provenance and provenance.get('ea_auto_generated')),
-                    registered_ids=provenance.get('registered_ids',()) if provenance else ())
-                if new_list is not None:
-                    # Mark only after EA accepts the original create request.
-                    if 'guest_list' in kwargs:
-                        copied=dict(kwargs)
-                        copied['guest_list']=new_list
-                        result=previous(self,situation_type,*args,**copied)
-                        if result and callable(on_applied):
-                            try:
-                                on_applied(student_id)
-                            except Exception:
-                                pass  # Never repeat an EA situation creation.
-                        return result
-                    if args:
-                        new_args=(new_list,)+args[1:]
-                        result=previous(self,situation_type,*new_args,**kwargs)
-                        if result and callable(on_applied):
-                            try:
-                                on_applied(student_id)
-                            except Exception:
-                                pass  # Never repeat an EA situation creation.
-                        return result
+                    ea_generated_explicit=bool(
+                        provenance and provenance.get('ea_auto_generated')),
+                    registered_ids=provenance.get('registered_ids',())
+                    if provenance else ())
         except Exception:
-            pass
-        return previous(self,situation_type,*args,**kwargs)
+            new_list=None
+        if new_list is None:
+            return previous(self,situation_type,*args,**kwargs)
+        if 'guest_list' in kwargs:
+            copied=dict(kwargs)
+            copied['guest_list']=new_list
+            result=previous(self,situation_type,*args,**copied)
+        elif args:
+            result=previous(self,situation_type,new_list,*args[1:],**kwargs)
+        else:
+            return previous(self,situation_type,*args,**kwargs)
+        # Never call the original EA method twice even if it raises.
+        if result and callable(on_applied):
+            try:
+                on_applied(student_id)
+            except Exception:
+                pass
+        return result
     wrapper._mhs89_hook=True
     manager_class.create_situation=wrapper
     return True
