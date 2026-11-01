@@ -16,6 +16,15 @@ def connect(manager_class, session, eligibility_provider, zone_checker,
     # Never enable selection for a partial day or unverified EA capacities.
     if not isinstance(full_plan,dict) or full_plan.get('status')!='READY_FOR_ADAPTER':
         return False
+    if full_plan.get('core_jobs_verified') is not True:
+        # EA core jobs 278965/6/7/8, 303765 can spawn additional pupils.
+        # Never activate with merely assumed core member headcounts.
+        return False
+    if len(full_plan.get('playable',())) + len(full_plan.get('core',())) + int(
+            full_plan.get('base_invites_needed',-1)) != 16:
+        return False
+    if set(full_plan.get('playable',())) & set(full_plan.get('core',())):
+        return False
     expected=tuple(str(x) for x in full_plan.get('all_16',()))
     if len(expected)!=16 or len(set(expected))!=16:
         return False
