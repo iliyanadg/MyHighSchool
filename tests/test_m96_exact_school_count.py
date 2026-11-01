@@ -13,6 +13,7 @@ def plan(playable=(),core=()):
     special=set(core)
     normal=tuple(x for x in A+B if x not in played|special)
     return dict(status='READY_FOR_ADAPTER',core_jobs_verified=True,
+                core_roles_reserved_before_ea=True,
                 classes=(A,B),all_16=A+B,
                 playable=tuple(playable),core=tuple(core),
                 normal_npcs=normal,
@@ -47,6 +48,13 @@ class SchoolCountTests(unittest.TestCase):
     def test_playable_and_core_are_not_double_counted(self):
         self.assertEqual(approved_base_count(277657,277733,
                          plan(('1','9'),('2','3','4','10','11'))),(9,9))
+
+    def test_unreserved_future_ea_core_students_cannot_be_ignored(self):
+        p=plan(('1','9'),('2','10'))
+        del p['core_roles_reserved_before_ea']
+        self.assertIsNone(approved_base_count(277657,277733,p))
+        p['core_roles_reserved_before_ea']=False
+        self.assertIsNone(approved_base_count(277657,277733,p))
 
     def test_unverified_five_core_roles_are_never_assumed(self):
         data=plan(('1','9'),('2','10'))
