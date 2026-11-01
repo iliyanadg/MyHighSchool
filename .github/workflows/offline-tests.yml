@@ -48,3 +48,38 @@ jobs:
             dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.ts4script
             dist_capacity/MHS_CAPACITY_BETA_AUDIT.json
           if-no-files-found: error
+
+  m94_mac_job_probe:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify read-only EA job inspector
+        run: python -m unittest tests.test_m94_job_probe -v
+      - name: Build M94 Mac diagnostic archive
+        run: python -m tooling.build_mhs94_probe dist_m94/
+      - name: Verify preserved M85 tuning and Python 3.7 bytecode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.package')
+          z=Path('dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.ts4script')
+          assert inspect_bytes(p.read_bytes())['resource_count']==63
+          with ZipFile(str(z)) as archive:
+              names=archive.namelist()
+              assert len(names)==33
+              assert 'mhs94_school_job_probe.pyc' in names
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA
+          path: |
+            dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.package
+            dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.ts4script
+            dist_m94/MHS_M94_BUILD_REPORT.json
+          if-no-files-found: error
