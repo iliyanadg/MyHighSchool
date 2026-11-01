@@ -54,7 +54,10 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
                         new_args=(new_list,)+args[1:]
                         result=previous(self,situation_type,*new_args,**kwargs)
                         if result and callable(on_applied):
-                            on_applied(student_id)
+                            try:
+                                on_applied(student_id)
+                            except Exception:
+                                pass  # Never repeat an EA situation creation.
                         return result
         except Exception:
             pass
