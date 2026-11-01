@@ -45,6 +45,24 @@ class M89Tests(unittest.TestCase):
         instance=Manager()
         instance.create_situation(Situation(),guest_list=List([Guest(77)]))
         self.assertEqual(instance.requests[0][1].items[0].sim_id,77)
+    def test_verified_ea_random_replaced_in_same_original_request(self):
+        Manager=manager()
+        provenance={'ea_auto_generated':True,'registered_ids':('555','777')}
+        self.assertTrue(install(Manager,lambda *args:(555,True,True,provenance),
+                                Job(),GuestInfo,1))
+        instance=Manager()
+        original=List([Guest(99)])
+        instance.create_situation(Situation(),guest_list=original)
+        self.assertEqual(len(instance.requests),1)
+        self.assertEqual(instance.requests[0][1].items[0].sim_id,555)
+        self.assertEqual(original.items[0].sim_id,99)
+    def test_unverified_ea_random_is_never_replaced(self):
+        Manager=manager()
+        self.assertTrue(install(Manager,lambda *args:(555,True,True),
+                                Job(),GuestInfo,1))
+        instance=Manager()
+        instance.create_situation(Situation(),guest_list=List([Guest(99)]))
+        self.assertEqual(instance.requests[0][1].items[0].sim_id,99)
     def test_fail_closed_resolver(self):
         Manager=manager()
         def broken(*args):raise RuntimeError('unavailable')
