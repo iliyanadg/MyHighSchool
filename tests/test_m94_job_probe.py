@@ -23,7 +23,7 @@ class _Job:
 class ProbeTests(unittest.TestCase):
     def test_all_original_ea_school_jobs_read_without_mutation(self):
         known={277894:280516,278965:276592,
-               278966:276594,278967:276596,
+               278966:276596,278967:276594,
                278968:276595,303765:303766}
         fake={job:_Job(job,filt) for job,filt in known.items()}
         result=snapshot(fake.get)
