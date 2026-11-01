@@ -56,7 +56,13 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
             # An unverified or incomplete cohort always preserves vanilla.
             if callable(on_exhausted):
                 try:
-                    if (not tuple(guest_list.guest_info_gen()) and
+                    guests=tuple(guest_list.guest_info_gen())
+                    auto_unassigned=(not guests or (
+                        len(guests)==1
+                        and getattr(guests[0],'sim_id',None) in (0,None)
+                        and getattr(getattr(guests[0],'job_type',None),
+                                    'guid64',None)==277894))
+                    if (auto_unassigned and
                             on_exhausted(self,situation_type,guest_list) is True):
                         # EA SituationManager uses a falsy result for no
                         # situation. This returns no new EA situation; it
