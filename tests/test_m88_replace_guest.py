@@ -45,6 +45,15 @@ class M88Tests(unittest.TestCase):
         self.assertEqual([x.sim_id for x in replacement.items],[555])
     def test_ea_existing_explicit_guest_never_overwritten(self):
         self.assertIsNone(run(List([Guest(44)])))
+    def test_verified_ea_random_explicit_can_be_replaced(self):
+        original=List([Guest(99)])
+        new=run(original,ea_generated_explicit=True,registered_ids=('555','123'))
+        self.assertIsNotNone(new)
+        self.assertEqual(new.items[0].sim_id,555)
+        self.assertEqual(original.items[0].sim_id,99)
+    def test_registered_ea_explicit_never_replaced(self):
+        self.assertIsNone(run(List([Guest(99)]),
+                          ea_generated_explicit=True,registered_ids=('99','555')))
     def test_wrong_job_situation_zone_or_activation_noop(self):
         self.assertIsNone(run(List([Guest(0)]),situation_guid=298052))
         self.assertIsNone(run(List([Guest(0)]),verified_school_zone=False))
