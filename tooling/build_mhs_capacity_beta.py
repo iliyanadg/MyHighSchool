@@ -79,6 +79,24 @@ def capacity_resources():
         if len(selected)!=1 or _value(selected[0].find(
                 './U[@n="sim_count"]/T[@n="upper_bound"]'))!='8':
             raise ValueError('Other class capacity no longer eight')
+    core=_original(298052,'CustomStatesSituation')
+    default_core_jobs=[_value(x) for x in core.findall(
+        './L[@n="default_job_and_roles"]/U/T[@n="Situation Job"]')]
+    state_core_jobs=[_value(x) for x in core.findall(
+        './L[@n="_situation_states"]/U/V[@n="Situation State"]/'
+        'U[@n="literal"]/L[@n="job_and_role_changes"]/U/'
+        'T[@n="Situation Job"]')]
+    # Default list has 2 teachers + 5 possible student jobs.
+    # NoBehavior changes include 2 teachers + 4 student jobs.
+    # These are possible roles, not an observed headcount in the save.
+    if default_core_jobs!=['277895','278963','278965','278966',
+                           '278967','278968','303765']:
+        raise ValueError('EA core teachers or student roles changed')
+    if state_core_jobs!=['277895','278963','278965','278966',
+                         '278967','278968']:
+        raise ValueError('EA Core NoBehavior role mapping changed')
+    if _value(core.find('./T[@n="max_participants"]'))!='20':
+        raise ValueError('EA core max participants changed')
     base=_original(277733,'CustomStatesSituation')
     if _value(base.find('./T[@n="max_participants"]'))!='20':
         raise ValueError('Base situation max participants changed')
