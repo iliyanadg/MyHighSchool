@@ -32,10 +32,12 @@ https://www.patreon.com/SonozakiSistersSims4/posts/elementary-for-132313120
 Archivio dichiarato dall'host:
 https://simfileshare.net/download/2rR3xeCjX9oWSp8irFZwlSK2339hQ4dZVrGCKetIKCyzNVgxZBWJ83xFzvMFMFm4/
 
-**Limite di verifica:** non è stato acquisito in questa analisi il contenuto
-dello ZIP `SonozakiSisters_Elementary_School_Management.zip`. Non affermare
-di conoscere XML/loot/filtri specifici di Elementary finché il binario non è
-disponibile e ispezionato.
+**Aggiornamento 1 novembre 2026:** l'utente ha caricato il package Elementary
+IT e lo script ".ts4script". Sono stati analizzati direttamente in sola
+lettura: **78 risorse DBPF, 5 iniezioni nei filtri Zerbu, 7 tratti nascosti,
+script Python 3.7 con hook al caricamento delle famiglie**. Tutti i dettagli
+sono documentati nel [Passo 81](PASSO_81_ANALISI_BINARIA_ELEMENTARY_SONOZAKI.md),
+che sostituisce il precedente limite relativo all'assenza dei file.
 
 ## Evidenza già analizzata da Sonozaki High School 2.2.1
 
@@ -74,9 +76,9 @@ Fonte: https://www.patreon.com/SonozakiSistersSims4/posts/high-school-2-2-153195
 
 - Conservare il baseline **M58 isolamento, Actions 41257486408**, perché
   ora gli studenti EA si siedono alle 10:00.
-- Studiare il **modulo Elementary reale**, quando disponibile, con analisi
-  dei tipi TGI, override tuning/filtri, SimData, picker/loot,
-  vincoli, ruolo dei possibili tratti, riferimenti a Zerbu e Lot51.
+- **Analisi del modulo Elementary completata nel Passo 81**. Il pattern
+  whitelist/blacklist + loot + filtro Zerbu è verificato staticamente, ma i
+  suoi ID non vanno trasferiti nel liceo EA. Ora priorità a capienza e job EA.
 - Confrontare successivamente i TGI con i tuning di Zerbu e del liceo EA:
   NON assumere che i filtri di Elementary siano gli stessi del liceo.
 - Sviluppare in seguito un meccanismo di assegnazione esatta delle
