@@ -18,7 +18,7 @@ import zlib
 from pathlib import Path
 
 from tooling.build_m55_attendance_trial import package_bytes as mhs94_pkg
-from tooling.build_m94_probe import script_sources as m94_scripts
+from tooling.build_mhs94_probe import script_sources as m94_scripts
 from tooling.build_m27_removal import (TYPE_INTERACTION,TYPE_SNIPPET,
                                         TYPE_STBL,ENTRY,fnv64_highbit)
 from tooling.build_m30_nested_menu import CATEGORY_IDS,category_id
