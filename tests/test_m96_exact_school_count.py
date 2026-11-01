@@ -74,7 +74,9 @@ class SchoolCountTests(unittest.TestCase):
         self.assertEqual(Other.get_long_term_situation_count(data,None),(6,6))
         self.assertEqual(Main.get_long_term_situation_count(staff,None),(6,6))
         self.assertFalse(install(Day,lambda c,d,r:plan()))
-        self.assertEqual(Main.calls,4)
+        self.assertEqual(Main.calls,2)
+        self.assertEqual(Venue.calls,1)
+        self.assertEqual(Other.calls,1)
 
     def test_provider_error_preserves_vanilla_count(self):
         Day,Main,Venue,Other,data,staff=fake_schedule()
