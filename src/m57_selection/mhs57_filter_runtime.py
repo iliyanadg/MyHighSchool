@@ -149,7 +149,7 @@ def _filtered(original, self, args, kwargs, method):
     tuning=kwargs.get('sim_filter',args[idx] if len(args)>idx else None)
     guid=guid_for_filter(tuning)
     _record_filter_call(guid,method)
-    if not MHS_EA_FILTER_CONSTRAINTS_ENABLED or guid not in SCHOOL_FILTERS:
+    if not globals().get('MHS_EA_FILTER_CONSTRAINTS_ENABLED',True) or guid not in SCHOOL_FILTERS:
         return original(self,*args,**kwargs)
     if _CONFLICTS:
         _log('preserve',guid,'Altro controller liceo installato')
