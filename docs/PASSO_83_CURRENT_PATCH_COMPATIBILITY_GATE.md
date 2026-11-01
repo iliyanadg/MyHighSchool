@@ -21,14 +21,14 @@ di studio**, non tuning/programmi verificati per la patch odierna.
   **Blocca** versioni Mac diverse dalla patch documentata, controller
   liceo concorrenti, registri incompleti o duplicati, idoneità teenager
   non verificata, ruoli core già occupati/ambigui, o limiti non verificati.
-- `tests/test_m83_preflight.py`: 8 test di controllo sulla patch attuale,
+- `tests/test_m83_preflight.py`: 9 test di controllo sulla patch attuale,
   registro C1=8 C2=8, studenti della famiglia giocabile, ruoli EA core,
   capienza NPC base, posti per entrambe le lezioni e isolamento di
   Sonozaki Elementary dai controller del liceo.
 - `.github/workflows/m83-preflight.yml`: CI Python 3.7 **solo test
-  offline**, senza generare package giocabili. I test sono stati anche
-  eseguiti in un ambiente Python locale e sono passati. L'esito finale
-  del job GitHub va verificato separatamente.
+  offline**, senza generare package giocabili. I primi 8 test sono stati eseguiti e superati in Python locale.
+  Il nono test e la CI aggiornati richiedono verifica del job GitHub
+  (non attribuire alla CI un esito non ancora controllato).
 
 ## Cosa significa il gate
 
@@ -37,9 +37,17 @@ Il gate costruisce un piano di 16 studenti SOLO quando riceve:
 2. Esattamente 8 ID univoci per ognuna delle due classi, nessun duplicato;
 3. Verifica attuale di idoneità (umani adolescenti);
 4. Distinzione esplicita tra giocabili iscritti, core role EA e NPC base;
-5. Capienza reale **verificata da tuning corrente** delle situazioni
+5. Verifica separata che ogni candidato NPC supera realmente il filtro EA
+   Base Student `280516`: non basta l'età, perché il filtro contiene
+   carriera liceale `9541`, restrizioni su Sim speciali/ghost/hidden,
+   tratti `293779` e altri termini. Il suo job EA `277894` richiama
+   proprio `280516`. Evidenza: file XML originali EA in libreria,
+   `job_HighSchool_Active_Base_NPC_Student` e
+   `filter_HighSchool_Active_Student`, provenienti dai file di gioco
+   esportati durante i test della patch 1.129.39.1230;
+6. Capienza reale **verificata da tuning corrente** delle situazioni
    EA Base Student (non presunta da vecchi mod);
-6. Capienza **verificata** di `go_to_class_1`, `attend_class_1`,
+7. Capienza **verificata** di `go_to_class_1`, `attend_class_1`,
    `go_to_class_2`, `attend_class_2`.
 
 Se una prova manca: `BLOCKED`. Con tutti i dati presenti e coerenti:
