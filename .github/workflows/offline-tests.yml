@@ -15,7 +15,6 @@ jobs:
 
   capacity_mac_beta:
     runs-on: ubuntu-22.04
-    needs: roster
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
