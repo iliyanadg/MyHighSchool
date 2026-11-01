@@ -45,5 +45,15 @@ def connect(manager_class, session, eligibility_provider, zone_checker,
         if sid is None:
             return None
         return (sid,True,True)
+    def refuse_unassigned_fallback(manager,situation,guests):
+        # All EA Base requests for this VERIFIED active plan must use one
+        # eligible enrolled Sim or create no situation. Never generate an
+        # extra random classmate if all Base invitations were used, or if
+        # a registered Sim is ineligible that day.
+        try:
+            return zone_checker() is True
+        except Exception:
+            return False
     return install(manager_class,resolve,job_tuning,guest_info_class,purpose,
-                   on_applied=session.confirm)
+                   on_applied=session.confirm,
+                   on_exhausted=refuse_unassigned_fallback)
