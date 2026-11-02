@@ -332,3 +332,37 @@ RoleState. Nessuna garanzia di funzionamento 16/16.
 
 Questa analisi usa materiale sorgente fornito dall'utente, ma
 non ripubblica codice EA nel repository pubblico.
+
+## M107 — verifica dei limiti delle lezioni nei tuning EA
+
+Dati originali già presenti in `assets/ea_2026_11_01/`:
+
+- `304561.xml` situazione `...AttendClass1_NoTrait`:
+  `job_HighSchool_Active_NPC_Phases_Student1` (277919), 
+  `sim_count.lower_bound=0`, `upper_bound=6`.
+- `304563.xml` situazione `...AttendClass1_WithTrait`:
+  stesso job e upper_bound 6, con requisito nascosto
+  `trait_HighSchool_Active_Class1Student` (293779).
+- `304570.xml` situazione `...AttendClass_Others`:
+  `job_HighSchool_Active_NPC_Phases_Student2` (280777)
+  ha `upper_bound=8`. È un conteggio del job di fase,
+  **non prova otto Sim seduti nell'aula**.
+- `293642.xml`, `293644.xml` confermano altri momenti
+  (GoToClass1) con lo stesso upper_bound 6.
+- Alcune fasi hanno `upper_bound_count_modifiers` per togliere
+  posti già occupati da altri job e playable; non
+  sommare direttamente tutti gli upper bound di diversi
+  situation sets.
+
+**Decisione:** anche ottenendo 16 inviti corretti, la
+configurazione EA della Classe 1 non garantisce 8 NPC nel job
+di fase. Il controller deve governare sia numero Base/ruoli
+Core a inizio giorno sia le `job_assignments` per le fasi
+delle lezioni delle 10 e delle 14, con classe 1/2 fissa.
+L'attuale errore del ruolo Mean è solo uno dei blocchi.
+
+**Ulteriore script utile, non ancora richiesto all'utente:**
+`scripts/situations/situation_manager.py` estratto da Motherlode,
+per verificare l'origine della `create_situation`, i seed,
+la guest list e la catena prima del Bouncer. Non richiedere
+di nuovo `weekly_schedule_zone_director.py`, già fornito.
