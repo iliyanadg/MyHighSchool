@@ -1,0 +1,146 @@
+# M109 — Contratto di integrazione M108: una sola attivazione, verifica EA reale, rollback
+
+**Stato:** progettazione / non implementato, NON una nuova beta, nessuna prova in-game.
+**Ramo:** `feature/m55-presenze-studente-test`. Non modificare `main`.
+**Scopo:** trasformare i molti moduli M108 *offline-only* in un unico percorso
+controllato, verificabile e reversibile, evitando doppie patch e falsi positivi.
+
+## Risultato richiesto dalla giocatrice
+
+- Esattamente **due classi, otto adolescenti per classe**.
+- **Tre giocabili**, assegnati manualmente alle classi, **13 NPC precisi**.
+- Tra i 13 NPC, **cinque ID per i cinque ruoli Core EA esatti**, otto per
+  i job Base; niente NPC estranei, sostituti casuali o Sim inventati.
+- Insegnanti, preside, custodi e mensa mantengono le loro identità e i job EA.
+- Il registro sopravvive ai giorni e viene letto per salvataggio; nessuna
+  riassegnazione a caso. Cambi durante la scuola applicati il giorno dopo.
+- Fasce EA originali: 09:30 ingresso a lezione, 10:00 lezione, 13:30 preparazione,
+  14:00 lezione. Non alterare pranzo, prom, diplomatura o lotti diversi.
+- Nessuna modifica irreversibile al salvataggio o ai tratti dei Sim.
+
+## Stato verificato (non inferire che sia una release)
+
+La base M108 attuale contiene diversi **prototipi offline-only**:
+`mhs108_native_invitation`, `native_precreate`, `native_base_count`,
+`school_filter_scope`, `no_show_guard`, `unified_lessons`,
+`post_bouncer_audit`, `spinup_barrier`, `npc_soft_cap_audit`,
+`16_student_reconciliation`.
+
+I moduli chiedono molti `REQUIRED_LIVE_GATES`, ma i test passano solo flag
+**sintetici**: non esiste ancora un provider runtime verificato che li
+certifichi. All'ultimo controllo del 03-11-2026 la GitHub Actions CI
+del commit `e25f5426` era **queued**, non passed. Non creare una release
+basata sui soli mock.
+
+**Rischio di architettura critico**: più strategie di hooking
+`WeeklyScheduleSituationData.try_start` sono alternative, NON cumulative.
+Il controller M109 deve selezionare SOLO `mhs108_unified_lessons`;
+gli adattatori di studio `mhs108_ea_phase_adapter` e
+`mhs108_class1_try_start_bridge` restano disattivati.
+
+## Una sola macchina a stati per il giorno scolastico
+
+| Stato | Attivazione | Prova necessaria | Fallimento |
+|---|---|---|---|
+| S0 DISATTIVATO | Salvataggio normale | Nessun hook M108 | Lascia EA vanilla |
+| S1 REGISTRO_VALIDATO | Fuori dalla giornata attiva | Manifesto canonico 2x8/3+5+8, staff umano, stesso save | Non iniziare |
+| S2 PRIMA_DEL_CALENDARIO | Prima della prima richiesta EA | Origine EA nativa, contesto save/day/zone, nessun controller concorrente, 5 ruoli Core verificati come *piano* | Non installare |
+| S3 INVITI_EA_CREATI | Calendario EA chiama Base poi Core | Otto situation ID Base + uno Core, 13 ID distinti nel guest list | Blocca ulteriori richieste MHS e segnala, niente refill |
+| S4 BOUNCER_ASSEGNATO | Dopo `on_all_sims_spawned_during_zone_spin_up` oppure barriera late comprovata | `SituationManager.get` + `all_sims_in_job_gen` dei job effettivi | Non chiamare i 13 presenti; report dettagliato |
+| S5 LEZIONE_VERIFICATA | 09:30, 10:00, 13:30, 14:00 | Un solo hook `try_start`, classe 1 a due vie, classe 2 con staff, job readback post-Bouncer | Segnala fase incompleta, non ritentare a caso |
+| S6 16_VERIFICATI | Controllo prima/durante ogni lezione | 13 NPC di classe giusta + 3 playable nei job EA + esattamente 16 teen sul lotto, tutte le situation del periodo enumerate | Nessun pass fittizio |
+| S7 POSTI_VERIFICATI | Dopo assegnazione di lezione | Banco/aula e comportamento osservati per ciascun Sim; separati dalla sola membership EA | `SEATING_UNVERIFIED` |
+| S8 FINE_GIORNO | Dopo la fine normale EA | Report, rilascio per-day dei guard e ticket; registro per-save intatto | Cleanup e report anche in caso di errore |
+
+Le transizioni devono essere **monotone**. Un job o situazione falliti
+non possono tornare automaticamente «verificati» semplicemente dopo un
+nuovo invito. Le quattro fasce orarie devono utilizzare contatori distinti;
+non riciclare l'esito delle 10:00 come prova delle 14:00.
+
+## Ordine degli hook e rollback atomico
+
+Prima di toccare qualsiasi classe EA, costruire un **preflight completo**,
+con controlli positivi ricavati da API *live* concrete, mai passando
+arbitrariamente `{gate: True}`.
+
+Solo dopo il preflight:
+1. Installare un contatore Base EA 6→8 **per calendario scolastico
+   verificato**, e il solo hook `SituationManager.create_situation`.
+2. Proteggere i 13 inviti con filtro *solo sulla richiesta* e
+   `clone_for_replace` mirato. Le riserve Core locali non sono vere
+   prenotazioni del Bouncer: non affermare il contrario.
+3. Installare **un solo** wrapper `try_start` con controller
+   unificato, e leggere i job attraverso l'audit differito.
+4. Installare l'osservatore di `on_all_sims_spawned_during_zone_spin_up`.
+5. Attivare l'intero sistema solo dopo che tutti gli installer hanno
+   restituito uninstall validi. Se uno fallisce, ripristinare
+   **tutti** gli hook installati nell'ordine inverso.
+
+Il rollback deve essere testato per ogni passo e non deve mai richiamare
+il metodo EA `create_situation` due volte dopo un'eccezione.
+Nessun tentativo di undo può ripristinare retroattivamente una situazione
+EA già avviata: segnalarlo esplicitamente nei report. Un installer può
+rifiutare la partenza prima del calendario anziché attivarsi a metà giorno.
+
+## Fonti runtime che mancano ancora (gates da implementare, NON bypassare)
+
+- **Origine del calendario**: vera classe EA, schedule GUID, giorno/zona
+  del salvataggio e prova che non sia già partita.
+- **Identità NPC e roster**: `SimInfo` adolescente umano realmente nel
+  salvataggio, selezionabile vs NPC, appartenenza effettiva al registro.
+- **Job e filtro originali**: risorse EA del gioco corrente
+  (Base 277894, Core cinque job) e guest list nativa.
+- **Due vie Classe 1**: compatibilità della classe shadow col
+  runtime/metaclasse EA, cap modificato solo per chiamata,
+  lettura autentica delle idoneità WithTrait/NoTrait.
+- **Bouncer cap**: contatori `number_of_npcs_instantiated`,
+  `number_of_npcs_leaving`, `npc_soft_cap` misurati sulla zona;
+  un margine positivo non è garanzia di presenza.
+- **Lettura post-Bouncer late**: la callback spin-up osserva il
+  caricamento; manca una barriera comprovata per i job assegnati
+  quando la zona è già in esecuzione.
+- **Playables e banchi**: verificare tre adolescenti giocabili
+  nelle vere situazioni e il loro percorso fisico verso
+  la corretta aula; il job non basta a provare che siano seduti.
+- **Conflitti**: impedire l'attivazione in presenza di
+  Sonozaki HS/M106/controller scolastici concorrenti,
+  senza intaccare mod di scuola elementare non coinvolte.
+
+## Protocollo di collaudo a step, su copia del salvataggio
+
+**T0 — Test automatici effettivamente verdi:** Python 3.7/3.11, XML
+e test sintetici di CI; raccogliere log di fallimento, correggere.
+Nessuna beta se la CI più recente è queued/failing.
+
+**T1 — Osservabilità read-only:** una diagnostica Mac che verifica
+solo origini API, conteggio del cap e job reali, senza cambiare
+spawning, filtri o situazione; report con source dei dati.
+
+**T2 — Inviti Native controllati:** riutilizzo delle situazioni EA,
+13 ID esatti, zero sostituti o extras, nessun conflitto.
+
+**T3 — Lezioni:** Classe 1 via doppia, Classe 2, entrambi gli
+orari; nessun doppio incarico; tutelare docenti/preside.
+
+**T4 — Presenze vere:** due giorni scolastici consecutivi con
+gli stessi 16 adolescenti; distinzione fra job presenti,
+posizione nell'aula e seduti; no-show senza sostituto.
+
+Una verifica fallita deve produrre una spiegazione specifica
+e il prossimo esperimento **minimo**, non una nuova famiglia
+di 10 mod sperimentali.
+
+## Primo lavoro concreto successivo
+
+1. Attendere/eseguire fino a completamento una CI che includa
+   M108, identificare tutti i test falliti per causa.
+2. Correggere le discrepanze e fare una esecuzione locale
+   indipendente sui mock e XML reali, evitando altra crescita
+   del numero di commit finché la CI non termina.
+3. Solo poi scrivere una funzione `M109SchoolActivation`
+   (preflight, install, uninstall, stati) con un **unico entrypoint**
+   e un test di rollback su ogni hook; modalità default OFF.
+4. Prima di dichiarare "funzionante", prova in-game su
+   una copia del salvataggio e osservazioni native complete.
+
+**Vietato fare claim «16/16 funzionano» senza prove dal gioco.**
