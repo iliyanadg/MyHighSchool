@@ -125,7 +125,7 @@ def _actual_filter_ids(ordinary):
     """
     evidence={'requested_filter_guid':_FILTER,'candidate_count':len(ordinary),
               'phase':'NOT_QUERIED','eligible_count':0,
-              'runtime_source':'M101C_EA_FILTER_DIAGNOSTICA'}
+              'runtime_source':'M101D_CALLBACK_CORRETTO'}
     try:
         if not hasattr(Types,'SIM_FILTER'):
             evidence['phase']='MISSING_SIM_FILTER_RESOURCE_TYPE'
@@ -154,8 +154,12 @@ def _actual_filter_ids(ordinary):
         except Exception:
             evidence['method_signature']='UNAVAILABLE'
         evidence['phase']='CALLING_EA_FILTER'
-        actual=method(sim_filter=filt,sim_constraints=ordinary,
-                      allow_yielding=False)
+        # Live EA M101c report confirmed submit_filter(callback, ...)
+        # requires callback even when allow_yielding=False. Explicit None
+        # is the game's synchronous query convention; never schedule an
+        # async callback because original school spin-up cannot pause.
+        actual=method(callback=None,sim_filter=filt,
+                      sim_constraints=ordinary,allow_yielding=False)
         evidence['result_type']=type(actual).__name__
         if actual is None:
             evidence['phase']='EA_FILTER_RETURNED_NONE'
