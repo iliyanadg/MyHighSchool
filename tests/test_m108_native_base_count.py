@@ -237,6 +237,61 @@ class EightBaseCountTests(unittest.TestCase):
         self.assertEqual(Main.calls, 1)
         self.assertTrue(undo())
 
+    def test_count_and_same_original_ea_situation_calls_are_integrated(self):
+        # End-to-end OFFLINE fixture: no EA runtime, no installable Mac mod.
+        # The classmethod must lead to exactly eight original Base calls,
+        # then the original Core situation; never a new MHS situation type.
+        from mhs108_native_precreate import install as install_precreate
+        from tests.test_m108_native_precreate import (
+            manager as guest_manager, all_proof as guest_gates,
+            Situation, CoreSituation)
+        Day, Main, _, _, base, _ = fake_ea_schedule()
+        s = session()
+        undo_count = install_offline_only(
+            Day, s, lambda: verified_context(), all_gates())
+        Manager = guest_manager()
+        undo_precreate = install_precreate(
+            Manager, s, lambda: CONTEXT, guest_gates())
+        self.assertTrue(callable(undo_count))
+        self.assertTrue(callable(undo_precreate))
+        try:
+            count = Main.get_long_term_situation_count(base, None)
+            self.assertEqual(count, (8, 8))
+            m = Manager()
+            for index in range(count[0]):
+                result = m.create_situation(
+                    Situation(), guest_list=EAList(),
+                    user_facing=False,
+                    spawn_sims_during_zone_spin_up=True)
+                self.assertEqual(result, 101 + index)
+            self.assertEqual(len(m.calls), 8)
+            self.assertIsNone(
+                m.create_situation(Situation(), guest_list=EAList()))
+            self.assertEqual(len(m.calls), 8)
+            core_id = m.create_situation(CoreSituation(),
+                                         guest_list=EAList())
+            self.assertEqual(core_id, 109)
+            self.assertEqual(len(m.calls), 9)
+            ids = tuple(sid for call in m.calls
+                        for sid in (guest.sim_id
+                                    for guest in call[1].guest_info_gen()))
+            self.assertEqual(len(ids), 13)
+            self.assertEqual(len(set(ids)), 13)
+            self.assertEqual(set(str(x) for x in ids),
+                             set(s.manifest['base_ids']) |
+                             set(sid for _, sid in
+                                 s.manifest['core_assignments']))
+            self.assertTrue(s.snapshot()['all_nine_situations_created'])
+            self.assertFalse(s.snapshot()['attendance_verified'])
+            # After the first EA invitation, do not propose another count.
+            self.assertEqual(
+                propose_native_base_count(
+                    (6, 6), MAIN, BASE_SITUATION, s, verified_context()),
+                (6, 6))
+        finally:
+            self.assertTrue(undo_precreate())
+            self.assertTrue(undo_count())
+
     def test_no_claim_that_eight_sims_are_spawned(self):
         s = session()
         self.assertEqual(
