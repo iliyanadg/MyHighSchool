@@ -63,13 +63,52 @@ CONTEXT = {
 }
 
 
-def session():
+EARLY_CONTEXT = dict(CONTEXT, before_school_schedule_verified=True,
+                     ea_schedule_not_started=True)
+
+
+def session(arm=True):
     manifest = prepare_fixed_manifest(
         CLASSES, PLAYABLE, CORE, 11, 12, 777)
-    return SchoolNativeGuestSession(manifest, EAInfo, 'INVITED', JOBS)
+    result = SchoolNativeGuestSession(manifest, EAInfo, 'INVITED', JOBS)
+    if arm:
+        assert result.reserve_core_before_schedule(EARLY_CONTEXT)
+    return result
 
 
 class NativeInvitationTests(unittest.TestCase):
+
+    def test_early_core_hold_mandatory_before_ea_base_first_schedule(self):
+        s = session(arm=False)
+        self.assertEqual(s.preview(BASE_SITUATION, EAList(), CONTEXT),
+                         (None, None))
+        self.assertEqual(s.preview(CORE_SITUATION, EAList(), CONTEXT),
+                         (None, None))
+        self.assertEqual(s.snapshot()['local_core_ids_held_before_base'], ())
+        self.assertTrue(s.reserve_core_before_schedule(EARLY_CONTEXT))
+        self.assertEqual(s.snapshot()['local_core_ids_held_before_base'],
+                         tuple((job, str(CORE[job])) for job in CORE_JOBS))
+        self.assertFalse(s.snapshot()['actual_ea_core_reservations_verified'])
+        self.assertFalse(s.reserve_core_before_schedule(EARLY_CONTEXT))
+        ticket, clone = s.preview(BASE_SITUATION, EAList(), CONTEXT)
+        self.assertEqual(ticket, 'base:5')
+        self.assertEqual([g.sim_id for g in clone.guest_info_gen()], [5])
+
+    def test_early_hold_refuses_wrong_save_day_zone_or_late_start(self):
+        for delta in (
+                {'before_school_schedule_verified': False},
+                {'ea_schedule_not_started': False},
+                {'school_verified': False},
+                {'schedule_guid': 999999},
+                {'save_slot': 12},
+                {'sim_day': 13},
+                {'zone_id': 900}):
+            s = session(arm=False)
+            self.assertFalse(s.reserve_core_before_schedule(
+                dict(EARLY_CONTEXT, **delta)))
+            self.assertEqual(s.preview(BASE_SITUATION, EAList(), CONTEXT),
+                             (None, None))
+            self.assertEqual(s.snapshot()['local_core_ids_held_before_base'], ())
 
     def test_manifest_has_16_fixed_students_3_playable_5_core_8_base(self):
         m = session().manifest
