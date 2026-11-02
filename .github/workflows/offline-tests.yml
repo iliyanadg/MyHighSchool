@@ -2,6 +2,11 @@ name: Offline source tests (not a game validation)
 on:
   push:
   pull_request:
+# One current run per branch/PR; avoid hundreds of obsolete M108 jobs
+# competing for runners. No change to which tests/jobs are executed.
+concurrency:
+  group: offline-source-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   roster:
     runs-on: ubuntu-latest
