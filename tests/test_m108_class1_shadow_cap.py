@@ -40,10 +40,11 @@ def original_class(phase='lesson', route='with_trait'):
         sim_count=Obj(lower_bound=0, upper_bound=6),
         tests=tests, upper_bound_count_modifiers=tuple(modifiers))
 
+    situation_ref = Ref(situation)
     class EAOriginalClass1Data(object):
         guid64 = guid
         job_assignments = (entry,)
-        situation = Ref(situation)
+        situation = situation_ref
         user_facing = 'EA_NATIVE_USER_FACING_NEVER'
         default_job_order = [entry.job]
         default_met_minimum_jobs = {entry.job: entry}
