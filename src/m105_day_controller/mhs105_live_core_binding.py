@@ -28,8 +28,11 @@ def _job_for_sim(situation,sim):
     # These are potential EA read methods; no call is made if unavailable.
     # One name may differ across EA game versions. Only accept an actual
     # SituationJob object whose guid64 matches one of the five known jobs.
-    for name in ('get_job_for_sim','get_situation_job_for_sim',
-                 'get_job_type_for_sim'):
+    # BaseSituation exposes get_current_job_for_sim in the user's
+    # decompiled EA version. Use the verified native API first, then
+    # retain harmless legacy fallbacks for other game revisions.
+    for name in ('get_current_job_for_sim','get_job_for_sim',
+                 'get_situation_job_for_sim','get_job_type_for_sim'):
         method=getattr(situation,name,None)
         if not callable(method):
             continue
