@@ -125,7 +125,13 @@ class ControllerTests(unittest.TestCase):
             '_save':lambda:None,
             'current_slot':lambda allow_travel:'11',
             '_day':lambda:24,'_zone':lambda:'100',
-            '_school_schedule_verified':lambda:False}
+            '_school_schedule_verified':lambda:False,
+            'observation_status':lambda:{
+                'kind':'M105_EA_SCHOOL_COUNT_AUDIT_ONLY',
+                'status':'NO_VERIFIED_EA_COUNT_YET',
+                'last_event':None,
+                'm96_override_authorized':False,
+                'game_count_changed':False}}
         fn=compile_fn('check',ns)
         message=fn()
         self.assertIn('UNKNOWN',message)
