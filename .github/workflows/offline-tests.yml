@@ -303,7 +303,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Test fixed 16 students without mandatory EA Mean eligibility
-        run: python -m unittest tests.test_m106_roster_first_policy tests.test_m106_bridge_arguments -v
+        run: python -m unittest tests.test_m106_roster_first_policy tests.test_m106_bridge_arguments tests.test_m106_live_preflight -v
 
   m105_mac_3_5_8_beta:
     runs-on: ubuntu-22.04
