@@ -83,7 +83,8 @@ def install_offline_only(weekly_situation_data_class, manifest,
     prior = owner.__dict__['try_start']
     original = prior.__func__
     if (getattr(original, '_mhs108_exact_phase', False)
-            or getattr(original, '_mhs108_class1_bridge', False)):
+            or getattr(original, '_mhs108_class1_bridge', False)
+            or getattr(original, '_mhs108_unified_lessons', False)):
         # This generic phase adapter cannot coexist with the dedicated
         # Class1 dual-route count projection on the same EA classmethod.
         return None
