@@ -60,8 +60,30 @@ class M101bFilterEvidenceTests(unittest.TestCase):
                          'EA signature not compatible')
         self.assertIn('method_signature',record)
         self.assertEqual(record['runtime_source'],
-                         'M101C_EA_FILTER_DIAGNOSTICA')
+                         'M101D_CALLBACK_CORRETTO')
         self.assertEqual(record['exception_location']['function'],'throw')
+
+    def test_ea_required_callback_is_passed_as_none_for_sync_query(self):
+        # This exactly reproduces the TypeError found in the M101c Mac
+        # report: submit_filter() missing required callback.
+        calls=[]
+        def native(callback,sim_filter,sim_constraints,allow_yielding):
+            calls.append((callback,sim_constraints,allow_yielding))
+            return [types.SimpleNamespace(
+                sim_info=types.SimpleNamespace(sim_id=555),score=2.0)]
+        ids,record=run_filter(manager=manager(),service=types.SimpleNamespace(
+            submit_filter=native))
+        self.assertEqual(ids,(555,))
+        self.assertEqual(record['phase'],'EA_FILTER_VERIFIED_MATCH')
+        self.assertEqual(calls,[(None,(555,777),False)])
+
+    def test_async_or_unscored_cannot_be_used_as_proof(self):
+        def deferred(callback,sim_filter,sim_constraints,allow_yielding):
+            return None
+        ids,record=run_filter(manager=manager(),service=types.SimpleNamespace(
+            submit_filter=deferred))
+        self.assertEqual(ids,())
+        self.assertEqual(record['phase'],'EA_FILTER_RETURNED_NONE')
 
     def test_none_and_empty_are_different_from_bad_result_type(self):
         for returned,phase in (
