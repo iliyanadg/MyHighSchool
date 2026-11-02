@@ -294,6 +294,17 @@ jobs:
             dist_m104/MHS_M104_BUILD_REPORT.json
           if-no-files-found: error
 
+  m106_roster_first_policy:
+    name: M106 roster-first offline feasibility (not Sims runtime)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test fixed 16 students without mandatory EA Mean eligibility
+        run: python -m unittest tests.test_m106_roster_first_policy -v
+
   m105_mac_3_5_8_beta:
     runs-on: ubuntu-22.04
     steps:
