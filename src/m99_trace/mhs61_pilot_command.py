@@ -95,11 +95,12 @@ def _trace_alarm(_handle=None):
     global _TRACE_POLL_COUNT
     _TRACE_POLL_COUNT+=1
     record=_capture_trace()
+    # A situation may be queued/destroyed/recreated while EA is still
+    # deciding whether to instantiate the guest. Keep tracing for the
+    # full hour unless the save/zone changed; don't call one observation
+    # a final conclusion.
     if (_TRACE_POLL_COUNT>=12 or
-            record.get('phase') in ('DIFFERENT_SAVE_OR_ZONE',
-                                     'SIM_PRESENT_AND_IN_REQUESTED_SITUATION',
-                                     'SITUATION_GONE_SIM_ABSENT',
-                                     'SIM_PRESENT_SITUATION_GONE')):
+            record.get('phase')=='DIFFERENT_SAVE_OR_ZONE'):
         _stop_trace_alarm()
 
 
