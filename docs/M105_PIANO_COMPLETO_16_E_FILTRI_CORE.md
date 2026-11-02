@@ -159,3 +159,61 @@ richiesta Base aggiuntiva può ancora far scegliere NPC vanilla.
 Non è stata abilitata M96, non è stato collegato alcun compilato Mac
 installabile. La verifica richiede CI e successivamente evidenza
 dal gioco, non soltanto test di sorgente.
+
+
+## M105 — verifica effettiva ruoli e ingresso in classe (proseguimento)
+
+Il codice EA `weekly_schedule_zone_director.py` già fornito dall'utente
+conferma che **WeeklyScheduleSituationData.try_start** riceve
+`sims=set(services.sim_info_manager().instanced_sims_gen())`.
+Il motore seleziona gli *attuali Sim istanziati* presenti sulla
+zona, valuta i requisiti per ciascun `SituationJob`, e se non trova
+abbastanza Sim per i job obbligatori **la situazione di lezione
+non parte**. Quando crea una situazione, costruisce una guest list
+dei Sim già assegnati: questa fase non riempie un'aula mancante
+con tutti i nomi del registro MHS.
+
+Quindi la sequenza corretta è:
+**convocazione originale EA → Sim materializzato sulla zona →
+SituationJob effettivamente occupato → situazione di lezione
+8+8 → seduti nella rispettiva classe**. Una fase non può
+essere usata come prova delle successive.
+
+Nuovi componenti effettivamente sviluppati:
+
+- `src/m105_day_controller/mhs105_role_binding_gate.py`:
+  verifica cinque **effettive** coppie
+  `SituationJob EA → Sim iscritto` nel CoreClassNPCs
+  `298052`, più l'effettiva presenza fisica dei cinque
+  Sims. Una risposta positiva al filtro, un invito o una
+  scelta nell'interfaccia MHS non costituiscono prova.
+- `src/m105_day_controller/mhs105_live_core_binding.py`:
+  osserva in sola lettura i Sim del lotto e il loro
+  SituationJob all'interno della situazione Core. Richiede
+  che l'API EA corrente esponga davvero un getter di job:
+  in caso contrario l'esito è `UNKNOWN`, non `VERIFIED`.
+- `src/m105_day_controller/mhs105_lesson_gate.py`:
+  verifica separatamente i 16 iscritti **fisicamente sul
+  lotto**, i 16 nelle situazioni EA senza adolescenti
+  estranei, 8+8 membri nei due veri job di lezione, e 8+8
+  Sim osservati **seduti**. Non confonde una classe
+  assegnata con un'aula realmente occupata.
+- `mhs105_game_controller.check()`: integra la verifica
+  Core effettiva senza modificare direttamente nessuna
+  situazione scolastica.
+
+Test automatici aggiunti nella job
+`m96_school_dispatcher_logic`:
+
+- `tests/test_m105_role_binding_gate.py`;
+- `tests/test_m105_live_core_binding.py`;
+- `tests/test_m105_lesson_gate.py`;
+- `tests/test_m105_game_connector.py` aggiornato.
+
+**Restano bloccanti per una release stabile:** la verifica
+della firma dell'API EA che restituisce il vero SituationJob,
+il collegamento della quantità esatta di richieste Base allo
+scheduler (non soltanto ai filtri), la capienza reale del lotto
+con studenti e personale e l'assegnazione fisica ai banchi.
+Il modulo M105 non è ancora distribuito come pacchetto Mac.
+Non chiedere altri test M99-M104 all'utente.
