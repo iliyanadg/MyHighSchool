@@ -217,3 +217,30 @@ scheduler (non soltanto ai filtri), la capienza reale del lotto
 con studenti e personale e l'assegnazione fisica ai banchi.
 Il modulo M105 non è ancora distribuito come pacchetto Mac.
 Non chiedere altri test M99-M104 all'utente.
+
+
+## M105 — ponte di osservazione verso il calendario M96
+
+È stato aggiunto `src/m105_day_controller/mhs105_schedule_audit.py`, con
+`tests/test_m105_schedule_audit.py`, incluso nei controlli offline.
+L'adattatore osserva **esclusivamente** il conteggio originale EA restituito
+per la Situation Base Student `277733` dai due calendari liceo
+`277657` e `279958` attraverso
+`WeeklyScheduleDay.get_long_term_situation_count`. Riporta separatamente
+il minimo e il massimo originali e se questi possono fornire gli otto
+posti NPC Base richiesti dal piano di **3 giocabili + 5 Core + 8 Base**.
+
+Le letture vengono accettate solo con save/day/zone liceo verificati;
+sono memorizzate fino a 32 osservazioni e scartate se il conteggio non
+è una coppia di interi attendibili. Il wrapper osservativo restituisce
+**sempre esattamente** il valore originale EA, senza creare situazioni,
+ricorrere a NPC sostitutivi o attivare M96. Il codice rifiuta
+l'installazione sopra un conteggio M96 già modificato, per non spacciare
+il numero modificato per quello originale.
+
+Una previsione di otto Base **non è un'autorizzazione** ad aumentare
+il conteggio: rimane impossibile usare M96 finché non è dimostrata
+la prenotazione effettiva PRE-SPAWN dei cinque ruoli Core, il budget
+del lotto e la compatibilità dei due cicli di lezione da otto. Né
+l'audit né i suoi test dimostrano l'arrivo degli studenti.
+Il componente **non è incluso in alcuna build Mac installabile**.
