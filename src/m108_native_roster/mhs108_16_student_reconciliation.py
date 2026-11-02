@@ -78,6 +78,7 @@ def reconcile_16_school_members(manifest,job_audit,phase_key,
                 or context.get('post_bouncer_phase_verified') is not True
                 or context.get('ea_all_classroom_phase_situations_verified')
                    is not True
+                or context.get('strict_enrolled_teens_only_verified') is not True
                 or context.get('zone_id')!=canonical['school_zone']
                 or context.get('time_window')!=phase_key[3]):
             return _blocked('UNVERIFIED_LIVE_OBSERVATIONS')
@@ -95,6 +96,10 @@ def reconcile_16_school_members(manifest,job_audit,phase_key,
             return _blocked('REGISTERED_STUDENT_NOT_ON_LOT',
                             missing_students=tuple(sorted(
                                 set(canonical['all_16'])-zone)))
+        if zone != set(canonical['all_16']):
+            return _blocked('EXTRANEOUS_TEEN_ON_SCHOOL_LOT',
+                            extraneous_teen_ids=tuple(sorted(
+                                zone-set(canonical['all_16']))))
         # Additional teenagers might exist on the zone as invited guests;
         # report them, but don't silently call them MHS enrollees.
         seen={1:set(),2:set()}
