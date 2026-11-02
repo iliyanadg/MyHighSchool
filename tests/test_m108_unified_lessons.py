@@ -82,13 +82,22 @@ def fixture(phase='lesson', native_staff_ok=True, bad_receipt=False,
             EA.next_situation += 1
             situation_id = EA.next_situation
             EA.native_taken.append((cls.guid64, situation_id, chosen))
+            shown_jobs = chosen
+            if bad_receipt == 'extra':
+                shown_jobs = {k:(v + (999,) if k in (277919,280777) else v)
+                              for k,v in chosen.items()}
+            elif bad_receipt == 'swapped' and 277918 in chosen:
+                student_job = 280777 if 280777 in chosen else 277919
+                shown_jobs = dict(chosen)
+                students = list(shown_jobs[student_job])
+                teachers = list(shown_jobs[277918])
+                students[0], teachers[0] = teachers[0], students[0]
+                shown_jobs[student_job] = tuple(students)
+                shown_jobs[277918] = tuple(teachers)
             EA.receipts[situation_id] = {
                 'native_ea_guest_list_inspected': True,
                 'situation_id': situation_id,
-                'ids_by_job': (
-                    {k:(v + (999,) if k in (277919,280777) else v)
-                     for k,v in chosen.items()}
-                    if bad_receipt else chosen)}
+                'ids_by_job': shown_jobs}
             sims.difference_update(already)
             for job_entry in cls.job_assignments:
                 counts[(cls.situation, job_entry.job)] += len(
@@ -256,7 +265,7 @@ class UnifiedLessonsTests(unittest.TestCase):
             undo()
 
     def test_bad_post_native_guest_job_receipt_does_not_claim_class(self):
-        EA,A1,A2,B,budget,counts,sims,undo=fixture(bad_receipt=True)
+        EA,A1,A2,B,budget,counts,sims,undo=fixture(bad_receipt='extra')
         try:
             before=set(sims)
             self.assertIsNotNone(run(B,sims,counts))
@@ -266,6 +275,40 @@ class UnifiedLessonsTests(unittest.TestCase):
             self.assertIsNotNone(run(A1,sims,counts))
             self.assertTrue(budget.snapshot()['blocked'])
             self.assertFalse(budget.snapshot()['phase_plan_complete_offline'])
+        finally:
+            undo()
+
+    def test_same_ids_in_wrong_ea_jobs_are_rejected(self):
+        # A matching total of present Sims is NOT proof of right roles:
+        # swapping one student and teacher must reject the native receipt.
+        EA,A1,A2,B,budget,counts,sims,undo=fixture(bad_receipt='swapped')
+        try:
+            previous=set(sims)
+            self.assertIsNotNone(run(B,sims,counts))
+            self.assertEqual(sims,previous)
+            self.assertEqual(len(undo.blocked_receipts),1)
+            self.assertEqual(EA.attempts,1)
+        finally:
+            undo()
+
+    def test_native_class2_cannot_be_recreated_same_save_day_window(self):
+        EA,A1,A2,B,budget,counts,sims,undo=fixture()
+        try:
+            self.assertIsNotNone(run(B,sims,counts))
+            prior_attempts=EA.attempts
+            self.assertIsNone(run(B,sims,counts))
+            self.assertEqual(EA.attempts,prior_attempts)
+            self.assertEqual(len(undo.attempted_phases),1)
+        finally:
+            undo()
+
+    def test_failed_native_phase_is_not_retried(self):
+        EA,A1,A2,B,budget,counts,sims,undo=fixture(partial=True)
+        try:
+            self.assertIsNotNone(run(B,sims,counts))
+            self.assertIsNone(run(B,sims,counts))
+            self.assertEqual(EA.attempts,1)
+            self.assertEqual(len(undo.blocked_receipts),1)
         finally:
             undo()
 
