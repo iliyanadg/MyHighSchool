@@ -86,6 +86,11 @@ class EightBaseCountTests(unittest.TestCase):
                                       BASE_SITUATION, s,
                                       verified_context(schedule_guid=FROM_VENUE)),
             (8, 8))
+        self.assertEqual(
+            propose_native_base_count((6, 6), FROM_VENUE,
+                                      BASE_SITUATION, s,
+                                      verified_context(schedule_guid=MAIN)),
+            (6, 6))
 
     def test_verified_playable_modifier_must_match_actual_original_count(self):
         s = session()
