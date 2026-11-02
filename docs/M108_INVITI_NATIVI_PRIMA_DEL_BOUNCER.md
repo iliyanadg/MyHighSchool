@@ -915,3 +915,166 @@ esiste ora come codice sperimentale con un wrapper
 unico, ma NON è un pilot giocabile. Non proporre
 ancora installazione sul save reale. `main` è
 rimasto intatto.
+
+## M108 — audit nativo dopo il Bouncer + margine di capienza NPC
+
+**Intervento del 3 novembre: codice scritto e test offline aggiunti.**
+Non modificare `main` e non distribuire una beta M108.
+
+### Scoperta sul sorgente EA originale
+
+Durante lo zone spin-up:
+1. `SituationManager.on_all_situations_created_during_zone_spin_up`
+   chiama `bouncer.request_all_sims_during_zone_spin_up`.
+2. `SituationManager.on_all_sims_spawned_during_zone_spin_up`
+   chiama `bouncer.assign_all_sims_during_zone_spin_up`
+   e imposta `_sim_assignment_complete=True`.
+3. `BaseSituation.on_sim_assigned_to_request` aggiunge
+   effettivamente il Sim alla situazione e al suo job.
+4. Il source EA espone `SituationManager.get(situation_id)`,
+   `BaseSituation.all_jobs_gen()`,
+   `all_sims_in_job_gen(job_type)` e
+   `all_sims_in_situation_gen()`.
+
+**CONSEGUENZA:** il risultato immediato di
+`WeeklyScheduleSituationData.try_start` è un invito
+EA, NON una prova che il Bouncer abbia assegnato
+effettivamente gli studenti. Chiedere la membership
+subito dopo `create_situation` può produrre
+falsi negativi durante lo spin-up e un falso
+senso di successo. Servono due passaggi distinti:
+invito pianificato PRIMA, verifica job DOPO il Bouncer.
+
+### Modulo read-only per i job effettivamente occupati
+
+`src/m108_native_roster/mhs108_post_bouncer_audit.py`
+(`NativeJobAudit`):
+- registra una situazione **appena creata** come
+  `CREATED_AWAITING_BOUNCER`, mai come presenza;
+- accetta solo le sei situazioni native di
+  preparazione/lezione MHS già verificate per
+  **Class1 e Class2**, la finestra EA corretta,
+  il roster 3+5+8, save, giorno, zona, job
+  alunno EA originale e gli eventuali job docente
+  e preside permessi;
+- vieta inviti di studenti estranei o di classe
+  sbagliata, e lo stesso NPC invitato in due
+  situazioni concorrenti della stessa fase;
+- richiede un segnale certificato che l'assegnazione
+  Bouncer sia effettivamente terminata, invece di
+  dedurla dal `situation_id`;
+- usa le API native sopra per leggere gli
+  **ID realmente presenti in ciascun job**, il set
+  completo dei membri e gli eventuali membri extra;
+- se un docente è stato inserito come studente o
+  compare un diciassettesimo iscritto, restituisce
+  esito negativo anche quando i conteggi tornano;
+- mantiene `seating_verified=False`: essere assegnati
+  a un job scolastico non prova l'uso dei banchi
+  o della lavagna della classe assegnata.
+
+**Test:** `tests/test_m108_post_bouncer_audit.py`
+copre attesa pre-Bouncer, ruolo docente/studente
+invertito, ID sconosciuti, job duplicati, due
+route Class1 senza doppioni, fasi/mondi/salvataggi
+sbagliati, e uso delle API EA in sola lettura.
+
+### Modalità differita nel controller unico
+
+`src/m108_native_roster/mhs108_unified_lessons.py`
+accetta una nuova opzione **spenta per default**
+`deferred_native_audit`.
+
+- Dopo `try_start` controlla la creazione e
+  gli ID sottratti dal set temporaneo di candidati
+  EA, e registra gli inviti nell'audit nativo;
+  NON li chiama già assegnati dal Bouncer.
+- Il contatore condiviso Classe 1 può impegnare
+  gli ID nel **piano degli inviti**, per fare
+  procedere la seconda route EA, ma NON può
+  convertire da solo tale riserva in presenza
+  reale.
+- Solo una chiamata successiva e verificata
+  `NativeJobAudit.observe` dopo il Bouncer
+  può trasformare le situazioni da pending a
+  `NATIVE_JOBS_MATCH`.
+- Il controller di integrazione mantiene il
+  vincolo di una chiamata EA originale per
+  fase e il blocco di doppia installazione.
+- Aggiunte protezioni **bidirezionali** affinché
+  gli adapter M108 legacy non possano essere
+  installati neppure *sopra* il controller unico.
+
+**Test:** `tests/test_m108_deferred_unified_lessons.py`
+simula due route Classe 1, Classe 2 e staff:
+prima tre ID di situazione ancora in attesa,
+poi assegna job esatti dopo il Bouncer; prova
+inoltre che l'assegnazione scambiata docente/
+studente fallisce e non viene ritentata.
+
+**Attenzione:** manca un provider runtime verificato
+che richiami l'audit al momento giusto sia durante
+lo spin-up sia durante le lezioni avviate a scuola
+già caricata. I flag dei test sono sintetici.
+Il sistema non è ancora un .ts4script giocabile.
+
+### Nuova scoperta Bouncer EA: capienza non è un numero fisso
+
+L'originale `bouncer.py`, metodo
+`_monitor_npc_soft_cap`, usa:
+- `sim_spawner_service.number_of_npcs_instantiated`;
+- `sim_spawner_service.number_of_npcs_leaving`;
+- `sim_spawner_service.npc_soft_cap`.
+
+Quando il cap è SUPERATO, accelera le partenze
+o ordina ad NPC di uscire. **Anche all'uguaglianza
+esatta col cap**, se esiste una richiesta non
+soddisfatta con priorità superiore a un incarico
+già assegnato, EA può far uscire l'NPC occupato.
+Le reservation requests originali possono inoltre
+modificare il cap NPC. NON assumere per il liceo
+un massimo universale arbitrario di 20 Sim e
+NON forzare `cap_cheat`.
+
+`src/m108_native_roster/mhs108_npc_soft_cap_audit.py`
+è un controllo read-only che:
+- considera **13 adolescenti NPC iscritti**,
+  più gli ID verificati di tutto il personale
+  scolastico NPC (nella configurazione corrente,
+  per esempio 2 docenti + preside + mensa +
+  custode = 18 NPC scolastici);
+- include nel numero misurato anche tutti gli
+  altri NPC presenti sul lotto, non soltanto
+  studenti e personale della mod;
+- verifica la zona, salvataggio, giorno, contatori
+  EA reali e gli eventuali studenti/personale
+  già segnati come `leaving`;
+- calcola il carico dopo i convocati ancora mancanti
+  e ammette un margine **strettamente positivo**;
+- segnala sia `SCHOOL_NPC_SOFT_CAP_SHORTFALL`
+  sia `SCHOOL_NPC_SOFT_CAP_AT_LIMIT`, senza
+  modificare il cap o espellere personaggi;
+- non chiama un margine positivo prova di
+  presenza o di posto in aula: è solo una
+  fotografia di sicurezza a quell'istante.
+
+**Test:** `tests/test_m108_npc_soft_cap_audit.py`
+include 13+5 NPC, altri visitatori, studenti
+mancanti, NPC in uscita, cap raggiunto, contatori
+EA non verificati, margine positivo o negativo.
+
+Tutti e tre i nuovi test sono iscritti alla CI
+Python 3.7 Mac; verificare il risultato del run,
+non dichiararlo superato prima dell'esecuzione.
+
+### Prossimo blocco reale
+
+Collegare l'evento reale di
+`SituationManager.on_all_sims_spawned_during_zone_spin_up`
+(e un percorso sicuro per le lezioni iniziate
+dopo il caricamento) alla sola lettura
+`NativeJobAudit.observe`, senza modificare
+il Bouncer. Occorre poi un audit unico per i
+16 adolescenti effettivamente presenti, i tre
+giocabili e gli 8+8 studenti nelle due aule,
+oltre alla capienza fisica/route e banchi.
