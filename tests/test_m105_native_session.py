@@ -43,6 +43,7 @@ class SchoolSessionTests(unittest.TestCase):
         stats=self.session.evidence()
         self.assertEqual(stats['core_requests_constrained'],5)
         self.assertEqual(stats['base_requests_constrained'],8)
+        self.assertTrue(stats['all_thirteen_native_targets_requested'])
         self.assertFalse(stats['ea_core_bindings_verified'])
         self.assertFalse(stats['base_schedule_count_overridden'])
         self.assertFalse(stats['attendance_verified'])
@@ -121,6 +122,7 @@ class SchoolSessionTests(unittest.TestCase):
             self.assertEqual(action,'preserve')
         self.assertEqual(self.session.attempted_base,0)
         self.assertFalse(self.session.evidence()['all_eight_base_targets_constrained'])
+        self.assertFalse(self.session.evidence()['all_thirteen_native_targets_requested'])
         # A later valid call cannot retroactively erase an earlier vanilla gap.
         self.assertEqual(call(self.session,BASE_FILTER,args=(8,'EA'))[0],
                          'constrain')
