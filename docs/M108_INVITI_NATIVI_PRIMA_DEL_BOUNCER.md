@@ -1078,3 +1078,101 @@ il Bouncer. Occorre poi un audit unico per i
 16 adolescenti effettivamente presenti, i tre
 giocabili e gli 8+8 studenti nelle due aule,
 oltre alla capienza fisica/route e banchi.
+
+## M108 — audit del Bouncer collegato e riconciliazione dei 16
+
+**3 novembre: interventi sul ramo sperimentale, NON build giocabile.**
+
+### Nuovi moduli e correzioni
+
+1. `mhs108_spinup_barrier.py`: osservatore **disattivato**
+   sul vero `SituationManager.on_all_sims_spawned_during_zone_spin_up`.
+   Richiama UNA SOLA VOLTA il metodo EA originale e, solo
+   **dopo** che ha concluso l'assegnazione Bouncer e la fonte
+   save/day/zone è verificata, consulta in sola lettura
+   `NativeJobAudit.observe` per tutte le situazioni di fase
+   in attesa. Non installa Bouncer hacks, non crea nuove situazioni
+   e non pretende di coprire gli assegnamenti successivi
+   delle lezioni a zona già attiva.
+2. `mhs108_post_bouncer_audit.py` ha un manifesto 3+5+8
+   ricostruito in modo canonico e controlla le situazioni EA
+   autorizzate, i job corretti, le finestre orarie, le due
+   Class1 route disgiunte, i membri estranei e i job staff.
+   Il risultato negativo ora conserva il riferimento alla
+   fase, così un errore non viene escluso dall'audit complessivo.
+   Espone anche i receipt in attesa e quelli verificati
+   senza attribuire loro presenze inventate.
+3. `mhs108_16_student_reconciliation.py`: collega
+   **soltanto dati di assegnazione EA già verificati**
+   con tre prove indipendenti:
+   - tutti i **13 NPC iscritti** nei job di fase originali
+     delle rispettive classi (due route Classe 1 sommate);
+   - esattamente i **3 adolescenti giocabili** nei job
+     PLAYER EA realmente osservati;
+   - esattamente i **16 adolescenti iscritti sul lotto**,
+     nessun estraneo e nessuna situazione extra di aula
+     non monitorata dal readback.
+   Restituisce
+   `EXACT_NATIVE_16_STUDENTS_ASSIGNED_NOT_SEATED`
+   solo quando sono soddisfatte tutte le condizioni.
+   **Posti effettivamente occupati e lezioni 8+8
+   restano verifiche separate**; nessun rapporto su una
+   sola fase garantisce automaticamente l'intera giornata.
+4. `mhs108_npc_soft_cap_audit.py` distingue la situazione
+   **sopra cap** da quella **esattamente al cap**:
+   EA `Bouncer._monitor_npc_soft_cap` può fare uscire NPC
+   anche alla soglia, quando un'altra richiesta ha una
+   priorità maggiore. Richiede margine strettamente
+   positivo senza usare `cap_cheat`.
+5. Corretto `mhs105_live_core_binding.py`, che ometteva
+   il metodo **reale** di EA
+   `BaseSituation.get_current_job_for_sim`. L'ispettore
+   Core ora lo prova per primo, senza eliminare fallback.
+6. Corretto il confronto fra `NativeJobAudit.manifest`
+   e `mhs108_unified_lessons.install_offline_only`:
+   confronta il **valore canonico** anziché l'identità
+   dell'oggetto Python; altrimenti il controller rifiutava
+   sempre la modalità differita anche con gli stessi 16 Sim.
+
+### Test aggiunti alla Python 3.7 CI e a unittest discover
+
+- `tests/test_m108_spinup_barrier.py`: callback EA
+  originale unica, non attiva su altri lotti, attende
+  Bouncer e legge i job EA solo dopo l'assegnazione.
+- `tests/test_m108_16_student_reconciliation.py`:
+  13 NPC + 3 playable, no-show e job scambiati, nessuna
+  presenza fuori dal registro, nessuna situazione aula
+  aggiuntiva non controllata, nessuna falsa conferma
+  di banchi/lezioni.
+- `tests/test_m108_post_bouncer_audit.py`:
+  controllo aggiuntivo di fase / job / classi
+  errati e simultaneità delle due route.
+- `tests/test_m105_live_core_binding.py`:
+  EA `get_current_job_for_sim` della versione
+  decompilata dalla giocatrice.
+
+### Stato e blocchi per la prima beta completa
+
+**Ancora non verificato / non collegato in-game:**
+- La CI GitHub del ramo nuovo era *queued* al momento
+  dell'ultima verifica. Non dichiarare un PASS.
+- Lo shadow `WeeklyScheduleSituationData` necessita
+  prova con la reale metaclasse e i test EA del gioco.
+- Un unico installer M108 deve coordinare il calendario
+  Base 8, Core 5, guest list native, filtri school-only,
+  fallback di sostituzione, lezioni e la lettura reale
+  al momento delle assegnazioni.
+- `on_all_sims_spawned_during_zone_spin_up` copre
+  **soltanto lo spin-up**; serve un evento affidabile
+  o un audit richiesto dopo le lezioni delle 10/14
+  quando la zona è già operativa.
+- Serve prova a scuola con 16 Sim sul lotto, staff
+  correttamente assegnato, margine reale NPC,
+  classi da 8 e posti effettivamente occupati.
+- M108 non viene ancora inclusa negli archivi
+  `.ts4script` correntemente generati dai builder
+  del repository. **Non fornire una beta inventata.**
+
+I commit sono solo su `feature/m55-presenze-studente-test`.
+`main`, package e save della giocatrice non sono stati
+modificati.
