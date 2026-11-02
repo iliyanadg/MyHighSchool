@@ -3,7 +3,7 @@
 This method was read from the user's decompiled EA original on 2026-11-02:
 WeeklyScheduleSituationData.try_start(
     cls, sims, sim_info, duration, additional_sim_ids, situation_job_count)
-does TWO passes over the mutable 'sims' set, creates a single native EA
+checks minimum-required jobs first and optional jobs second PER Sim in the mutable 'sims' set, then creates a native EA
 situation with its actual matched guest list, and upon successful creation
 runs sims.difference_update(assigned_sims).
 
