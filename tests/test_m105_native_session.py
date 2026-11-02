@@ -17,8 +17,9 @@ ELIG={job:tuple(NPCS) for job in ALL_JOBS}
 PLAN=plan_school_day(GROUPS,PLAYED,ELIG,PINS)
 
 def call(session,guid,day=24,zone='401',slot='11',bouncer=True,
-         args=(1,'EA')):
-    return session.constrain('matching',guid,args,{},slot,day,zone,bouncer)
+         args=(1,'EA'),school_verified=True):
+    return session.constrain('matching',guid,args,{},slot,day,zone,bouncer,
+                             school_verified=school_verified)
 
 class SchoolSessionTests(unittest.TestCase):
     def setUp(self):
@@ -58,7 +59,8 @@ class SchoolSessionTests(unittest.TestCase):
         self.assertEqual(self.session.evidence()['base_requests_observed'],0)
     def test_mismatched_save_day_zone_and_non_bouncer_are_untouched(self):
         for args in ({'slot':'12'},{'day':25},{'zone':'100'},
-                     {'zone':None},{'bouncer':False}):
+                     {'zone':None},{'bouncer':False},
+                     {'school_verified':False}):
             self.assertEqual(call(self.session,276592,**args)[0],'preserve')
         self.assertEqual(call(self.session,276592)[0],'constrain')
         self.assertEqual(call(self.session,276596,zone='990')[0],'preserve')
