@@ -395,3 +395,18 @@ nelle due aule; solo allora valutare una beta Mac.
 
 **Nessuna installazione o test nel gioco richiesti ora.**
 `main` e i salvataggi restano invariati.
+
+### Test integrato finale del conteggio (offline)
+
+È stato aggiunto anche un test che avvia insieme
+`mhs108_native_base_count.install_offline_only` e
+`mhs108_native_precreate.install` su mock EA:
+il primo restituisce esattamente otto chiamate Base,
+il secondo assegna ID ai loro otto guest list native,
+rifiuta la nona chiamata random, poi crea la situazione
+Core con gli altri cinque ID. Convalida 13/13 ID
+distinti e preserva lo stesso tipo di situazione EA.
+È un **contratto di codice simulato**, NON una prova
+che il motore EA accetti o faccia apparire 13 NPC.
+La CI GitHub dell'ultimo commit risultava **queued**
+al momento della verifica (non superata).
