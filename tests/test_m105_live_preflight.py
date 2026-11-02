@@ -1,5 +1,6 @@
 """Test M105 pre-travel EA SimFilter preflight without importing the game."""
 import ast
+from itertools import combinations
 import sys
 import unittest
 from pathlib import Path
@@ -10,7 +11,7 @@ for loc in ('m105_day_controller','m93_core','m101_original_slot'):
     sys.path.insert(0,str(ROOT/'src'/loc))
 from mhs93_verified_jobs import VERIFIED_SPECS
 from mhs101_original_slot_gate import validated_filter_ids
-from mhs105_atomic_school_roster import plan_school_day
+from mhs105_atomic_school_roster import plan_school_day,CORE_JOBS,BASE_JOB
 
 PATH=ROOT/'src'/'m105_day_controller'/'mhs105_live_preflight.py'
 SOURCE=PATH.read_text(encoding='utf-8')
@@ -65,9 +66,15 @@ def create_runtime(bad_guid=None,bad_kind=None,missing_roles=False):
        'VERIFIED_SPECS':VERIFIED_SPECS,
        'ALL_JOBS':(277894,278965,278966,278967,278968,303765),
        'validated_filter_ids':validated_filter_ids,
-       'plan_school_day':plan_school_day}
+       'plan_school_day':plan_school_day,
+       'CORE_JOBS':CORE_JOBS,'BASE_JOB':BASE_JOB,
+       'combinations':combinations,
+       '_DIAGNOSTIC_ROLE_NAMES':(
+           (278965,'Cheerleader'),(278966,'Scacchi'),
+           (278967,'Football'),(278968,'Informatica'),
+           (303765,'Sim perfido'))}
     for key in ('_result','_teen','_base_data','_query_ea_filters',
-                'prepare_live_school_day'):
+                'prepare_live_school_day','diagnose_live_role_choices'):
         code=compile(ast.Module(body=[FUNCTIONS[key]],type_ignores=[]),
                      str(PATH),'exec')
         exec(code,values)
@@ -119,6 +126,36 @@ class M105NativePreflightTests(unittest.TestCase):
         self.assertEqual(result['status'],'BLOCKED')
         self.assertIn('manual',result['reason'])
         self.assertEqual(calls,[])
+
+    def test_diagnose_real_ea_eligibility_and_propose_without_saving(self):
+        env,calls=create_runtime()
+        filtered={job:tuple(str(sid) for sid in NPCS) for job in
+                  (BASE_JOB,)+CORE_JOBS}
+        # A menu-appointed Cheerleader does NOT pass the actual EA filter.
+        filtered[278965]=tuple(sid for sid in filtered[278965] if sid!='2')
+        inspections=[]
+        def read_filters(ordinary):
+            inspections.append(tuple(ordinary))
+            return filtered,{'calls':{}}
+        env['_query_ea_filters']=read_filters
+        lines=env['diagnose_live_role_choices']()
+        summary='\\n'.join(lines)
+        self.assertIn('Cheerleader: ID 2 NON IDONEO',summary)
+        self.assertIn('Cheerleader -> ID 5',summary)
+        self.assertIn('Studenti Base EA idonei: 13/13',summary)
+        self.assertIn('PROPOSTA (non salvata',summary)
+        self.assertEqual(len(inspections),1)
+        self.assertEqual(len(calls),0) # mock filters only, zero mutators
+
+    def test_diagnose_no_solution_when_under_eight_base_candidates(self):
+        env,_=create_runtime()
+        filtered={job:tuple(str(sid) for sid in NPCS) for job in
+                  (BASE_JOB,)+CORE_JOBS}
+        filtered[BASE_JOB]=filtered[BASE_JOB][:7]
+        env['_query_ea_filters']=lambda ordinary:(filtered,{'calls':{}})
+        summary='\\n'.join(env['diagnose_live_role_choices']())
+        self.assertIn('Studenti Base EA idonei: 7/13',summary)
+        self.assertIn('NESSUN piano 5 Core + 8 Base',summary)
 
     def test_no_game_mutators_or_situation_hooks_in_preflight(self):
         self.assertNotIn('create_situation(',SOURCE)
