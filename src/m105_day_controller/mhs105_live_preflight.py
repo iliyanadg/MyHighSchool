@@ -231,3 +231,68 @@ def diagnose_live_role_choices():
         else:
             rows.append('Tutti i 5 Core e gli 8 Base risultano compatibili.')
     return tuple(rows)
+
+def find_outside_mean_candidates():
+    """Read-only lookup of the actual EA Mean filter outside the fixed roster.
+
+    It does NOT enroll anybody, assign a trait, change an EA filter, or
+    replace any of the user's sixteen existing classmates.
+    """
+    local=_base_data()
+    if local['status']!='LOCAL_REGISTRY_VERIFIED':
+        return ("M105 ESTERNI BLOCCATO: "+
+                local.get('reason','registro non valido'),)
+    roster=set(local['classes'][0]+local['classes'][1])
+    manager=services.sim_info_manager()
+    house=services.active_household()
+    if manager is None or house is None:
+        return ('M105 ESTERNI: SimInfo o famiglia non disponibili',)
+    household_id=getattr(house,'id',None)
+    try:
+        infos=manager.get_all()
+        candidates=tuple(sorted(set(int(info.sim_id) for info in infos
+            if _teen(info) and str(info.sim_id) not in roster
+            and getattr(info,'household_id',None)!=household_id)))
+        tune_mgr=services.get_instance_manager(Types.SIM_FILTER)
+        filter_service=services.sim_filter_service()
+        tuning=tune_mgr.get(VERIFIED_SPECS[303765][0])
+        if tuning is None or filter_service is None:
+            return ('M105 ESTERNI: filtro EA Sim perfido non disponibile',)
+    except Exception as exc:
+        return ('M105 ESTERNI: lettura impossibile: '+type(exc).__name__,)
+    if not candidates:
+        return ('M105 ESTERNI: nessun altro adolescente NPC nel salvataggio',)
+    accepted=[]
+    # Query in batches to avoid one unbounded native SimFilter request.
+    # Every ID must come from a verifiably scored native EA result.
+    for index in range(0,len(candidates),32):
+        group=candidates[index:index+32]
+        try:
+            results=filter_service.submit_filter(
+                callback=None,sim_filter=tuning,sim_constraints=group,
+                allow_yielding=False)
+        except Exception as exc:
+            return ('M105 ESTERNI: filtro EA fallito: '+type(exc).__name__,)
+        if not isinstance(results,(tuple,list)):
+            return ('M105 ESTERNI: filtro EA non verificabile',)
+        ids=validated_filter_ids(results,group)
+        if results and not ids:
+            return ('M105 ESTERNI: risultato EA senza punteggi validi',)
+        accepted.extend(ids)
+    def sim_label(sid):
+        sim=manager.get(int(sid))
+        if sim is None:
+            return 'ID '+str(sid)
+        name=('{} {}'.format(getattr(sim,'first_name',''),
+                             getattr(sim,'last_name',''))).strip()
+        return name or 'ID '+str(sid)
+    lines=['M105 Sim perfido: {} idonei EA tra {} NPC esterni.'
+           .format(len(accepted),len(candidates))]
+    if accepted:
+        lines.append('Candidati (NON iscritti): '+
+                     ', '.join(sim_label(sid) for sid in accepted[:12]))
+    else:
+        lines.append('Nessun NPC esterno supera questo filtro EA.')
+    lines.append('NESSUN iscritto, ruolo o tratto e stato modificato.')
+    lines.append('I tuoi 16 iscritti restano invariati.')
+    return tuple(lines)
