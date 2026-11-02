@@ -64,6 +64,8 @@ class NativeSessionTests(unittest.TestCase):
         s=self.session()
         self.assertEqual(self.run_one(s,276592)[0],'CONSTRAIN')
         self.assertEqual(self.run_one(s,276592)[0],'PRESERVE')
+        self.assertEqual(s.evidence()['core_duplicate_requests'],1)
+        self.assertFalse(s.evidence()['all_thirteen_native_targets_requested'])
         self.assertEqual(self.run_one(s,280516,9)[0],'PRESERVE')
         self.assertEqual(s.evidence()['core_requests_bypassed'],0)
         self.assertGreater(s.evidence()['base_requests_bypassed'],0)
