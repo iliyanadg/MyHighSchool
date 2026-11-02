@@ -122,3 +122,40 @@ verifichi i cinque ruoli, il budget del lotto e il
 routing delle lezioni senza generare studenti estranei.
 
 **Nessuna nuova prova utente richiesta in questa fase.**
+
+
+## M105 — correzione delle richieste EA multiple (2 novembre 2026)
+
+I controlli isolati del planner rimangono **3 giocabili + 5 Core + 8 Base**,
+ma ora la sessione nativa riconosce il numero effettivo richiesto
+da `submit_matching_filter(number_of_sims_to_find, ...)`.
+
+- Se EA chiede otto NPC Base con **un'unica chiamata**, prepara otto
+  `sim_constraints` distinti tra gli iscritti Base, non uno soltanto.
+- Se EA effettua richieste da **3 + 2 + 3**, prepara esattamente otto
+  ID non ripetuti e conserva il conteggio reale delle chiamate separato
+  dal conteggio degli studenti.
+- Richieste senza numero affidabile, con numero zero, bool, numero oltre
+  i posti rimasti, o richiesta Core per più di uno studente **non
+  vengono riscritte**. Sono registrate come buchi del tentativo:
+  non potranno far risultare completato il piano dei 13 NPC.
+- Il dato `all_thirteen_native_targets_requested` diventa vero soltanto
+  se, nello stesso slot/giorno/zona, sono state vincolate senza buchi
+  tutte le **cinque chiamate Core** e tutti gli **otto target Base**.
+  **Non prova** che EA abbia davvero attribuito i ruoli, creato le
+  situazioni, fatto arrivare 16 studenti o impedito ogni NPC esterno.
+- Test di regressione aggiunti in
+  `tests/test_m105_native_session.py` per richieste 8, 3+2+3,
+  quantità malformate/sovrabbondanti, ruoli Core con quantità non
+  consentite e invocazioni per keyword.
+- Aggiornato `mhs105_game_controller.check` per mostrare quanti
+  **studenti Base** sono stati richiesti e non confondere le chiamate
+  del filtro con i posti utilizzati.
+
+**Limite fondamentale ancora aperto:** non sappiamo se il calendario
+EA crei almeno otto posti Base oppure quando il Bouncer stabilisca i
+cinque Core rispetto allo spawn. Un filtro non intercettato o una
+richiesta Base aggiuntiva può ancora far scegliere NPC vanilla.
+Non è stata abilitata M96, non è stato collegato alcun compilato Mac
+installabile. La verifica richiede CI e successivamente evidenza
+dal gioco, non soltanto test di sorgente.
