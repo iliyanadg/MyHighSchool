@@ -99,6 +99,20 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(len(calls),1)
         self.assertEqual(calls[0][0],(1,'TUNING'))
 
+    def test_other_high_school_controller_prevents_m105_hook(self):
+        ns={}
+        gate=compile_fn('_m57_compatible',ns)
+        ok=SimpleNamespace(installed=lambda:True,
+                           _filtered=lambda *a:None,_CONFLICTS=())
+        conflict=SimpleNamespace(installed=lambda:True,
+                                 _filtered=lambda *a:None,
+                                 _CONFLICTS=('OtherHSController.ts4script',))
+        missing=SimpleNamespace(installed=lambda:False,
+                                _filtered=lambda *a:None,_CONFLICTS=())
+        self.assertTrue(gate(ok))
+        self.assertFalse(gate(conflict))
+        self.assertFalse(gate(missing))
+
     def test_no_situation_guest_change_or_slot_count_activated(self):
         self.assertNotIn('create_situation(',SOURCE)
         self.assertNotIn('SituationGuestList',SOURCE)
