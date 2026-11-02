@@ -104,6 +104,20 @@ class SchoolNativeGuestSession(object):
                 manifest.get('status') !=
                 'M108_INVITATIONS_PREPARED_NOT_GAME_AUTHORIZED'):
             raise InvitationPlanError('not an M108 manifest')
+        # Rebuild the exact 3+5+8 plan before any request is considered.
+        # Freeze it to prevent callers from changing enrolled IDs mid-day.
+        try:
+            canonical = prepare_fixed_manifest(
+                manifest['classes'], manifest['playable'],
+                dict(manifest['core_assignments']),
+                manifest['save_slot'], manifest['sim_day'],
+                manifest['school_zone'])
+        except (KeyError, TypeError, ValueError, InvitationPlanError):
+            raise InvitationPlanError('M108 roster manifest is incomplete')
+        for name in ('classes', 'all_16', 'playable', 'core_assignments',
+                     'base_ids', 'save_slot', 'sim_day', 'school_zone'):
+            if manifest.get(name) != canonical[name]:
+                raise InvitationPlanError('M108 roster manifest was changed')
         # This pure adapter refuses fabricated/partial job object mappings.
         if not isinstance(job_by_id, dict) or set(job_by_id) != set((BASE_JOB,) + CORE_JOBS):
             raise InvitationPlanError('six native school SituationJob tunings required')
@@ -112,7 +126,7 @@ class SchoolNativeGuestSession(object):
                 raise InvitationPlanError('native SituationJob mismatch')
         if not callable(getattr(guest_info_class, 'construct_from_purpose', None)):
             raise InvitationPlanError('EA SituationGuestInfo constructor missing')
-        self.manifest = manifest
+        self.manifest = canonical
         self.guest_info_class = guest_info_class
         self.invited_purpose = invited_purpose
         self.job_by_id = job_by_id
