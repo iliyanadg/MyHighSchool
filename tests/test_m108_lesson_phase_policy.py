@@ -206,6 +206,20 @@ class FixedTwoClassLessonPolicies(unittest.TestCase):
         report = propose(304570, ea_students=('1', '1'))
         self.assertEqual(report['status'], 'OBSERVATIONS_MISSING')
 
+    def test_corrupted_special_role_or_base_roster_blocks_phase(self):
+        original = manifest()
+        for change in (
+            {'base_ids': ('99',) * 8},
+            {'core_assignments': ((278965, '9'),)},
+            {'all_16': CLASSES[0] + CLASSES[0]},
+        ):
+            bad = dict(original, **change)
+            result = propose_phase_students(
+                bad, 304570, 304567, 280777,
+                observation_context(), CLASSES[0] + CLASSES[1],
+                CLASSES[0] + CLASSES[1], CLASSES[0] + CLASSES[1])
+            self.assertEqual(result['status'], 'INVALID_MANIFEST')
+
     def test_no_native_assignment_or_seat_proof_from_proposal(self):
         report = propose(304570)
         self.assertEqual(report['status'], 'PROPOSED_NOT_EA_ASSIGNED')
