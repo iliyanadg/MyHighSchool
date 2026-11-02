@@ -81,6 +81,8 @@ class NativeInvitationTests(unittest.TestCase):
         self.assertEqual(len(set(m['playable']) |
                              {sid for _, sid in m['core_assignments']} |
                              set(m['base_ids'])), 16)
+        self.assertEqual(m['native_schedule_order'], 'BASE_BEFORE_CORE')
+        self.assertFalse(m['core_reservations_before_ea_verified'])
         self.assertFalse(m['native_filter_bypass_verified'])
         self.assertFalse(m['class_8_plus_8_verified'])
         self.assertFalse(m['attendance_verified'])
@@ -161,10 +163,8 @@ class NativeInvitationTests(unittest.TestCase):
 
     def test_eight_base_invites_in_original_eight_requests(self):
         s = session()
-        self.assertEqual(s.preview(BASE_SITUATION, EAList(), CONTEXT),
-                         (None, None))  # Core is prerequisite.
-        ticket, _ = s.preview(CORE_SITUATION, EAList(), CONTEXT)
-        self.assertTrue(s.acknowledge_created(ticket, 100))
+        # Both native EA school schedules call Base before Core.
+        self.assertFalse(s.snapshot()['core_situation_created'])
         originals = []
         for index, expected in enumerate(s.manifest['base_ids']):
             old = EAList()
@@ -180,8 +180,12 @@ class NativeInvitationTests(unittest.TestCase):
             self.assertTrue(s.acknowledge_created(ticket, index + 200))
         self.assertEqual(s.preview(BASE_SITUATION, EAList(), CONTEXT),
                          (None, None))
+        self.assertFalse(s.snapshot()['all_nine_situations_created'])
+        ticket, _ = s.preview(CORE_SITUATION, EAList(), CONTEXT)
+        self.assertTrue(s.acknowledge_created(ticket, 100))
         snap = s.snapshot()
         self.assertTrue(snap['all_nine_situations_created'])
+        self.assertFalse(snap['core_reservations_before_ea_verified'])
         self.assertEqual(snap['base_situations_created'], 8)
         self.assertEqual(len(set(snap['student_ids_requested'])), 13)
         self.assertEqual(len(snap['student_ids_requested']), 13)
