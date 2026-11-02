@@ -164,12 +164,16 @@ def arm():
     _SESSION=None
     result=prepare_live_school_day()
     if result['status']!='PREFLIGHT_READY_NOT_EA_BOUND':
+        # Preserve the actual six-filter/planner rejection: the outer
+        # preflight reason alone hides which EA student rule failed.
+        detail=result.get('plan_reason')
         _LAST={'status':'BLOCKED_BY_PREFLIGHT',
                'reason':result.get('reason','unverified'),
+               'plan_reason':detail,
                'filter_details':result.get('filter_details'),
                'game_unchanged':True}
         _save()
-        return 'M105 BLOCCATA: '+_LAST['reason']
+        return 'M105 BLOCCATA: '+(detail or _LAST['reason'])
     home=_zone()
     if home is None or _school_schedule_verified():
         return 'M105 BLOCCATA: avvia prima da casa, fuori dal liceo'
