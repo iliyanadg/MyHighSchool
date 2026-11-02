@@ -19,6 +19,7 @@ from mhs_m2_game_bridge import current_slot
 from mhs57_filter_policy import guid_for_filter
 from mhs105_live_preflight import prepare_live_school_day
 from mhs105_native_session import SchoolSession,EXPECTED_SCHOOL_FILTERS
+from mhs105_live_core_binding import inspect_core_jobs
 
 _ROOT=os.path.join(os.path.expanduser('~'),'Documents',
                    'Electronic Arts','The Sims 4',
@@ -171,13 +172,36 @@ def check():
     if _SESSION is None:
         return 'M105 non armata | '+_REPORT
     evidence=_SESSION.evidence()
+    same_save=(str(current_slot(allow_travel=True))==_SESSION.save_slot)
+    same_day=(_day()==_SESSION.sim_day)
+    same_school=(_school_schedule_verified()
+                 and evidence.get('school_zone')==_zone()
+                 and _zone()!=_SESSION.home_zone)
+    if same_school and same_save and same_day:
+        try:
+            from sims.sim_info_types import Age,Species
+            manager=services.get_zone_situation_manager()
+            infos=services.sim_info_manager().get_all()
+            proof=inspect_core_jobs(
+                _SESSION.plan,infos,manager,Age.TEEN,Species.HUMAN,
+                school_verified=True,save_verified=True,day_verified=True)
+        except Exception as exc:
+            proof={'status':'UNKNOWN',
+                   'reason':'EA role inspection failed',
+                   'error_type':type(exc).__name__,
+                   'actual_ea_core_binding_verified':False}
+    else:
+        proof={'status':'UNKNOWN',
+               'reason':'not same verified school save/day/zone',
+               'actual_ea_core_binding_verified':False}
     _LAST.update(evidence)
+    _LAST['actual_ea_core_role_evidence']=proof
     _save()
-    return ('M105 richieste native EA: Core {}/5 | studenti Base {}/8 '
-            '(chiamate Base vincolate: {}). Presenze NON provate | {}').format(
+    return ('M105 richieste EA: Core {}/5 | Base {}/8. '
+            'Ruoli effettivi EA: {}. Presenze 16 NON provate | {}').format(
                 evidence['core_requests_constrained'],
                 evidence['base_student_targets_constrained'],
-                evidence['base_requests_constrained'],_REPORT)
+                proof['status'],_REPORT)
 
 def off():
     global _SESSION,_LAST
