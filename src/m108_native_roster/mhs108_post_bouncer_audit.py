@@ -244,6 +244,18 @@ class NativeJobAudit(object):
         self._pending.pop(situation_id, None)
         return result
 
+    def pending_phase_records(self):
+        """Read-only, stable receipts for a verified post-Bouncer observer."""
+        return tuple(
+            (sid, data['phase'])
+            for sid, data in sorted(self._pending.items()))
+
+    def verified_phase_records(self):
+        """Only explicitly observed EA assignments, never invitations."""
+        return tuple(
+            (sid, data['phase_key'], data['actual_ids_by_job'])
+            for sid, data in sorted(self._verified.items()))
+
     def snapshot(self):
         return {
             'native_created_awaiting_bouncer': len(self._pending),
