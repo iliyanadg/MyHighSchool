@@ -224,7 +224,8 @@ class ClassOneBudgetTests(unittest.TestCase):
 
     def test_unverified_ea_counts_never_guess_the_modifier(self):
         b = coordinator()
-        self.assertIsNone(ticket(b, 'with_trait', ('2',), players=2))
+        self.assertIsNone(b.prepare(
+            304563, counts(b, players=2), ('2',), proof(b)))
         self.assertIsNone(b.prepare(
             304563, {}, ('2',), proof(b)))
         self.assertIsNone(ticket(b, 'with_trait', ('2',),
