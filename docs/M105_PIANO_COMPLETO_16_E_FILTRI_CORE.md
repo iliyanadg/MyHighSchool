@@ -244,3 +244,39 @@ la prenotazione effettiva PRE-SPAWN dei cinque ruoli Core, il budget
 del lotto e la compatibilità dei due cicli di lezione da otto. Né
 l'audit né i suoi test dimostrano l'arrivo degli studenti.
 Il componente **non è incluso in alcuna build Mac installabile**.
+
+
+## M105 — prima beta Mac di verifica integrata (NON risultato finale)
+
+La pipeline di compilazione è stata aggiunta in
+`tooling/build_mhs105_beta.py` e nel job Actions `m105_mac_3_5_8_beta`.
+Quando supera il job su Python **3.7**, produce uno ZIP con
+`MHS_M105_CONTROLLO_16_MAC_BETA.package`,
+`MHS_M105_CONTROLLO_16_MAC_BETA.ts4script`, report e istruzioni.
+Usa il pacchetto M98 da 76 risorse (menu di scelta dei cinque ruoli)
+e 48 moduli Python, sostituendo il loader M104 con quello M105.
+Resta su un ramo sperimentale; `main` non è alterato.
+
+Il controller aggiunge `mhs105.arm` da casa prima del viaggio,
+`mhs105.check` al liceo e `mhs105.off`. Le chiamate native per
+cinque Core + otto Base sono opt-in. Il nuovo
+`mhs105_schedule_runtime.py` prova ad agganciarsi al calendario
+originale EA soltanto per **osservarne** il conteggio: non cambia
+`get_long_term_situation_count`, non abilita M96 e non crea situazioni.
+Il rapporto esprime *richieste preparate*, non prova di arrivo.
+
+Questa beta non può garantire ancora 16/16: se EA offre meno posti Base,
+la selezione non può materializzare quelli mancanti; la prenotazione dei
+cinque ruoli, i limiti del lotto e due lezioni da otto restano da
+verificare in-game. Un risultato CI verde certifica solo la build
+offline, **non il funzionamento del gameplay**. Se uno qualunque dei
+controlli fallisce, non distribuire la beta come soluzione funzionante.
+
+### Limite agli esperimenti
+
+Evitare il ciclo infinito di build per singolo invito. Consentire al
+massimo tre *cicli di verifica focalizzati* prima di rivalutare
+l'architettura: (1) selezione Core/Base realmente rispettata da EA,
+(2) copertura posti e presenza senza estranei, (3) lezioni 8+8.
+Se l'API nativa non consente i risultati, discutere un controller
+scolastico alternativo invece di ripetere la medesima prova.
