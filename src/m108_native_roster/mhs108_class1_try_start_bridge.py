@@ -133,7 +133,8 @@ def install_offline_only(ea_weekly_data_class, coordinator_provider,
     descriptor = owner.__dict__['try_start']
     original = descriptor.__func__
     if (getattr(original, '_mhs108_exact_phase', False)
-            or getattr(original, '_mhs108_class1_bridge', False)):
+            or getattr(original, '_mhs108_class1_bridge', False)
+            or getattr(original, '_mhs108_unified_lessons', False)):
         return None
 
     def wrapped(cls, sims, sim_info, duration, additional_sim_ids,
