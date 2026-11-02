@@ -133,3 +133,46 @@ jobs:
             dist_m98/MHS_M98_RUOLI_SPECIALI_MAC_TEST.ts4script
             dist_m98/MHS_M98_BUILD_REPORT.json
           if-no-files-found: error
+
+  m99_mac_one_student_trace:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify M99 read-only situation tracing and preserved M94 pilot
+        run: python -m unittest tests.test_m99_situation_trace tests.test_mhs99_trace_build tests.test_m61_guest_adapter -v
+      - name: Compile M99 Mac one-student situation trace
+        run: python -m tooling.build_mhs99_trace dist_m99/
+      - name: Verify original 63 DBPF resources and 34 Python 3.7 modules
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_m55_attendance_trial import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          root=Path('dist_m99')
+          package=root/'MHS_M99_TRACCIA_INVITO_MAC_TEST.package'
+          script=root/'MHS_M99_TRACCIA_INVITO_MAC_TEST.ts4script'
+          blob=package.read_bytes()
+          report=inspect_bytes(blob)
+          assert report['status']=='STATIC_GATE_PASSED'
+          assert report['resource_count']==63
+          assert hashlib.sha256(blob).hexdigest()==hashlib.sha256(package_bytes()).hexdigest()
+          with ZipFile(str(script)) as z:
+              names=z.namelist()
+              assert len(names)==34
+              assert 'mhs99_situation_trace.pyc' in names
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M99 Mac diagnostic verified offline; in-game test still required')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M99_TRACCIA_INVITO_MAC_TEST
+          path: |
+            dist_m99/MHS_M99_TRACCIA_INVITO_MAC_TEST.package
+            dist_m99/MHS_M99_TRACCIA_INVITO_MAC_TEST.ts4script
+            dist_m99/MHS_M99_BUILD_REPORT.json
+          if-no-files-found: error
