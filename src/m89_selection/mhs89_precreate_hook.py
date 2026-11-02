@@ -9,7 +9,7 @@ from mhs88_replace_guest import (replace_unassigned_guest,
 
 BASE=277733
 
-def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_applied=None, on_exhausted=None):
+def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_applied=None, on_exhausted=None, context_checker=None):
     """resolver(manager, situation_type, guest_list) -> (student_id, verified_zone, active)
 
     The resolver MUST validate school zone, save identity, Sim eligibility,
@@ -29,6 +29,15 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
         guest_list=kwargs.get('guest_list', args[0] if args else None)
         if guest_list is None:
             return previous(self,situation_type,*args,**kwargs)
+        # M101's optional check requires proof that THIS request came from
+        # the EA WeeklyScheduleDay, with all original spin-up flags intact.
+        # Existing M89/M90 offline callers do not use this option.
+        if callable(context_checker):
+            try:
+                if context_checker(self,situation_type,guest_list,args,kwargs) is not True:
+                    return previous(self,situation_type,*args,**kwargs)
+            except Exception:
+                return previous(self,situation_type,*args,**kwargs)
         # Candidate preparation may fail; fall back before the EA call only.
         try:
             candidate=resolver(self,situation_type,guest_list)
