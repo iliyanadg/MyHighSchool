@@ -171,8 +171,9 @@ class EightBaseCountTests(unittest.TestCase):
         self.assertTrue(callable(undo))
         self.assertEqual(Main.get_long_term_situation_count(base, None),
                          (8, 8))
+        # Context Main cannot authorize the FromVenue schedule by accident.
         self.assertEqual(Venue.get_long_term_situation_count(base, None),
-                         (8, 8))
+                         (6, 6))
         self.assertEqual(Other.get_long_term_situation_count(base, None),
                          (6, 6))
         self.assertEqual(Main.get_long_term_situation_count(staff, None),
@@ -184,6 +185,17 @@ class EightBaseCountTests(unittest.TestCase):
         self.assertFalse(undo())
         self.assertEqual(Main.get_long_term_situation_count(base, None),
                          (6, 6))
+
+        # A fresh, separately verified EA FromVenue context may use 8.
+        undo_venue = install_offline_only(
+            Day, s, lambda: verified_context(schedule_guid=FROM_VENUE),
+            all_gates())
+        self.assertTrue(callable(undo_venue))
+        self.assertEqual(Venue.get_long_term_situation_count(base, None),
+                         (8, 8))
+        self.assertEqual(Main.get_long_term_situation_count(base, None),
+                         (6, 6))
+        self.assertTrue(undo_venue())
 
     def test_missing_gate_or_wrong_owner_cannot_install(self):
         for missing in REQUIRED_LIVE_GATES:
