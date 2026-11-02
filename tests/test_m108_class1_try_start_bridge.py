@@ -84,8 +84,17 @@ def stage_fixture(phase='lesson', with_ids=('2', '3'),
             job_counts[(cls.situation, entry.job)] += len(selected)
             return new_id
 
-    with_cls = original_class(phase, 'with_trait')
-    no_cls = original_class(phase, 'no_trait')
+    # Real EA snippet classes inherit the same WeeklyScheduleSituationData
+    # classmethod. The original-class fixtures hold tuned attributes only.
+    def derive(tuning, name):
+        keys = ('guid64', 'situation', 'job_assignments', 'user_facing',
+                'default_job_order', 'default_met_minimum_jobs',
+                'default_need_minimum_jobs')
+        attrs = {key: getattr(tuning, key) for key in keys}
+        return type(name, (NativeEA,), attrs)
+
+    with_cls = derive(original_class(phase, 'with_trait'), 'WithTrait')
+    no_cls = derive(original_class(phase, 'no_trait'), 'NoTrait')
     refs = {}
     def unify(obj):
         guid = obj.guid64
