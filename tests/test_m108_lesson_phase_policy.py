@@ -138,18 +138,18 @@ class FixedTwoClassLessonPolicies(unittest.TestCase):
         self.assertFalse(right['seating_verified'])
 
     def test_phase_2_class_one_can_have_six_npcs_when_two_playable(self):
-        played = ('1', '2', '9')
+        played = ('1', '5', '9')
         a = propose(304561, playable=played)
         self.assertEqual(a['status'], 'PROPOSED_NOT_EA_ASSIGNED')
         self.assertEqual(a['npc_count_required'], 6)
-        self.assertEqual(a['exact_npc_ids'], ('3', '4', '5', '6', '7', '8'))
+        self.assertEqual(a['exact_npc_ids'], ('2', '3', '4', '6', '7', '8'))
         # Class2 now needs 7, within EA's nominal 8 cap.
         b = propose(304570, playable=played)
         self.assertEqual(b['npc_count_required'], 7)
         self.assertEqual(b['status'], 'PROPOSED_NOT_EA_ASSIGNED')
 
     def test_class_one_can_need_all_eight_npc_slots(self):
-        played = ('9', '10', '11')
+        played = ('9', '12', '16')
         report = propose(304563, playable=played)
         self.assertEqual(report['status'], 'NATIVE_PHASE_CAPACITY_BLOCKED')
         self.assertEqual(report['npc_count_required'], 8)
