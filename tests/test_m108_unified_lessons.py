@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'src' / 'm108_native_roster'))
 
 from mhs108_unified_lessons import (
     REQUIRED_LIVE_GATES, install_offline_only)
+from mhs108_post_bouncer_audit import NativeJobAudit
 from mhs108_class1_dual_route_budget import PHASES
 from tests.test_m108_class1_dual_route_budget import (
     coordinator as class1_coordinator)
@@ -52,7 +53,7 @@ def proofs():
 
 
 def fixture(phase='lesson', native_staff_ok=True, bad_receipt=False,
-            partial=False):
+            partial=False, deferred=False):
     class EA(object):
         attempts = 0
         receipts = {}
@@ -190,10 +191,11 @@ def fixture(phase='lesson', native_staff_ok=True, bad_receipt=False,
             'observed_ea_school_members':STUDENTS,
             'verified_native_eligible_ids':eligible,
         }
+    deferred_audit = NativeJobAudit(m) if deferred else None
     undo = install_offline_only(
         EA,m,context,lambda cls, ctx:budget,
         lambda cls,situation_id,ctx:EA.receipts[situation_id],
-        proofs())
+        proofs(), deferred_native_audit=deferred_audit)
     assert callable(undo)
     sims=set(Sim(sid) for sid in on_lot)
     return EA,WithTrait,NoTrait,Others,budget,native_counts,sims,undo
