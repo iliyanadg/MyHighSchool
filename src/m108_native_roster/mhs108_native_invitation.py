@@ -135,6 +135,38 @@ class SchoolNativeGuestSession(object):
         self._core_confirmed = False
         self._base_cursor = 0
         self._created_situation_ids = set()
+        self._local_core_holds = None
+
+    def reserve_core_before_schedule(self, context):
+        """Freeze five user-selected Core IDs BEFORE the first Base request.
+
+        This is an MHS *local planning reservation*, NOT an EA Bouncer
+        reservation or assignment. The verified early context must be
+        provided by a future live schedule adapter; never infer it from
+        creation_source alone.
+        """
+        if self._local_core_holds is not None or self._pending or self._confirmed:
+            return False
+        if not isinstance(context, dict):
+            return False
+        if not (context.get('before_school_schedule_verified') is True and
+                context.get('ea_schedule_not_started') is True and
+                context.get('school_verified') is True and
+                context.get('schedule_guid') in SCHEDULES and
+                str(context.get('save_slot')) == self.manifest['save_slot'] and
+                type(context.get('sim_day')) is int and
+                context.get('sim_day') == self.manifest['sim_day'] and
+                str(context.get('zone_id')) == self.manifest['school_zone']):
+            return False
+        reserved = tuple((job, sid) for job, sid in
+                         self.manifest['core_assignments'])
+        reserved_ids = set(sid for _, sid in reserved)
+        if (len(reserved) != 5 or len(reserved_ids) != 5 or
+                reserved_ids & set(self.manifest['base_ids']) or
+                reserved_ids & set(self.manifest['playable'])):
+            return False
+        self._local_core_holds = reserved
+        return True
 
     def _valid_origin(self, context):
         """'native_origin_verified' must come from a verified EA call-site.
@@ -198,14 +230,14 @@ class SchoolNativeGuestSession(object):
         Base is EIGHT individual EA situations with one exact NPC each.
         Native filter and scheduling compatibility are NOT assumed.
         """
-        if not self._valid_origin(context):
+        if self._local_core_holds is None or not self._valid_origin(context):
             return None, None
         if situation_guid == CORE_SITUATION:
             ticket = 'core'
             if ticket in self._pending or self._core_confirmed:
                 return None, None
             entries = tuple((sid, job) for job, sid in
-                            self.manifest['core_assignments'])
+                            self._local_core_holds)
             clone = self._guest_list(original_guest_list, entries, True)
         elif situation_guid == BASE_SITUATION:
             # EA's original WeeklyScheduleDay lists Base BEFORE Core.
@@ -215,6 +247,8 @@ class SchoolNativeGuestSession(object):
             if self._base_cursor >= 8:
                 return None, None
             sid = self.manifest['base_ids'][self._base_cursor]
+            if sid in set(x for _, x in self._local_core_holds):
+                return None, None
             ticket = 'base:' + sid
             if ticket in self._pending or ticket in self._confirmed:
                 return None, None
@@ -254,6 +288,10 @@ class SchoolNativeGuestSession(object):
             'base_situations_created': self._base_cursor,
             'base_situations_required': 8,
             'original_schedule_base_first_supported_in_preview': True,
+            'local_core_ids_held_before_base': (
+                tuple((job, sid) for job, sid in self._local_core_holds)
+                if self._local_core_holds is not None else ()),
+            'actual_ea_core_reservations_verified': False,
             'core_reservations_before_ea_verified': False,
             'all_nine_situations_created': (
                 self._core_confirmed and self._base_cursor == 8),
