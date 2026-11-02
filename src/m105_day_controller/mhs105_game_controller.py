@@ -20,6 +20,7 @@ from mhs57_filter_policy import guid_for_filter
 from mhs105_live_preflight import prepare_live_school_day
 from mhs105_native_session import SchoolSession,EXPECTED_SCHOOL_FILTERS
 from mhs105_live_core_binding import inspect_core_jobs
+from mhs105_schedule_runtime import arm_schedule_observation,observation_status
 
 _ROOT=os.path.join(os.path.expanduser('~'),'Documents',
                    'Electronic Arts','The Sims 4',
@@ -136,6 +137,28 @@ def _install():
     _INSTALLED=True
     return True
 
+def _schedule_context():
+    """Require the same prepared save/day and non-home zone for observation.
+
+    The audit wrapper already requires the EA *school schedule GUID* and
+    Base Student situation GUID, even during zone spin-up before its
+    director is registered in VenueService.
+    """
+    if _SESSION is None or _SESSION.invalidated:
+        return {'school_verified':False}
+    try:
+        slot=str(current_slot(allow_travel=True))
+        day=_day()
+        zone=_zone()
+        valid=(slot==_SESSION.save_slot and day==_SESSION.sim_day
+               and zone is not None and zone!=_SESSION.home_zone
+               and (_SESSION.school_zone is None
+                    or zone==_SESSION.school_zone))
+        return {'school_verified':valid,'save_slot':slot,
+                'sim_day':day,'school_zone':zone}
+    except Exception:
+        return {'school_verified':False}
+
 def arm():
     global _SESSION,_LAST
     _SESSION=None
@@ -155,14 +178,22 @@ def arm():
         if not _install():
             return 'M105 BLOCCATA: aggancio filtro EA non disponibile'
         _SESSION=session
+        # Observation only. The count stays vanilla even if EA offers
+        # fewer than eight Base slots. M96 must remain disabled.
+        count_audit=arm_schedule_observation(
+            result['plan'],result['save_slot'],session.sim_day,home,
+            _schedule_context)
         _LAST={'status':'ARMED_EARLY_NATIVE_FILTERS',
                'save_slot':result['save_slot'],
                'registered':16,'playable':3,'core':5,'base':8,
                'ea_school_roles_bound':False,
+               'schedule_observation_hook_installed':count_audit,
                'schedule_base_count_changed':False,
                'eight_per_class_verified':False}
         _save()
-        return 'M105 prerequisiti approvati, controllo nativo armato'
+        return ('M105 test armata: filtro 5 Core + 8 Base. '
+                'Audit calendario {}. Presenze non garantite'.format(
+                    'attivo' if count_audit else 'non disponibile'))
     except Exception as exc:
         _LAST={'status':'ARM_BLOCKED','error_type':type(exc).__name__}
         _save()
@@ -196,12 +227,21 @@ def check():
                'actual_ea_core_binding_verified':False}
     _LAST.update(evidence)
     _LAST['actual_ea_core_role_evidence']=proof
+    schedule=observation_status()
+    _LAST['ea_original_base_schedule']=schedule
     _save()
+    last=schedule.get('last_event') or {}
+    slots=last.get('ea_original_min')
+    max_slots=last.get('ea_original_max')
+    schedule_line=('{}-{}'.format(slots,max_slots)
+                   if slots is not None and max_slots is not None
+                   else 'non osservati')
     return ('M105 richieste EA: Core {}/5 | Base {}/8. '
-            'Ruoli effettivi EA: {}. Presenze 16 NON provate | {}').format(
+            'Calendario EA Base: {}. Ruoli EA: {}. '
+            'Presenze 16 NON provate | {}').format(
                 evidence['core_requests_constrained'],
                 evidence['base_student_targets_constrained'],
-                proof['status'],_REPORT)
+                schedule_line,proof['status'],_REPORT)
 
 def off():
     global _SESSION,_LAST
