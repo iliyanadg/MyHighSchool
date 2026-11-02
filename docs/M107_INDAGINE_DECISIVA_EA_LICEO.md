@@ -153,3 +153,45 @@ Terzo file utile per stabilire come non penalizzare i Sim premade:
 confrontate con i tuning originali già presenti nel repository.
 
 Nessun test nel gioco richiesto in questa fase.
+
+## Evidenza diretta: SituationGuestList + BaseSituation (file EA originali ricevuti)
+
+File di origine forniti dalla giocatrice:
+`situations/situation_guest_list.py` e
+`situations/base_situation.py`, estratti da Motherlode il 2 novembre 2026.
+
+Catena nativa CONFERMATA:
+1. `SituationGuestInfo.construct_from_purpose(sim_id, job_type, INVITED)`
+   genera una richiesta VIP, con `accept_alternate_sim=False` di default.
+   L'eccezione per sostituti riguarda soltanto `PREFERRED` e `HIRED`
+   con `job_type.no_show_action == REPLACE_THEM`.
+2. `SituationGuestList.add_guest_info(guest_info)` organizza gli invitati
+   per SituationJob. La lista può essere costruita con `invite_only=True`.
+3. In `BaseSituation.start_situation()`, PRIMA delle richieste,
+   `_expand_guest_list_based_on_tuning()` aggiunge
+   `AUTO_FILL sim_id=0` per `job_type.get_auto_invite()` non soddisfatti.
+   **ATTENZIONE:** `invite_only=True` NON disattiva questo auto-fill.
+4. `_issue_requests()` trasforma ogni `SituationGuestInfo` in un
+   `BouncerRequest`, conservando esattamente `requested_sim_id`,
+   `accept_alternate_sim`, `job_type`, priorità e spawning option.
+5. Se `_is_invite_only` è falso e `default_job()` esiste,
+   `_create_uninvited_request()` aggiunge una
+   `BouncerFallbackRequestFactory`. Con `invite_only=True` questo
+   fallback NON viene creato, ma restano gli AUTO_FILL del punto 3.
+6. In `BaseSituation.invite_sim_to_job(sim,job)` viene nuovamente
+   costruito un BouncerRequest esplicito EVENT_VIP. NON è una garanzia di
+   presenza, perché il Bouncer fa passare l'ID nel SimFilter originale.
+7. Il callback `on_sim_assigned_to_request` è la prova di reale
+   appartenenza al SituationJob. Se lo spawn fallisce, il
+   `job_type.no_show_action` può invocare la sostituzione creando una
+   nuova richiesta: anche con `accept_alternate_sim=False` è
+   importante verificare il no-show e la politica del job.
+
+Conseguenza: **non basta mettere `requested_sim_id`**; per avere gli
+esatti NPC della giocatrice è necessario governare INSIEME (a) inviti
+espliciti, (b) auto-fill per job, (c) fallback per default-job,
+(d) no-show replacement e (e) accettazione SimFilter/Bouncer.
+I prossimi controlli riguardano `scripts/filters/sim_filter_service.py`
+della medesima installazione EA e solo in seguito `situation_job.py`.
+Non pubblicare beta in gioco prima che sia noto il percorso di
+accettazione degli ID espliciti.
