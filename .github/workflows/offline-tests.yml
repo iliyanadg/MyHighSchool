@@ -185,7 +185,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Verify M101b diagnostics gate, original EA call and build topology
-        run: python -m unittest tests.test_m101_original_slot_gate tests.test_m100_one_slot_policy tests.test_m89_precreate_hook tests.test_mhs101_one_slot_release -v
+        run: python -m unittest tests.test_m101b_filter_evidence tests.test_m101_original_slot_gate tests.test_m100_one_slot_policy tests.test_m89_precreate_hook tests.test_mhs101_one_slot_release -v
       - name: Compile M101 one EA original school slot Mac pilot
         run: python -m tooling.build_mhs101_one_slot dist_m101/
       - name: Verify 63 preserved DBPF resources and 40 Python 3.7 scripts
