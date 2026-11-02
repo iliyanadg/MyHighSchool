@@ -189,13 +189,14 @@ class M105NativePreflightTests(unittest.TestCase):
 
     def test_mean_external_scan_empty_and_invalid_data_fail_closed(self):
         env,_=create_runtime()
-        env['services'].sim_info_manager=lambda:SimpleNamespace(
-            get=lambda sid:None,get_all=lambda:())
+        game=env['services']
+        original_mgr=game.sim_info_manager()
+        game.sim_info_manager=lambda:SimpleNamespace(
+            get=original_mgr.get,get_all=lambda:())
         self.assertIn('nessun altro adolescente NPC',
                       ' '.join(env['find_outside_mean_candidates']()))
-        game=env['services']
         game.sim_info_manager=lambda:SimpleNamespace(
-            get=lambda sid:None,
+            get=original_mgr.get,
             get_all=lambda:(SimpleNamespace(
                 sim_id=17,age='TEEN',species='HUMAN',household_id=55),))
         game.sim_filter_service=lambda:SimpleNamespace(
