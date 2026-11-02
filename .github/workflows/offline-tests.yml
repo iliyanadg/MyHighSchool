@@ -184,7 +184,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.7'
-      - name: Verify M101b diagnostics gate, original EA call and build topology
+      - name: Verify M101c exception diagnostics gate, original EA call and build topology
         run: python -m unittest tests.test_m101b_filter_evidence tests.test_m101_original_slot_gate tests.test_m100_one_slot_policy tests.test_m89_precreate_hook tests.test_mhs101_one_slot_release -v
       - name: Compile M101 one EA original school slot Mac pilot
         run: python -m tooling.build_mhs101_one_slot dist_m101/
@@ -197,11 +197,11 @@ jobs:
           from tooling.build_m55_attendance_trial import package_bytes
           from tooling.simdata_release_gate import inspect_bytes
           root=Path('dist_m101')
-          blob=(root/'MHS_M101B_FILTRO_EA_DIAGNOSTICA_MAC_TEST.package').read_bytes()
+          blob=(root/'MHS_M101C_ERRORE_FILTRO_EA_MAC_TEST.package').read_bytes()
           assert inspect_bytes(blob)['status']=='STATIC_GATE_PASSED'
           assert inspect_bytes(blob)['resource_count']==63
           assert hashlib.sha256(blob).digest()==hashlib.sha256(package_bytes()).digest()
-          with ZipFile(str(root/'MHS_M101B_FILTRO_EA_DIAGNOSTICA_MAC_TEST.ts4script')) as z:
+          with ZipFile(str(root/'MHS_M101C_ERRORE_FILTRO_EA_MAC_TEST.ts4script')) as z:
               names=z.namelist()
               assert len(names)==40
               assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
@@ -210,9 +210,9 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: MHS_M101B_FILTRO_EA_DIAGNOSTICA_MAC_TEST
+          name: MHS_M101C_ERRORE_FILTRO_EA_MAC_TEST
           path: |
-            dist_m101/MHS_M101B_FILTRO_EA_DIAGNOSTICA_MAC_TEST.package
-            dist_m101/MHS_M101B_FILTRO_EA_DIAGNOSTICA_MAC_TEST.ts4script
-            dist_m101/MHS_M101B_BUILD_REPORT.json
+            dist_m101/MHS_M101C_ERRORE_FILTRO_EA_MAC_TEST.package
+            dist_m101/MHS_M101C_ERRORE_FILTRO_EA_MAC_TEST.ts4script
+            dist_m101/MHS_M101C_BUILD_REPORT.json
           if-no-files-found: error
