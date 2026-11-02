@@ -113,3 +113,62 @@ collegare la selezione al punto d'aggancio M89 esistente.
 La beta Mac resterà sospesa sino ai sei gate sopra.
 
 **Non chiedere nuovi test nel gioco né un cambio di Sim/trait.**
+
+## Avanzamento M108 — prenotazioni locali Core e adattatore pre-create
+
+**Modifiche aggiunte il 2 novembre; test GitHub Actions eseguiti in CI ma
+il loro risultato deve essere verificato prima di dichiararli verdi.**
+
+1. In `mhs108_native_invitation.py`,
+   `reserve_core_before_schedule(context)` prenota
+   *internamente alla mod* gli ID dei cinque titolari dei job Core,
+   **prima della prima richiesta Base**. Valida
+   salvataggio/giorno/zona/calendario, la dichiarazione esplicita
+   `before_school_schedule_verified` e `ea_schedule_not_started`,
+   più l'assenza di collisioni con playable o gli otto Base.
+   `preview` ora non emette nessun invito Base/Core se questa
+   riserva non è stata stabilita. È un controllo di **piano**,
+   NON ancora una vera `SimReservationRequest` registrata nel
+   Bouncer EA. `snapshot.actual_ea_core_reservations_verified`
+   rimane **False**.
+2. `src/m108_native_roster/mhs108_native_precreate.py`
+   implementa uno **stub di integrazione solo offline** su
+   `SituationManager.create_situation`. Riutilizza il punto
+   nativo di M89, ma include le situazioni Core e Base nello stesso
+   piano, senza installare M89 contemporaneamente.
+   - Il wrapper conserva i parametri EA, usa una lista clonata
+     `invite_only=True`, chiama `original` **al massimo una volta**
+     e non fa retry dopo eccezioni.
+   - Se il contesto scolastico non è verificato, lascia EA invariato.
+   - Una volta provati TUTTI i gate runtime, se la richiesta
+     scolastica è verificata ma non ha un candidato preciso,
+     restituisce `None` anziché lasciar spuntare NPC casuali.
+   - Non modifica feste, situazioni non scolastiche o le liste originali.
+   - Non può neppure essere installato senza nove flag runtime
+     `REQUIRED_LIVE_GATES` dichiarati tutti `True`.
+     **I flag True sintetici nei test non provano nulla del gioco.**
+3. `tests/test_m108_native_precreate.py` simula
+   otto chiamate Base prima della Core, rifiuto della nona,
+   conservazione insegnanti, contesto non scolastico,
+   uninstaller, fallimento dell'originale senza retry.
+   `tests/test_m108_native_invitation.py` verifica che
+   la prenotazione preliminare sia obbligatoria.
+4. Entrambi sono stati aggiunti al job CI Python 3.7
+   `capacity_mac_beta`; il job generale `roster`
+   usa già `unittest discover`.
+
+**Problemi ancora reali, NON risolti:** la riserva Core
+è soltanto nel registro MHS; non nel Bouncer.
+Mancano i nove gate sul gioco vero (filtro compatibile,
+no-show, conteggio Base 8, classi 8+8, cap NPC, staff,
+verifica origine EA). Non esiste ancora una beta M108
+giocabile, e il ramo `main` non è stato modificato.
+
+### Prossima verifica senza gameplay
+
+Progettare il meccanismo per ammettere i soli studenti
+iscritti ai loro SituationJob durante entrambi i percorsi
+`zone_spin_up` e `spawn_sim_for_next_request`, senza
+cambiare i filtri globali di tutto il gioco. Anche questa
+modifica dovrà rifiutare qualunque fallback casuale se
+i vincoli originali non possono essere dimostrati.
