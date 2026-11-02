@@ -215,6 +215,46 @@ class EAJobObserverTests(unittest.TestCase):
                                                 {277919:(2,)})}),
             barrier())['status'],'DUPLICATE_OR_UNKNOWN_SIM')
 
+    def test_registration_is_scoped_to_ea_class_and_true_student_job(self):
+        for situation, jobs in (
+            (123456,{277919:('2','3')}),
+            (304565,{280777:('2','3')}),
+            (304565,{277919:('10','11')}),
+            (304567,{280777:('2','3'),277918:('200',),
+                     278224:('202',)}),
+            (304567,{280777:('10','11'),277918:('200',),
+                     278224:('1',)}),
+            (304565,{277919:('2','999')}),
+            (304567,{280777:('10','11'),277918:('10',),
+                     278224:('202',)}),
+        ):
+            a=audit()
+            self.assertFalse(a.register_created(101,situation,jobs,KEY),
+                             msg=str((situation,jobs)))
+            self.assertEqual(a.snapshot()['native_created_awaiting_bouncer'],0)
+
+    def test_class_one_both_branches_cannot_invite_same_sim_twice(self):
+        a=audit()
+        self.assertTrue(a.register_created(
+            101,304565,{277919:('2','3')},KEY))
+        self.assertFalse(a.register_created(
+            102,304703,{277919:('3','4')},KEY))
+        self.assertTrue(a.register_created(
+            102,304703,{277919:('4','5')},KEY))
+        self.assertEqual(a.snapshot()['native_created_awaiting_bouncer'],2)
+
+    def test_original_ea_phase_time_and_save_must_match(self):
+        a=audit()
+        for phase_key in (
+            ('22',12,'777','10:00'),
+            ('11',13,'777','10:00'),
+            ('11',12,'888','10:00'),
+            ('11',12,'777','09:30'),
+        ):
+            self.assertFalse(a.register_created(
+                101,304565,{277919:('2','3')},phase_key))
+        self.assertEqual(a.snapshot()['native_created_awaiting_bouncer'],0)
+
     def test_bouncer_probe_never_mutates_situation(self):
         a=audit()
         a.register_created(101,304565,{277919:('2','3')},KEY)
