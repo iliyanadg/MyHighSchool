@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Verify integrated M85 and original EA tuning resources
-        run: python -m unittest tests.test_mhs_capacity_beta tests.test_m90_m89_bridge tests.test_m88_replace_guest tests.test_m108_native_invitation tests.test_m108_native_precreate tests.test_m108_native_school_tunings tests.test_m108_school_filter_scope tests.test_m108_no_show_guard tests.test_m108_native_base_count tests.test_m108_lesson_phase_policy tests.test_m108_ea_phase_adapter tests.test_m108_class1_dual_route_budget tests.test_m108_class1_shadow_cap tests.test_m108_class1_try_start_bridge tests.test_m108_unified_lessons tests.test_m108_post_bouncer_audit tests.test_m108_deferred_unified_lessons tests.test_m108_npc_soft_cap_audit -v
+        run: python -m unittest tests.test_mhs_capacity_beta tests.test_m90_m89_bridge tests.test_m88_replace_guest tests.test_m108_native_invitation tests.test_m108_native_precreate tests.test_m108_native_school_tunings tests.test_m108_school_filter_scope tests.test_m108_no_show_guard tests.test_m108_native_base_count tests.test_m108_lesson_phase_policy tests.test_m108_ea_phase_adapter tests.test_m108_class1_dual_route_budget tests.test_m108_class1_shadow_cap tests.test_m108_class1_try_start_bridge tests.test_m108_unified_lessons tests.test_m108_post_bouncer_audit tests.test_m108_deferred_unified_lessons tests.test_m108_npc_soft_cap_audit tests.test_m108_spinup_barrier -v
       - name: Compile integrated M85 Mac beta
         run: python -m tooling.build_mhs_capacity_beta dist_capacity/
       - name: Check Mac bytecode and DBPF count
