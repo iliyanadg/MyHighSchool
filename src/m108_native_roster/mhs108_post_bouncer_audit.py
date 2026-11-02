@@ -235,9 +235,12 @@ class NativeJobAudit(object):
         return result
 
     def _fail(self, situation_id, reason):
+        source = self._pending.get(situation_id, {})
         result = {
             'status': reason,
             'situation_id': situation_id,
+            'phase_key': source.get('phase'),
+            'situation_guid': source.get('type'),
             'native_job_assignment_verified': False,
             'seating_verified': False,
         }
