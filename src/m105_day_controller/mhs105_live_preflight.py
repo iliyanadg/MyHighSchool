@@ -9,6 +9,7 @@ It must run from the home lot before EA school zone spin-up. A completed
 preflight is NOT evidence that any of the five roles is bound in EA.
 """
 import os
+from itertools import combinations
 import services
 from sims.sim_info_types import Age,Species
 from sims4.resources import Types
@@ -18,7 +19,7 @@ from mhs34_settings import SettingsStore
 from mhs97_core_role_store import CoreRoleStore,ROLE_TO_JOB
 from mhs93_verified_jobs import VERIFIED_SPECS
 from mhs101_original_slot_gate import validated_filter_ids
-from mhs105_atomic_school_roster import plan_school_day,ALL_JOBS,CORE_JOBS
+from mhs105_atomic_school_roster import plan_school_day,ALL_JOBS,CORE_JOBS,BASE_JOB
 
 _FOLDER=os.path.join(os.path.expanduser('~'),'Documents',
                      'Electronic Arts','The Sims 4',
@@ -147,3 +148,86 @@ def prepare_live_school_day():
         return _result('BLOCKED','preflight raised error',
                        error_type=type(exc).__name__,
                        error_message=' '.join(str(exc).split())[:180])
+
+
+# Real EA SimFilter eligibility is separate from the tentative M98 menu.
+# Read all six filters ONCE, and do not silently change the player's choices.
+_DIAGNOSTIC_ROLE_NAMES=(
+    (278965,'Cheerleader'),(278966,'Scacchi'),(278967,'Football'),
+    (278968,'Informatica'),(303765,'Sim perfido'))
+
+def diagnose_live_role_choices():
+    """Show exact EA-eligible enrolled NPCs and a coordinated manual proposal.
+
+    Never writes the role registry, changes situations or makes EA spawn Sims.
+    Preserve as many EA-eligible existing manual appointments as possible,
+    while respecting all five real job filters AND the eight Base vacancies.
+    """
+    local=_base_data()
+    if local['status']!='LOCAL_REGISTRY_VERIFIED':
+        return ("M105 IDONEITA': "+local.get('reason','registro non valido'),)
+    classes=local['classes']
+    playables=set(local['playable'])
+    everyone=classes[0]+classes[1]
+    ordinary=tuple(int(sid) for sid in everyone if sid not in playables)
+    eligible,details=_query_ea_filters(ordinary)
+    if eligible is None:
+        return ("M105 FILTRI EA NON LEGGIBILI: "+
+                details.get('reason','errore sconosciuto'),)
+    chosen=local['assigned_roles']
+    manager=services.sim_info_manager()
+    def label(sid):
+        info=manager.get(int(sid))
+        if info is None:
+            return 'ID '+str(sid)
+        full='{} {}'.format(getattr(info,'first_name',''),
+                            getattr(info,'last_name','')).strip()
+        return full or ('ID '+str(sid))
+    rows=["M105 IDONEITA' EA (sola lettura): nessun ruolo modificato"]
+    for job,name in _DIAGNOSTIC_ROLE_NAMES:
+        assigned=chosen.get(job)
+        matches=tuple(str(sid) for sid in ordinary
+                      if str(sid) in set(eligible[job]))
+        match_list=', '.join(label(sid) for sid in matches) or 'NESSUNO'
+        state='OK' if assigned in matches else 'NON IDONEO'
+        rows.append('{}: {} {}. Idonei: {}'.format(
+            name,label(assigned) if assigned else 'Nessuno',
+            state,match_list))
+    base=set(eligible[BASE_JOB])
+    rows.append('Studenti Base EA idonei: {}/13 (servono 8)'.format(
+        sum(str(sid) in base for sid in ordinary)))
+    valid_pins=tuple(job for job in CORE_JOBS
+                     if chosen.get(job) in set(eligible[job]))
+    proposal=None
+    # At most 32 subsets: keep the greatest number of existing roles.
+    # Each trial verifies the entire class/NPC/Base allocation jointly.
+    if sum(str(sid) in base for sid in ordinary)>=8:
+        for retained_count in range(len(valid_pins),-1,-1):
+            for kept in combinations(valid_pins,retained_count):
+                pins={job:chosen[job] for job in kept}
+                test=plan_school_day(
+                    classes,local['playable'],eligible,
+                    confirmed_core_assignments=pins,
+                    propose_missing_roles=True)
+                if test['status'] in (
+                        'PREPARED_NOT_EA_BOUND',
+                        'PROPOSAL_NEEDS_MANUAL_CONFIRMATION'):
+                    proposal=dict(test['core_role_assignments'])
+                    break
+            if proposal is not None:
+                break
+    if proposal is None:
+        rows.append('NESSUN piano 5 Core + 8 Base trovato per gli iscritti.')
+        rows.append('Non cambiare ruoli a caso: rivedere gli iscritti/idoneita EA.')
+    else:
+        changed=tuple((name,proposal[job])
+                      for job,name in _DIAGNOSTIC_ROLE_NAMES
+                      if chosen.get(job)!=proposal[job])
+        if changed:
+            rows.append('PROPOSTA (non salvata, da confermare nel menu):')
+            rows.extend('{} -> {}'.format(name,label(sid))
+                        for name,sid in changed)
+            rows.append('Rimuovi prima i ruoli da cambiare; poi riassegna.')
+        else:
+            rows.append('Tutti i 5 Core e gli 8 Base risultano compatibili.')
+    return tuple(rows)
