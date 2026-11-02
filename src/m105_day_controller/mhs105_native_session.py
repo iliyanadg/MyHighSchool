@@ -48,19 +48,20 @@ class SchoolSession(object):
         self.base_request_outcomes=[]
         self.invalidated=False
 
-    def _scope(self,slot,day,zone,bouncer):
+    def _scope(self,slot,day,zone,bouncer,school_verified):
         if self.invalidated:
             return False
         if (str(slot)!=self.save_slot or type(day) is not int
                 or day!=self.sim_day or zone is None
-                or str(zone)==self.home_zone or bouncer is not True):
+                or str(zone)==self.home_zone or bouncer is not True
+                or school_verified is not True):
             return False
         if self.school_zone is not None and str(zone)!=self.school_zone:
             return False
         return True
 
     def constrain(self,method,filter_guid,args,kwargs,
-                  slot,day,zone,bouncer):
+                  slot,day,zone,bouncer,school_verified=False):
         """Decide one genuine EA matching call.
 
         Outcome includes exact arguments and an explicit evidence state.
@@ -70,7 +71,7 @@ class SchoolSession(object):
         unchanged=('preserve',tuple(args),dict(kwargs))
         if method!='matching' or filter_guid not in EXPECTED_SCHOOL_FILTERS:
             return unchanged
-        if not self._scope(slot,day,zone,bouncer):
+        if not self._scope(slot,day,zone,bouncer,school_verified):
             return unchanged
         if filter_guid in CORE_FILTERS:
             job=FILTER_TO_CORE_JOB[filter_guid]
