@@ -187,6 +187,24 @@ class FilterScopeTests(unittest.TestCase):
             self.assertIs(req._sim_filter, ORIGINAL)
             self.assertTrue(undo())
 
+    def test_scope_restores_filter_when_school_context_changes(self):
+        class NativeRequest(Request):
+            pass
+        context = dict(BASE_CONTEXT)
+        scope = SchoolFilterScope(
+            session(), BLANK, 'TEEN', 'HUMAN',
+            lambda sid: Info(sid), lambda: context)
+        undo = install_offline_only(NativeRequest, scope, proofs())
+        req = NativeRequest(SchoolBase(), Job(BASE_JOB), 5)
+        self.assertIs(req._sim_filter, BLANK)
+        self.assertEqual(req.get_additional_filter_terms(), ())
+        context['school_verified'] = False
+        self.assertEqual(req.get_additional_filter_terms(),
+                         ('keep-EA-terms',))
+        self.assertIs(req._sim_filter, ORIGINAL)
+        self.assertEqual(scope.snapshot()['tracked_requests'], 0)
+        self.assertTrue(undo())
+
     def test_existing_global_hook_cannot_be_stacked(self):
         class NativeRequest(Request):
             pass
