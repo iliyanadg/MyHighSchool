@@ -163,6 +163,16 @@ class SchoolSession(object):
                 self.attempted_base==8 and
                 all(row['decision']=='constrain'
                     for row in self.base_request_outcomes)),
+            # Same school/save/day, both target groups constrained without
+            # any unmodified school matching request along the way. This is
+            # evidence about EA *requests*, NEVER actual job membership.
+            'all_thirteen_native_targets_requested':(
+                len(self.attempted_core)==5 and
+                all(row['decision']=='constrain'
+                    for row in self.core_request_outcomes.values()) and
+                self.attempted_base==8 and
+                all(row['decision']=='constrain'
+                    for row in self.base_request_outcomes)),
             'school_zone':self.school_zone,
             'ea_core_bindings_verified':False,
             'attendance_verified':False,
