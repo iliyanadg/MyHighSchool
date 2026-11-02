@@ -63,8 +63,9 @@ class NPCSpawnerAuditTests(unittest.TestCase):
 
     def test_equal_to_cap_is_not_guarantee_against_later_arrivals(self):
         result=audit(count=18,cap=18)
-        self.assertEqual(result['status'],'SCHOOL_NPC_CAPACITY_SNAPSHOT_OK')
+        self.assertEqual(result['status'],'SCHOOL_NPC_SOFT_CAP_AT_LIMIT')
         self.assertEqual(result['projected_soft_cap_margin'],0)
+        self.assertFalse(result['npc_spawner_capacity_verified'])
         self.assertFalse(result['school_attendance_verified'])
 
     def test_school_student_or_staff_departing_fails_immediately(self):
@@ -77,7 +78,7 @@ class NPCSpawnerAuditTests(unittest.TestCase):
         present=STUDENTS+STAFF+('900',)
         result=audit(present=present,leaving=('900',),
                      count=19,nleaving=1,cap=18)
-        self.assertEqual(result['status'],'SCHOOL_NPC_CAPACITY_SNAPSHOT_OK')
+        self.assertEqual(result['status'],'SCHOOL_NPC_SOFT_CAP_AT_LIMIT')
         self.assertEqual(result['existing_npcs_not_leaving'],18)
 
     def test_missing_or_unsafe_ea_counters_are_blocked(self):
