@@ -22,7 +22,7 @@ from mhs108_native_invitation import (
 from mhs108_lesson_phase_policy import PHASE_DATA
 
 EA_PHASE_BY_SITUATION = {
-    spec[2]: (spec[1], spec[3],
+    spec[2]: (spec[0], spec[1], spec[3],
               (277918, 278224) if spec[2] == 304567 else
               (277918,) if spec[2] == 297774 else ())
     for spec in PHASE_DATA.values()
@@ -113,8 +113,11 @@ class NativeJobAudit(object):
                 or str(phase_key[2]) != self.manifest['school_zone']
                 or phase_key[3] not in ('09:30','10:00','13:30','14:00')):
             return False
-        class_index, student_job, staff_jobs = (
+        stage, class_index, student_job, staff_jobs = (
             EA_PHASE_BY_SITUATION[situation_type_guid])
+        if (stage != ('prepare' if phase_key[3] in ('09:30','13:30')
+                      else 'lesson')):
+            return False
         if set(expected_by_job) != {student_job} | set(staff_jobs):
             return False
         registered_class = self.manifest['classes'][class_index - 1]
