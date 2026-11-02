@@ -366,3 +366,76 @@ L'attuale errore del ruolo Mean è solo uno dei blocchi.
 per verificare l'origine della `create_situation`, i seed,
 la guest list e la catena prima del Bouncer. Non richiedere
 di nuovo `weekly_schedule_zone_director.py`, già fornito.
+
+## M108 — conferma del punto d'aggancio da SituationManager EA originale
+
+Nuovi file EA originali forniti via Motherlode:
+- `scripts/situations/situation_manager.py`
+- `scripts/situations/fan_situation_manager.py`
+
+**Percorso reale verificato nel sorgente del gioco:**
+
+1. `SituationManager.create_situation(situation_type, guest_list=None,
+   ..., spawn_sims_during_zone_spin_up=False, creation_source=...)`
+   accetta una `SituationGuestList` **prima** di creare la situazione.
+   Il manager applica anche narrative replacement, divieti del zone
+   modifier, e controlli di zona prima dell'avvio.
+2. Se non c'è una guest list, EA ne crea una vuota.
+   Per il percorso locale non schedulato crea un `SituationSeed`
+   con la guest list e tutti i flag di zona e invoca
+   `create_situation_from_seed`.
+3. `create_situation_from_seed` invoca
+   `situation.start_situation()` per un seed non loadable,
+   che a sua volta usa
+   `_expand_guest_list_based_on_tuning()` e `_issue_requests()`.
+   **Il singolo ID nella guest list non è una prova di spawn**.
+4. Durante lo zone spin-up:
+   `on_all_situations_created_during_zone_spin_up` chiama
+   `bouncer.request_all_sims_during_zone_spin_up()`;
+   `on_all_sims_spawned_during_zone_spin_up` chiama
+   `bouncer.assign_all_sims_during_zone_spin_up()`.
+   Sono fasi *diverse*: servono verifiche separate per invito,
+   accettazione, spawn, associazione al job e lezione.
+5. `MAX_SITUATION_INSTANCES_OF_SAME_TYPE=3` è usato
+   nel controllo per `seed.user_facing` e non è automaticamente
+   un limite di tre **situazioni scolastiche background**;
+   tuttavia `seed.situation_type.is_unique_situation`
+   resta un possibile blocco e non è stata dimostrata la
+   capacità effettiva di otto situazioni Base.
+6. EA stessa usa nel `FanSituationManager` una guest list
+   `invite_only=True` con `SituationGuestInfo(sim_id,
+   job, RequestSpawningOption.DONT_CARE,
+   BouncerRequestPriority.EVENT_VIP)`, poi la passa
+   a `SituationManager.create_situation(..., user_facing=False)`.
+   Questo prova che il *pattern di invito esplicito* è previsto
+   dall'API di EA, **non** che tutte le richieste scolastiche lo
+   soddisfino. Nessuna logica fan/stan va copiata nella scuola.
+7. L'intervento precedente `src/m89_selection/mhs89_precreate_hook.py`
+   con `src/m88_selection/mhs88_replace_guest.py` è dunque
+   il **punto d'aggancio già corretto**, invece di un altro
+   hook globale sul `SimFilterService`. Il prototipo M89
+   però copre *un posto Base* e il suo resolver non è attivato;
+   non dimostra 8 Base, 5 Core e 2x8 lezioni.
+
+**Decisione per lo sviluppo M108:** prima creare una politica
+di ammissibilità/coordination per l'intero roster **senza**
+modificare il salvataggio e senza permettere fallback.
+Quando un piano verificato per il save/day/zone ha 3 playable,
+5 Core già prenotati, 8 Base previsti dal calendario, due
+fasi da 8 e un cap lotto compatibile, allora e solo allora
+il controller può sostituire gli inviti nelle **stesse
+situazioni EA**, con `original(self,...)` chiamato una volta
+sola. Qualsiasi condizione mancante blocca la mod, non
+rimpiazza uno studente con un NPC random.
+
+**Importante:** il solo `creation_source` non è una prova
+crittografica dell'origine; va confrontato con schedule
+guid verificato, flag di spin-up, tipo situazione, salvataggio,
+giorno e zona. Anche un result situation_id non è prova
+di un Sim assegnato.
+
+Non chiedere altri file all'utente per verificare questo
+punto. La base tecnica di M108 è sufficiente per preparare
+un gate di codice e test offline rigorosi; resta il passaggio
+di integrazione reale alle lezioni prima di qualunque nuova
+beta installabile.
