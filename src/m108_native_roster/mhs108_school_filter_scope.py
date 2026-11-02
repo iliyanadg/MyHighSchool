@@ -152,15 +152,22 @@ class SchoolFilterScope(object):
         except (TypeError, AttributeError):
             return False
 
+    def release(self, request):
+        """Fail back to the original terms and filter when context changes."""
+        try:
+            if request not in self._tracked:
+                return False
+            prior = self._tracked.pop(request)
+            if getattr(request, '_sim_filter', None) is self.blank_filter:
+                request._sim_filter = prior
+            return True
+        except (TypeError, AttributeError):
+            return False
+
     def restore(self):
         """Restore the exact original filter on all still-live requests."""
-        for request, prior in tuple(self._tracked.items()):
-            if getattr(request, '_sim_filter', None) is self.blank_filter:
-                try:
-                    request._sim_filter = prior
-                except AttributeError:
-                    pass
-        self._tracked.clear()
+        for request in tuple(self._tracked):
+            self.release(request)
 
     def snapshot(self):
         return {
@@ -199,6 +206,9 @@ def install_offline_only(request_class, scope, live_proofs):
     def terms_wrapper(self):
         if scope.is_tracked(self):
             return ()
+        # If the request left the verified school/save/day context,
+        # revert the request's own filter before returning EA terms.
+        scope.release(self)
         return previous_terms(self)
 
     init_wrapper._mhs108_school_filter = True
