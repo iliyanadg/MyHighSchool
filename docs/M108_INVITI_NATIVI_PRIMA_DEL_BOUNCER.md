@@ -722,3 +722,96 @@ dei 16 partecipanti, e delle posizioni in aula.
 Solo dopo si valuterà una beta Mac.
 
 `main` e il save della giocatrice restano intatti.
+
+## M108 — collegamento sperimentale Classe 1 8 posti al metodo EA try_start
+
+**Codice aggiunto al ramo sperimentale; NON una build del gioco.**
+
+`src/m108_native_roster/mhs108_class1_try_start_bridge.py`:
+- Intercetta ESCLUSIVAMENTE il classmethod nativo
+  `WeeklyScheduleSituationData.try_start` per i quattro
+  data GUID di Classe 1: 293642/293644 (09:30 o 13:30)
+  e 304563/304561 (10:00 o 14:00).
+- L'integrazione rifiuta automaticamente di sovrapporsi
+  all'altro hook `_mhs108_exact_phase`; la protezione
+  è stata aggiunta anche nell'altro verso a
+  `mhs108_ea_phase_adapter.py`. Non creare due controller
+  paralleli su `try_start`.
+- Usa lo STESSO `ClassOneDualRouteBudget` per entrambi
+  i percorsi della medesima finestra; un'istanza nuova per
+  ogni finestra oraria (09:30, 10:00, 13:30, 14:00).
+  Il controller deve validare save/giorno/zona.
+- Legge i conteggi usando gli OGGETTI EA originali
+  `(modifier.situation, modifier.job)` dal vero
+  `situation_job_count`, SENZA creare nuove voci
+  nel `defaultdict`: usa `.get(key,0)`.
+  Solo dopo converte le coppie in GUID numerici
+  per confrontarle col planner. 
+- Usa `budget.prepare(...)` con gli ID che passano i
+  TEST ORIGINALI della specifica route (trait o
+  no-trait) per scegliere esattamente i rimanenti NPC
+  della Classe 1; controlla i modificatori dei playable
+  e i job precedentemente assegnati.
+- Crea una VISTA temporanea tramite
+  `project_class1_tuning`, mai un nuovo tuning EA
+  registrato, mantenendo test/ruoli/stato EA originali,
+  ma col `upper_bound` adatto a quella sola chiamata.
+- Filtra una COPIA del set Sim condiviso ai SOLI ID
+  previsti; passa questa copia e la vista al metodo
+  ORIGINALE `try_start` una volta sola.
+- Se EA assegna esattamente tutti gli ID richiesti e
+  incrementa di quel numero il conteggio nativo del
+  SituationJob specifico, `budget.confirm` registra
+  la route e il wrapper rimuove gli assegnati anche
+  dal set condiviso. Non asserisce che essi siano
+  veramente seduti in aula.
+- Route con ZERO candidati: nessuna situazione EA
+  viene creata. Fallimento o risultato incompleto:
+  il budget blocca le route successive, nessun
+  nuovo invito casuale viene preparato.
+  Se una situazione EA è già stata creata con
+  risultato parziale, il wrapper restituisce
+  il suo ID per non indurre ulteriori tentativi
+  del motore, senza fingere di poter annullare
+  gli effetti già avvenuti.
+- Nessun codice runtime chiama
+  `install_offline_only`; nove gate esterni sono
+  tutti ancora non dimostrati. Non dichiarare
+  "Classe 1 funzionante" senza prova reale.
+
+**Test aggiunti:**
+`tests/test_m108_class1_try_start_bridge.py`
+simula il vero ordine del method/classmethod EA:
+- prima WithTrait 2 Sim e poi NoTrait 5 Sim →
+  tutti i 7 NPC della Classe 1 iscritti e nessun doppione;
+- route NoTrait per prima, successiva WithTrait vuota;
+- nessuno dei 7 passa WithTrait, tutti passano NoTrait;
+- due giocabili nella Classe 1 → solo 6 NPC richiesti;
+- situazione EA già creata ma con risultati parziali
+  → blocco, nessuna rimozione fittizia dal set
+  condiviso e nessuna seconda chiamata EA;
+- rifiuto dei modificatori player incoerenti,
+  fallimento creazione senza retry, isolamento
+  degli altri eventi e uninstall;
+- hook generico M108 e hook dual-route NON
+  devono potersi installare insieme.
+
+La CI Mac Python 3.7 include il nuovo file di test;
+verificare l'ultimo run del ramo in GitHub Actions.
+Il job `roster` lo include tramite `unittest discover`.
+
+**Blocchi runtime ancora aperti:** verificare con
+l'EA originale che la classe temporanea possa
+essere passata a `try_start` senza violare i
+requisiti della sua metaclasse; garantire
+le osservazioni reali delle eligibilità/filtri e
+dei conteggi dei job; verificare la capienza
+fisica del lotto; contare 16 NPC+playable realmente
+assegnati e seduti nelle due aule.
+La Classe 2 resta gestita dall'altro adapter
+solo nei test: serve un controller unico di
+installazione che scelga un solo wrapper per
+entrambe le classi, senza doppie patch al
+metodo nativo. Nessuna beta installabile ancora.
+
+`main` e il salvataggio sono rimasti intatti.
