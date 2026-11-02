@@ -309,6 +309,20 @@ class Class1DualRouteTryStartTests(unittest.TestCase):
         self.assertIsNone(install_offline_only(
             Other, lambda cls, ctx: budget, lambda cls: ctx, proved()))
 
+    def test_generic_m108_phase_adapter_cannot_stack_after_class1_bridge(self):
+        from mhs108_ea_phase_adapter import (
+            install_offline_only as install_generic,
+            REQUIRED_LIVE_GATES as GENERIC_GATES,
+        )
+        NativeEA, with_cl, no_cl, budget, counts, sims, ctx, undo = (
+            stage_fixture())
+        try:
+            self.assertIsNone(install_generic(
+                NativeEA, manifest(), lambda cls: dict(ctx),
+                {k: True for k in GENERIC_GATES}))
+        finally:
+            undo()
+
     def test_original_ea_source_tuning_remains_six_after_uninstall(self):
         NativeEA, with_cl, no_cl, budget, counts, sims, ctx, undo = (
             stage_fixture())
