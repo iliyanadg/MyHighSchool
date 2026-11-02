@@ -38,6 +38,7 @@ class M106Session(object):
         self.home_zone=str(home_zone)
         self.school_zone=None
         self.core_seen={}
+        self.core_duplicates=0
         self.base_seen=[]
         self.base_target_count=0
         self.cancelled=False
@@ -66,6 +67,7 @@ class M106Session(object):
         if filter_guid in CORE_FILTER_TO_JOB:
             job=CORE_FILTER_TO_JOB[filter_guid]
             if job in self.core_seen:
+                self.core_duplicates+=1
                 return original
             if count!=1:
                 self.core_seen[job]='COUNT_MISMATCH'
@@ -98,6 +100,7 @@ class M106Session(object):
         return {
             'kind':'M106_NATIVE_SELECTION_PROPOSAL_NOT_ATTENDANCE',
             'core_requests_observed':len(self.core_seen),
+            'core_duplicate_requests':self.core_duplicates,
             'core_requests_constrained':sum(
                 val=='PROPOSAL_ONLY' for val in self.core_seen.values()),
             'base_request_calls_observed':len(self.base_seen),
@@ -111,6 +114,7 @@ class M106Session(object):
             'school_zone':self.school_zone,
             'all_thirteen_native_targets_requested':(
                 len(self.core_seen)==5
+                and self.core_duplicates==0
                 and all(v=='PROPOSAL_ONLY' for v in self.core_seen.values())
                 and self.base_target_count==8
                 and all(v=='constrain' for v,_ in self.base_seen)),
