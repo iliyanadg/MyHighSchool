@@ -117,12 +117,18 @@ def _filtered(original,service,args,kwargs,mode):
     # preserving any unrelated installed EA filter hooks.
     return _OLD_FILTER(original,service,newargs,newkwargs,mode)
 
+def _m57_compatible(m57):
+    """M105 must not bypass M57's competing-high-school-mod detection."""
+    return (m57.installed() is True
+            and callable(getattr(m57,'_filtered',None))
+            and not getattr(m57,'_CONFLICTS',()))
+
 def _install():
     global _INSTALLED,_OLD_FILTER
     if _INSTALLED:
         return True
     import mhs57_filter_runtime as m57
-    if not m57.installed() or not callable(m57._filtered):
+    if not _m57_compatible(m57):
         return False
     _OLD_FILTER=m57._filtered
     m57._filtered=_filtered
