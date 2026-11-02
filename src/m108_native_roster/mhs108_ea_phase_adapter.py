@@ -122,7 +122,11 @@ def install_offline_only(weekly_situation_data_class, manifest,
             if report.get('status') != 'PROPOSED_NOT_EA_ASSIGNED':
                 # Fail closed for a recognized active MHS phase.
                 return None
-            allowed = set(report['exact_npc_ids']) | staff_ids
+            # Class1 phase data contains student jobs only. Never pass
+            # teachers/principal into a Class1-only situation.
+            allowed = set(report['exact_npc_ids'])
+            if spec[1] == 2:
+                allowed.update(staff_ids)
             # Do not mutate the shared EA set unless original creation
             # successfully removed Sims from its private restricted copy.
             restricted = set(sim for sim in sims
