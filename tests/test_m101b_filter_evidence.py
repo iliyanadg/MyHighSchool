@@ -1,5 +1,7 @@
 """Unit tests for exact live-EA-filter diagnostics in M101b, without Sims imports."""
 import ast
+import inspect
+import os
 import sys
 import types
 import unittest
@@ -21,7 +23,8 @@ def run_filter(manager=None,service=None,resource_type='SIM_FILTER'):
         sim_filter_service=lambda :service)
     namespace={'services':services_obj,'Types':types_obj,
                '_FILTER':280516,
-               'validated_filter_ids':validated_filter_ids}
+               'validated_filter_ids':validated_filter_ids,
+               'inspect':inspect,'os':os}
     executable=compile(ast.Module(body=[NODE],type_ignores=[]),
                        '<m101b-runtime-filter>','exec')
     exec(executable,namespace)
@@ -53,6 +56,12 @@ class M101bFilterEvidenceTests(unittest.TestCase):
             service=types.SimpleNamespace(submit_filter=throw))
         self.assertEqual(record['phase'],'EA_FILTER_QUERY_EXCEPTION')
         self.assertEqual(record['exception_type'],'TypeError')
+        self.assertEqual(record['exception_message'],
+                         'EA signature not compatible')
+        self.assertIn('method_signature',record)
+        self.assertEqual(record['runtime_source'],
+                         'M101C_EA_FILTER_DIAGNOSTICA')
+        self.assertEqual(record['exception_location']['function'],'throw')
 
     def test_none_and_empty_are_different_from_bad_result_type(self):
         for returned,phase in (
