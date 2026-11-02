@@ -80,9 +80,11 @@ def prepare_fixed_manifest(classes, playable_ids, core_assignments,
         'save_slot': slot,
         'sim_day': sim_day,
         'school_zone': zone,
+        'core_reservations_before_ea_verified': False,
         'native_filter_bypass_verified': False,
         'no_show_replacement_blocked': False,
         'school_count_eight_verified': False,
+        'native_schedule_order': 'BASE_BEFORE_CORE',
         'class_8_plus_8_verified': False,
         'lot_capacity_verified': False,
         'attendance_verified': False,
@@ -192,10 +194,10 @@ class SchoolNativeGuestSession(object):
                             self.manifest['core_assignments'])
             clone = self._guest_list(original_guest_list, entries, True)
         elif situation_guid == BASE_SITUATION:
-            if 'core' in self._pending or not self._core_confirmed:
-                # The fixed Core identities must be committed first;
-                # this still does NOT assert that EA spawned them.
-                return None, None
+            # EA's original WeeklyScheduleDay lists Base BEFORE Core.
+            # Plan selection here; an independent pre-spin-up role
+            # reservation gate is required before any live adapter is
+            # allowed to execute these proposals.
             if self._base_cursor >= 8:
                 return None, None
             sid = self.manifest['base_ids'][self._base_cursor]
@@ -237,6 +239,8 @@ class SchoolNativeGuestSession(object):
             'core_situation_created': self._core_confirmed,
             'base_situations_created': self._base_cursor,
             'base_situations_required': 8,
+            'original_schedule_base_first_supported_in_preview': True,
+            'core_reservations_before_ea_verified': False,
             'all_nine_situations_created': (
                 self._core_confirmed and self._base_cursor == 8),
             'student_ids_requested': (
