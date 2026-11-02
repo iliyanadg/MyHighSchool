@@ -280,3 +280,59 @@ l'architettura: (1) selezione Core/Base realmente rispettata da EA,
 (2) copertura posti e presenza senza estranei, (3) lezioni 8+8.
 Se l'API nativa non consente i risultati, discutere un controller
 scolastico alternativo invece di ripetere la medesima prova.
+
+## M106 — svolta: il registro ha priorità (2 novembre 2026)
+
+Dati di gioco realmente osservati con M105:
+- 16 iscritti già selezionati (due classi di 8, 3 adolescenti giocabili);
+- fra i 13 NPC iscritti, il filtro EA MeanSim 303766 non accetta nessuno;
+- 12/13 superano il filtro EA Base 280516;
+- fra 23 adolescenti NPC non iscritti, il solo MeanSim compatibile osservato
+  è Wolfgang Munch. **Non viene iscritto né usato come sostituto**.
+
+Il tuning originale EA (`assets/ea_2026_11_01/298052.xml`) presenta
+cinque ruoli Core e due professori. Il calendario originale
+(`assets/ea_2026_11_01/277657.xml`) imposta SEI situazioni Base,
+prima degli eventuali modificatori: il piano 3 giocabili + 5 Core +
+8 Base richiede un intervento separato sul numero di situazioni.
+**Sistemare soltanto il MeanSim non può garantire 16 presenti.**
+
+È stato quindi aggiunto il puro
+`src/m106_roster_first/mhs106_roster_first_policy.py` e test
+`tests/test_m106_roster_first_policy.py`. NON è una mod scaricabile.
+Con tutti e sei i filtri EA già misurati, cerca una combinazione dei
+**medesimi 16 iscritti**. Per i ruoli può distinguere:
+1. Sim che passa il vero filtro originale del Core Job;
+2. Sim che passa il vero filtro scolastico Base, potenzialmente
+   utilizzabile tramite un FUTURO adattatore limitato alla scuola.
+
+La seconda possibilità è **solo una candidatura progettuale**:
+sostituire un SimFilter originale EA durante la convocazione non è stato
+ancora implementato né provato, e altre condizioni del SituationJob
+potrebbero bloccare il Sim. Nessuna capacità di superare quei vincoli
+viene presunta. La soluzione deve inoltre preservare le scelte
+dell'utente ove possibile, non inventare NPC e non cambiare tratti.
+
+I test M106 rifiutano ID duplicati, finti risultati di filtro, meno di
+otto Base idonei o un NPC non idoneo a Base che non può entrare in alcun
+Core originale. Il risultato positivo si chiama apposta
+`BRIDGE_CANDIDATE_ONLY_NOT_EA_BOUND`: **non significa che il motore EA
+lo accetti o che gli studenti arrivino davvero**.
+
+### Prossimo sviluppo tecnico, senza nuovi test della giocatrice per ora
+
+1. Verificare quale API native del Bouncer accetta (o rifiuta) un
+   adattatore filtrante per uno specifico Core Job solo nel liceo.
+   L'adattatore deve agire prima dello spawn, sul Sim ID già iscritto,
+   senza modificare la personalità o i filtri di altri contesti.
+2. Integrare il conteggio deterministico delle situazioni Base solo
+   dopo una prova tecnica dell'effettiva prenotazione Core e della
+   capienza, evitando di creare richieste extra o NPC estranei.
+3. Testare una volta il risultato completo nel gioco: tutti i 16,
+   nessun altro teen scolastico, 8/8 in due aule, EA staff e lezioni
+   alle 10 e alle 14. Se non soddisfa il vincolo, cambiare architettura
+   senza ripetere esperimenti per singolo Sim.
+
+NON modificare `main`; continuare su
+`feature/m55-presenze-studente-test`. La beta Mac M105 resta
+solo diagnostica. Non distribuire M106 come soluzione pronta.
