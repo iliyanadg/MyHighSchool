@@ -140,6 +140,8 @@ def arm():
             raise ValueError('lotto o registro non valido')
         # The arm is ephemeral: it does not persist across restarts.
         # The next school-zone load must have exactly this save/day.
+        if not install():
+            raise RuntimeError('aggancio originale EA non disponibile')
         _ARMED=(str(slot),day)
         _PILOT=OneSlotPilot()
         _set('ARMED_BEFORE_SCHOOL',save_slot=str(slot),school_day=day,
