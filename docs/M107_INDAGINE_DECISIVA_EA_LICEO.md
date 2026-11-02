@@ -254,3 +254,81 @@ senza aver verificato i requisiti aggiuntivi del job.
 La beta M106 precedente resta bloccata nel salvataggio reale;
 i test offline superati non devono essere nuovamente confusi
 con il successo in-game.
+
+## Ultimo sorgente originale EA ricevuto: `situations/situation_job.py`
+
+Ricevuto il 2 novembre 2026 dalla giocatrice, tramite Motherlode.
+Questa sezione conclude la verifica dei file chiesti alla giocatrice:
+Bouncer, BouncerRequest, SituationGuestList, BaseSituation,
+SimFilterService e SituationJob. **Non richiederne un'altra copia.**
+
+**Fatti accertati dallo script:**
+
+1. `SituationJob.get_auto_invite()` NON usa un numero assoluto fisso:
+   usa `sim_auto_invite_chance`, eventuale `churn` o
+   `sim_shifts`, poi estrae a caso un numero nell'intervallo
+   `sim_auto_invite`. In `BaseSituation._expand_guest_list_based_on_tuning()`
+   EA aggiunge `AUTO_FILL` quando i guest già espliciti sono
+   inferiori a quel numero. Gli inviti specifici possono coprire i
+   posti e impedire l'auto-fill *in quella situazione*, ma vanno
+   verificati tutti i job e le altre situazioni scolastiche.
+2. `SituationJob.sim_count` secondo la docstring EA controlla
+   **soltanto la UI «Plan an Event»**, non la popolazione effettiva
+   durante una situazione. NON usarlo come prova di limite 8 o 16.
+3. `SituationJob.no_show_action` e `died_or_left_action` determinano
+   sostituzioni indipendenti. In `BaseSituation` un no-show
+   `REPLACE_THEM` può creare tramite `clone_for_replace()`
+   **una nuova richiesta priva dell'ID originale**. Di conseguenza
+   `accept_alternate_sim=False` da solo NON garantisce
+   «mai un altro studente».
+4. `SituationJob.get_additional_filter_terms()` restituisce
+   `()` se `self.filter is TunableSimFilter.BLANK_FILTER`;
+   altrimenti accumula criteri da `zone_modifier_based_filter_terms`
+   e `location_based_filter_terms`. **Attenzione**: sostituire
+   SOLO `BouncerRequest._sim_filter` NON cambia
+   `SituationJob.filter`, quindi `request.get_additional_filter_terms()`
+   può continuare a includere gli originali. Non promettere bypass
+   con un semplice BLANK_FILTER di richiesta.
+5. `SituationJob.can_sim_be_given_job()` verifica il Sim ID con
+   `does_sim_match_filter` e i termini aggiuntivi. Tuttavia
+   `BaseSituation._set_job_for_sim()`, DOPO aver accettato
+   un Sim nella situazione, registra soltanto un `logger.warn`
+   se `job_data.test_add_sim(...)` è falso, quindi prosegue ad
+   assegnare il job e il ruolo. **Questa è una pista tecnica
+   positiva**, non una prova che il Bouncer faccia entrare il Sim.
+6. `SituationJob.get_common_blacklist_categories()` include
+   la famiglia attiva e può includere quella proprietaria del lotto.
+   Il Bouncer applica blacklist, esclusività e limiti prima della
+   chiamata finale d'assegnazione.
+7. `SituationJob.should_revalidate_sim_on_load` può ri-validare
+   membri delle situazioni quando si ricarica il salvataggio.
+   Questo interessa la persistenza tra i giorni, ma le
+   situazioni scolastiche giornaliere restano da verificare.
+8. `SituationJob.do_not_spawn` blocca esplicitamente la richiesta
+   nel percorso `BaseSituation._issue_requests()`.
+
+### Decisione architetturale basata sui sorgenti EA (non beta)
+
+Il risultato più promettente NON è convincere tutti i 16 a superare
+i filtri di cheer/chess/football/computer/mean, ma:
+- costruire PRIMA dello start situazioni EA **inviti con Sim ID
+  espliciti**, tra i 13 NPC già iscritti e i 5 titolari Core;
+- collegare per le sole richieste liceali un filtro scolastico
+  di ammissibilità `adolescente umano e ID iscritto`,
+  senza modificare `SituationJob.filter` globalmente o i tratti;
+- gestire insieme **il filtro base della richiesta e i termini
+  aggiuntivi** e bloccare esplicitamente i percorsi di sostituzione
+  generica e auto-fill estranei, senza rompere lo staff EA;
+- aggiornare il calendario Base da 6 a 8 soltanto con prova
+  del piano e dei 5 Core, e studiare i due jobs di lezione 8+8;
+- verificare capienza fisica, permanenza e assegnazione
+  effettiva nel gioco su **una sola copia del save** una volta
+  completo il codice.
+
+Ipotesi in verifica: **non occorre cambiare le personalità** perché
+`_set_job_for_sim` può proseguire dopo un filter test negativo.
+Restano possibili altre restrizioni, tra cui il Bouncer e i
+RoleState. Nessuna garanzia di funzionamento 16/16.
+
+Questa analisi usa materiale sorgente fornito dall'utente, ma
+non ripubblica codice EA nel repository pubblico.
