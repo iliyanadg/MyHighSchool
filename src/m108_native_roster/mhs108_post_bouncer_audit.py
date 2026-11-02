@@ -222,6 +222,7 @@ class NativeJobAudit(object):
         result = {
             'status': 'NATIVE_JOBS_MATCH',
             'situation_id': situation_id,
+            'situation_guid': item['type'],
             'phase_key': item['phase'],
             'native_job_assignment_verified': True,
             'seating_verified': False,
