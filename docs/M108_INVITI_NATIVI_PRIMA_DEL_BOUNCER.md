@@ -247,3 +247,77 @@ di una beta è una protezione *school-only* contro la
 `clone_for_replace` che elimina l'ID richiesto, oltre alla
 verifica del conteggio EA Base e della capienza scolastica.
 Non chiedere alcuna prova in gioco adesso. `main` resta intatto.
+
+## Avanzamento M108 — protezione sostituzioni per no-show e abbandono
+
+**Sorgenti decompilati EA esaminati nel workspace locale:**
+`base_situation.py` e `bouncer_request.py` forniti dalla giocatrice.
+Non pubblicare l'implementazione EA proprietaria in GitHub.
+
+Percorsi originali confermati:
+
+- `BaseSituation.on_failed_to_spawn_sim_for_request(request)`:
+  per job con `no_show_action == REPLACE_THEM` chiama
+  `request.clone_for_replace(only_if_explicit=True)`,
+  quindi invia il clone al Bouncer.
+- `BaseSituation.on_sim_unassigned_from_request(sim,request)`:
+  per `died_or_left_action == REPLACE_THEM` chiama
+  `submit_replace_request(sim,request,job)`; questa funzione
+  **rimuove prima il vecchio Sim dalla situazione**,
+  poi chiama `request.clone_for_replace()`, invia
+  il clone al Bouncer se non è None.
+- `BouncerRequest.clone_for_replace` costruisce un
+  nuovo `BouncerRequest` **senza passing
+  `requested_sim_id`**; il default è 0 e il clone
+  perde il vincolo del Sim originario. Questa è una
+  causa plausibile degli NPC sostitutivi.
+- La factory può restituire None se la richiesta
+  non era esplicita con `only_if_explicit=True`;
+  non dedurre che tutti i job sostituiscano sempre.
+
+**Nuovo modulo NON installato:**
+`src/m108_native_roster/mhs108_no_show_guard.py`.
+
+L'adattatore intercetta **soltanto**
+`BouncerRequest.clone_for_replace` e restituisce None
+per richieste che sono ancora attivamente riconosciute da
+`SchoolFilterScope.is_tracked(request)`, con l'ID preciso,
+`sim_constraints={requested_id}`, senza fallback di
+constraints, stessa zona scolastica/giorno/save/ruolo.
+Tutte le richieste non monitorate, incluso lo staff EA,
+mantengono il metodo originale. Non modifica
+`BaseSituation.on_sim_unassigned_from_request`, quindi
+la rimozione del Sim assente/partito rimane EA originale.
+
+Sono richiesti cinque flag runtime di verifica esterna
+prima dell'installazione, ma **non esiste alcun chiamante
+nella mod rilasciata che li soddisfi**. Nessuna beta.
+Un test offline che imposta tali flag artificialmente
+verifica il comportamento dello stub, non la compatibilità
+con la versione corrente di The Sims.
+
+`tests/test_m108_no_show_guard.py` copre:
+- no-show studente Base iscritto (senza clone casuale);
+- abbandono dello studente con rimozione dal fake situation
+  ma senza reinvito di un NPC;
+- tutti e cinque gli ID Core scelti in entrambi i percorsi;
+- docenti, NPC esterni, auto-fill senza ID, richieste errate,
+  scuola o giorno diversi lasciati invariati;
+- doppia installazione rifiutata, uninstall ripristina
+  il comportamento originario;
+- nessuna pretesa di successo in-game.
+
+Il file di test è incluso nel job GitHub Actions Python 3.7
+`capacity_mac_beta` e in `roster`; verificare lo stato CI.
+
+**Punto non risolto:** proteggiamo soltanto i cloni
+dei request *già tracciati*. Se un invito non entra nel
+`SchoolFilterScope`, se EA genera un AUTO_FILL a monte,
+o se lo fa passare da un altro percorso, questa protezione
+non basta. Restano il filtro native reale, il conteggio
+Base 6→8, i job delle due classi e il cap NPC.
+
+**Prossima implementazione sensata:** gate anti-AUTO_FILL
+sulle situazioni Core/Base e misurazione esatta dei
+`WeeklyScheduleDay` per poter programmare 8 chiamate
+Base EA originali senza creare nuove situazioni manuali.
