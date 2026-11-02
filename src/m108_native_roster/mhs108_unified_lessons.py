@@ -153,6 +153,9 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
     # A cloned dict is not enough to protect a caller from mutating it;
     # validate against immutable canonical roster on every phase proposal.
     blocked_receipts = []
+    # One native EA attempt per situation-data GUID, save, day, zone, and
+    # school window. Do not re-create an already attempted school phase.
+    attempted_phases = set()
 
     def wrapped(cls, sims, sim_info, duration,
                 additional_sim_ids, situation_job_count):
@@ -167,6 +170,13 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
                 return original(cls, sims, sim_info, duration,
                                 additional_sim_ids, situation_job_count)
 
+            phase_key = (
+                str(context.get('save_slot')),
+                context.get('sim_day'),
+                str(context.get('zone_id')),
+                context.get('time_window'), guid)
+            if phase_key in attempted_phases:
+                return None
             spec = PHASE_DATA[guid]
             if _guid(cls.situation) != spec[2]:
                 return None
@@ -197,7 +207,9 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
                     return None
                 expected_students = set(ticket['exact_candidate_ids'])
                 if not expected_students:
-                    if not coordinator.confirm(ticket, (), None):
+                    if coordinator.confirm(ticket, (), None):
+                        attempted_phases.add(phase_key)
+                    else:
                         coordinator.cancel(ticket)
                     return None
                 projection = project_class1_tuning(cls, ticket)
@@ -235,6 +247,7 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
         except Exception:
             return None
 
+        attempted_phases.add(phase_key)
         try:
             # Exactly ONE native EA call; it may create side effects.
             situation_id = original(
@@ -299,4 +312,5 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
         return True
 
     uninstall.blocked_receipts = blocked_receipts
+    uninstall.attempted_phases = attempted_phases
     return uninstall
