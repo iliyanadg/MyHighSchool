@@ -141,6 +141,26 @@ class ControllerTests(unittest.TestCase):
             captured['actual_ea_core_role_evidence'][
                 'actual_ea_core_binding_verified'])
 
+    def test_arm_reports_precise_ea_allocation_rejection(self):
+        saved=[]
+        ns={
+            '_SESSION':None,'_LAST':{},
+            'prepare_live_school_day':lambda:{
+                'status':'BLOCKED',
+                'reason':'whole-day role allocation invalid',
+                'plan_reason':'assigned student not eligible for core job 278966',
+                'filter_details':{'calls':{'278966':{'verified_eligible_count':2}}}},
+            '_save':lambda:saved.append(True)}
+        fn=compile_fn('arm',ns)
+        self.assertEqual(
+            fn(),
+            'M105 BLOCCATA: assigned student not eligible for core job 278966')
+        self.assertEqual(
+            ns['_LAST']['plan_reason'],
+            'assigned student not eligible for core job 278966')
+        self.assertEqual(ns['_LAST']['status'],'BLOCKED_BY_PREFLIGHT')
+        self.assertEqual(len(saved),1)
+
     def test_no_situation_guest_change_or_slot_count_activated(self):
         self.assertNotIn('create_situation(',SOURCE)
         self.assertNotIn('SituationGuestList',SOURCE)
