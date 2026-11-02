@@ -52,6 +52,21 @@ class LiveEACoreProbeTests(unittest.TestCase):
         self.assertTrue(r['actual_ea_core_binding_verified'])
         self.assertFalse(r['before_school_spawn_reservation_proved'])
 
+    def test_source_verified_ea_get_current_job_for_sim_is_supported(self):
+        infos,manager=sample()
+        original=manager.get_situations_sim_is_in
+        class EAOnlySituation:
+            guid64=298052
+            def get_current_job_for_sim(self,sim):
+                assigned={int(s):job for job,s in PINS.items()}
+                job=assigned.get(sim.sim_id)
+                return SimpleNamespace(guid64=job) if job is not None else None
+        ea=EAOnlySituation()
+        manager.get_situations_sim_is_in=lambda sim:(ea,)
+        r=probe(infos,manager)
+        self.assertEqual(r['status'],'FIVE_ACTUAL_EA_CORE_MEMBERS_VERIFIED')
+        self.assertTrue(r['actual_ea_core_binding_verified'])
+
     def test_missing_job_getter_unknown_not_a_successful_binding(self):
         infos,manager=sample(known=False)
         r=probe(infos,manager)
