@@ -16,6 +16,17 @@ establishes seating or routing to assigned blackboards.
 
 No game hooks, no Sim spawning, no tuning change. Python 3.7 compatible.
 """
+from mhs108_native_invitation import (
+    prepare_fixed_manifest, InvitationPlanError,
+)
+from mhs108_lesson_phase_policy import PHASE_DATA
+
+EA_PHASE_BY_SITUATION = {
+    spec[2]: (spec[1], spec[3],
+              (277918, 278224) if spec[2] == 304567 else
+              (277918,) if spec[2] == 297774 else ())
+    for spec in PHASE_DATA.values()
+}
 
 
 def _guid(job):
@@ -64,11 +75,25 @@ class NativeJobAudit(object):
                 or manifest.get('status') !=
                 'M108_INVITATIONS_PREPARED_NOT_GAME_AUTHORIZED'):
             raise ValueError('original complete M108 roster required')
-        self.manifest = manifest
+        try:
+            canonical = prepare_fixed_manifest(
+                manifest['classes'], manifest['playable'],
+                dict(manifest['core_assignments']),
+                manifest['save_slot'], manifest['sim_day'],
+                manifest['school_zone'])
+            if any(manifest.get(k) != canonical[k]
+                   for k in ('classes','playable','all_16',
+                             'core_assignments','base_ids',
+                             'save_slot','sim_day','school_zone')):
+                raise ValueError('M108 manifest inconsistent')
+        except (KeyError, TypeError, ValueError, InvitationPlanError):
+            raise ValueError('M108 manifest inconsistent')
+        self.manifest = canonical
         self._pending = {}
         self._verified = {}
         self._failed = {}
         self._created_ids = set()
+        self._invited_students_by_phase = {}
 
     def register_created(self, situation_id, situation_type_guid,
                          expected_by_job, phase_key):
@@ -80,7 +105,28 @@ class NativeJobAudit(object):
                 or len(phase_key) != 4
                 or situation_id in self._created_ids
                 or not isinstance(expected_by_job, dict)
-                or not expected_by_job):
+                or not expected_by_job
+                or situation_type_guid not in EA_PHASE_BY_SITUATION
+                or str(phase_key[0]) != self.manifest['save_slot']
+                or type(phase_key[1]) is not int
+                or phase_key[1] != self.manifest['sim_day']
+                or str(phase_key[2]) != self.manifest['school_zone']
+                or phase_key[3] not in ('09:30','10:00','13:30','14:00')):
+            return False
+        class_index, student_job, staff_jobs = (
+            EA_PHASE_BY_SITUATION[situation_type_guid])
+        if set(expected_by_job) != {student_job} | set(staff_jobs):
+            return False
+        registered_class = self.manifest['classes'][class_index - 1]
+        npc_in_class = set(registered_class) - set(self.manifest['playable'])
+        student_ids = _ids(expected_by_job[student_job])
+        if student_ids is None or not student_ids <= npc_in_class:
+            return False
+        if not student_ids:
+            # EA need not create a situation with an empty guest list.
+            return False
+        earlier = self._invited_students_by_phase.get(phase_key, set())
+        if student_ids & earlier:
             return False
         copied = {}
         seen = set()
@@ -94,6 +140,13 @@ class NativeJobAudit(object):
             copied[job] = frozenset(ids)
         if not seen:
             return False
+        # Staff job holders can never be enrolled students/playables.
+        school_all = set(self.manifest['all_16'])
+        staff_ids = seen - student_ids
+        if school_all & staff_ids:
+            return False
+        self._invited_students_by_phase.setdefault(
+            phase_key, set()).update(student_ids)
         self._created_ids.add(situation_id)
         self._pending[situation_id] = {
             'type': situation_type_guid,
