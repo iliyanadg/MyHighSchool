@@ -254,3 +254,42 @@ jobs:
             dist_m102/MHS_M102_BOUNCER_READONLY_MAC_TEST.ts4script
             dist_m102/MHS_M102_BUILD_REPORT.json
           if-no-files-found: error
+
+  m104_mac_native_filter:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test original native EA Base filter restriction and no guest overrides
+        run: python -m unittest tests.test_m104_native_filter_policy tests.test_mhs104_native_release -v
+      - name: Compile native filter Mac test archive
+        run: python -m tooling.build_mhs104_native_filter dist_m104/
+      - name: Verify 63 DBPF resources and 35 Python 3.7 scripts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_m55_attendance_trial import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          folder=Path('dist_m104')
+          payload=(folder/'MHS_M104_NATIVE_EA_FILTER_MAC_TEST.package').read_bytes()
+          assert payload==package_bytes()
+          assert inspect_bytes(payload)['resource_count']==63
+          with ZipFile(str(folder/'MHS_M104_NATIVE_EA_FILTER_MAC_TEST.ts4script')) as archive:
+              names=archive.namelist()
+              assert len(names)==35
+              assert 'mhs104_native_school_filter.pyc' in names
+              assert not {'mhs89_precreate_hook.pyc','mhs101_original_slot_runtime.pyc'} & set(names)
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M104 native filter compiled; in-game proof still needed')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M104_NATIVE_EA_FILTER_MAC_TEST
+          path: |
+            dist_m104/MHS_M104_NATIVE_EA_FILTER_MAC_TEST.package
+            dist_m104/MHS_M104_NATIVE_EA_FILTER_MAC_TEST.ts4script
+            dist_m104/MHS_M104_BUILD_REPORT.json
+          if-no-files-found: error
