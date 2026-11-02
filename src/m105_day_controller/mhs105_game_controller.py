@@ -167,9 +167,10 @@ def check():
     evidence=_SESSION.evidence()
     _LAST.update(evidence)
     _save()
-    return ('M105 richieste native EA: Core {}/5 | Base {}/8. '
-            'Presenze NON provate | {}').format(
+    return ('M105 richieste native EA: Core {}/5 | studenti Base {}/8 '
+            '(chiamate Base vincolate: {}). Presenze NON provate | {}').format(
                 evidence['core_requests_constrained'],
+                evidence['base_student_targets_constrained'],
                 evidence['base_requests_constrained'],_REPORT)
 
 def off():
