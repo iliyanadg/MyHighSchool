@@ -9,7 +9,7 @@ from mhs88_replace_guest import (replace_unassigned_guest,
 
 BASE=277733
 
-def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_applied=None, on_exhausted=None, context_checker=None):
+def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_applied=None, on_exhausted=None, context_checker=None, on_created=None):
     """resolver(manager, situation_type, guest_list) -> (student_id, verified_zone, active)
 
     The resolver MUST validate school zone, save identity, Sim eligibility,
@@ -88,6 +88,13 @@ def install(manager_class, resolver, job_tuning, guest_info_class, purpose, on_a
             result=previous(self,situation_type,new_list,*args[1:],**kwargs)
         else:
             return previous(self,situation_type,*args,**kwargs)
+        # A separate opt-in callback may record the actual Situation ID.
+        # It cannot modify or retry the EA call.
+        if result and callable(on_created):
+            try:
+                on_created(student_id,result)
+            except Exception:
+                pass
         # Never call the original EA method twice even if it raises.
         if result and callable(on_applied):
             try:
