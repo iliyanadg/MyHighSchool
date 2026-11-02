@@ -111,7 +111,7 @@ class M105NativePreflightTests(unittest.TestCase):
         env,calls=create_runtime(276592,'empty')
         result=env['prepare_live_school_day']()
         self.assertEqual(result['status'],'BLOCKED')
-        self.assertIn('role',result['plan_reason'].lower())
+        self.assertIn('not eligible',result['plan_reason'].lower())
 
     def test_missing_manual_roles_does_not_call_game_filter(self):
         env,calls=create_runtime(missing_roles=True)
