@@ -515,9 +515,7 @@ Comportamento originale verificato nel sorgente EA:
 1. Calcola un `modified_upper_bounds` per job,
    sottraendo i conteggi delle situazioni e dei job
    indicati dagli `upper_bound_count_modifiers`.
-2. Scorre **due volte i Sim realmente istanziati**
-   su un insieme `sims`: prima riempie i job con
-   requisito minimo, poi quelli con minimo già raggiunto.
+2. Scorre i Sim istanziati nell'insieme `sims`, e **per ogni Sim** valuta prima i job che non hanno ancora raggiunto il requisito minimo, poi quelli con minimo già raggiunto.
    Per ogni Sim usa `DoubleSimResolver` ed esegue
    `job_entry.tests.run_tests(resolver)` della fase EA.
 3. Crea **una sola** `SituationGuestList(invite_only=True)`
