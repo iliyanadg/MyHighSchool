@@ -24,6 +24,7 @@ from mhs55_attendance_core import valid_student
 from mhs89_precreate_hook import install as install_precreate
 from mhs100_one_slot_policy import OneSlotPilot,select_one
 from mhs101_original_slot_gate import original_school_call,validated_filter_ids
+from mhs99_situation_trace import snapshot as trace_situation
 
 DIR=os.path.join(os.path.expanduser('~'),'Documents','Electronic Arts',
                  'The Sims 4','MY_HIGH_SCHOOL_M25_TEST_DATA')
@@ -185,7 +186,13 @@ def _resolve(manager,situation,guests):
             already_on_zone_ids=present,active_school=True,
             save_verified=True,zone_verified=True,day_verified=True)
         if action!='choose':
-            _set('SKIPPED_'+action.upper(),reason=reason)
+            # EA routinely issues more Base calls after the one pilot has
+            # succeeded. Never erase its accepted situation ID or result.
+            if _STATE.get('phase') not in (
+                    'EA_ORIGINAL_CALL_ACCEPTED',
+                    'ORIGINAL_SITUATION_CREATED',
+                    'PRESELECTED_FOR_ORIGINAL_EA_BASE_CALL'):
+                _set('SKIPPED_'+action.upper(),reason=reason)
             return None
         info=services.sim_info_manager().get(sid)
         if not valid_student(info,Age.TEEN,Species.HUMAN):
@@ -201,23 +208,48 @@ def _resolve(manager,situation,guests):
         _set('SKIPPED_ERROR',error=type(exc).__name__)
         return None
 
+def _created(sid, situation_id):
+    if (_PILOT.attempted and _PILOT.sim_id==sid
+            and type(situation_id) is int and situation_id>0):
+        data={k:v for k,v in _STATE.items() if k!='phase'}
+        data['created_situation_id']=situation_id
+        _set('ORIGINAL_SITUATION_CREATED',**data)
+
 def _confirmed(sid):
     if _PILOT.confirm(sid):
-        data=dict(_STATE)
-        _set('EA_ORIGINAL_CALL_ACCEPTED',**{k:v for k,v in data.items()
-             if k!='phase'})
+        data={k:v for k,v in _STATE.items() if k!='phase'}
+        _set('EA_ORIGINAL_CALL_ACCEPTED',**data)
 
 def _check():
     sid=_STATE.get('sim_id')
     if sid is None:
         return 'M101: '+str(_STATE.get('phase','not armed'))+' | '+REPORT
     try:
+        # Never claim an arrival from another save or a different lot.
+        if (_ARMED is None or str(current_slot(allow_travel=True))!=_ARMED[0]
+                or _STATE.get('zone_id')!=_zone()
+                or _now_day()!=_ARMED[1]):
+            return 'M101: controllo disponibile solo nello stesso lotto/giorno'
         info=services.sim_info_manager().get(int(sid))
-        present=info is not None and info.get_sim_instance() is not None
-        return 'M101: '+str(_STATE.get('phase'))+' | '+str(_STATE.get('name'))+(
-            ' PRESENTE' if present else ' NON PRESENTE')+' | '+REPORT
-    except Exception:
-        return 'M101 verifica lotto non disponibile | '+REPORT
+        situation_id=_STATE.get('created_situation_id')
+        if type(situation_id) is int and situation_id>0:
+            checked=trace_situation(
+                services.get_zone_situation_manager(),info,situation_id)
+        else:
+            checked={'phase':'SITUATION_ID_UNAVAILABLE',
+                     'on_lot':bool(info is not None and info.get_sim_instance() is not None)}
+        previous={k:v for k,v in _STATE.items()
+                  if k not in ('phase','latest_verification')}
+        previous['latest_verification']=checked
+        # The outcome of the original call and the latest inspection are
+        # different facts, and remain separately visible in the report.
+        phase=_STATE.get('phase','UNKNOWN')
+        _set(phase,**previous)
+        return ('M101: {} | {} | {} | {}').format(
+            phase,_STATE.get('name','Sim'),
+            checked.get('phase','UNKNOWN'),REPORT)
+    except Exception as exc:
+        return 'M101 verifica non disponibile ('+type(exc).__name__+') | '+REPORT
 
 def _install_commands():
     try:
@@ -248,7 +280,8 @@ def install():
         result=install_precreate(
             SituationManager,_resolve,job,SituationGuestInfo,
             SituationInvitationPurpose.INVITED,
-            on_applied=_confirmed,context_checker=_context)
+            on_applied=_confirmed,context_checker=_context,
+            on_created=_created)
         _INSTALLED=result
         return result
     except Exception:
