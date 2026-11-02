@@ -147,13 +147,12 @@ def _native_filter(previous,service,args,kwargs,mode):
              original_school_situation_untouched=True,
              new_situation_created=False,
              save_slot=slot,school_zone_id=_zone())
-        # Call EA exactly once with all other options preserved.
-        return previous(service,*newargs,**newkwargs)
     except Exception as exc:
         _set('FILTER_OVERRIDE_BYPASSED_ERROR',error_type=type(exc).__name__)
-        # Do not call EA twice if it was already invoked. The
-        # only guarded code above is local preparation; preserve failures.
-        raise
+        return previous(service,*args,**kwargs)
+    # Call EA exactly once, OUTSIDE the preparation exception guard:
+    # never retry the underlying EA operation if it raises.
+    return previous(service,*newargs,**newkwargs)
 
 def arm():
     global _ARMED,_ATTEMPTED
