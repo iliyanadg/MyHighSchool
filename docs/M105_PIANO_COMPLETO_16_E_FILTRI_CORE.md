@@ -72,3 +72,53 @@ lotto, nessun adolescente non iscritto in una situazione
 scolastica, Classe 1 8/8 e Classe 2 8/8; lezioni e
 personale EA non danneggiati. Il test in-game si farà
 **solo dopo** avere integrato e compilato questo runtime.
+
+
+## Avanzamento di codice successivo — M105 preflight + sessione nativa
+
+Sono stati aggiunti nuovi componenti di codice, non ancora inclusi
+in alcuna build Mac installabile:
+
+- `src/m105_day_controller/mhs105_live_preflight.py`:
+  legge l'esatto registro dello slot attivo, verifica i tre
+  adolescenti giocabili e le cinque assegnazioni MHS97, esegue
+  **sei interrogazioni originali EA SimFilter** con
+  `callback=None` e con i 13 NPC esistenti. Accetta soltanto
+  risultati `SimFilterResult` verificati con punteggio.
+  Qualsiasi eccezione o assegnazione non valida blocca il piano.
+- `src/m105_day_controller/mhs105_native_session.py`:
+  mantiene **un'unica sessione per slot, giorno e lotto**.
+  Prepara al massimo cinque richieste Core, ciascuna
+  vincolata allo studente specifico, e otto richieste Base,
+  ciascuna vincolata a un altro iscritto. Non riutilizza
+  indiscriminatamente uno stesso Sim e non altera
+  richieste esplicite di EA.
+- `src/m105_day_controller/mhs105_game_controller.py`:
+  connette il preflight alla M57, mantenendola nel suo stato
+  originale per i filtri non scolastici. Il wrapper interviene
+  soltanto se è riconosciuto il vero calendario del liceo
+  `277657` o `279958`, il chiamante EA Bouncer e lo stesso
+  salvataggio/giorno preparato a casa.
+  Include `arm`, `check`, `off` nel sorgente ma **NON
+  è caricato in alcun pacchetto Mods**.
+- Test: `tests/test_m105_live_preflight.py`,
+  `tests/test_m105_native_session.py`,
+  `tests/test_m105_game_connector.py`. Inclusi in
+  `m96_school_dispatcher_logic` su GitHub Actions.
+
+### Importantissimo: che cosa non abbiamo ancora dimostrato
+
+Questo codice PREPARA e VINCOLA le richieste originali, ma un
+filtro chiamato non equivale a Sim effettivamente assegnato
+dal Bouncer. Le 8 situazioni Base necessarie non sono state
+ancora abilitate: il calendario EA originale spesso ne
+crea meno. Non sono inoltre verificati l'effettivo limite
+fisico del lotto e le due lezioni da 8.
+
+L'attivazione del conteggio M96 viene quindi mantenuta
+**disattivata** in questo controller. Non si deve creare
+una beta per la giocatrice finché una soluzione non
+verifichi i cinque ruoli, il budget del lotto e il
+routing delle lezioni senza generare studenti estranei.
+
+**Nessuna nuova prova utente richiesta in questa fase.**
