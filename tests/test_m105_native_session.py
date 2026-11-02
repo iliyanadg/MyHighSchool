@@ -87,6 +87,68 @@ class SchoolSessionTests(unittest.TestCase):
     def test_isolated_core_filters_are_exact_five_expected(self):
         self.assertEqual(set(CORE_FILTERS),
                          set((276592,276596,276594,276595,303766)))
+
+    def test_one_ea_batch_can_fill_all_eight_registered_base_students(self):
+        action,args,options=call(self.session,BASE_FILTER,args=(8,'EA'))
+        self.assertEqual(action,'constrain')
+        self.assertEqual(tuple(str(x) for x in options['sim_constraints']),
+                         PLAN['normal_base_ids'])
+        self.assertEqual(self.session.attempted_base,8)
+        evidence=self.session.evidence()
+        self.assertEqual(evidence['base_requests_observed'],1)
+        self.assertEqual(evidence['base_requests_constrained'],1)
+        self.assertEqual(evidence['base_student_targets_constrained'],8)
+        self.assertTrue(evidence['all_eight_base_targets_constrained'])
+        self.assertFalse(evidence['attendance_verified'])
+
+    def test_mixed_ea_batches_never_duplicate_a_base_student(self):
+        collected=[]
+        for amount in (3,2,3):
+            action,args,options=call(
+                self.session,BASE_FILTER,args=(amount,'EA'))
+            self.assertEqual(action,'constrain')
+            self.assertEqual(len(options['sim_constraints']),amount)
+            collected.extend(str(x) for x in options['sim_constraints'])
+        self.assertEqual(tuple(collected),PLAN['normal_base_ids'])
+        self.assertEqual(self.session.evidence()['base_requests_constrained'],3)
+        self.assertEqual(self.session.evidence()['base_student_targets_constrained'],8)
+        self.assertEqual(call(self.session,BASE_FILTER)[0],'preserve')
+
+    def test_invalid_or_excess_native_batch_never_consumes_enrolled_ids(self):
+        for amount in (0,True,'2',None,9):
+            action,args,options=call(
+                self.session,BASE_FILTER,args=(amount,'EA'))
+            self.assertEqual(action,'preserve')
+        self.assertEqual(self.session.attempted_base,0)
+        self.assertFalse(self.session.evidence()['all_eight_base_targets_constrained'])
+        # A later valid call cannot retroactively erase an earlier vanilla gap.
+        self.assertEqual(call(self.session,BASE_FILTER,args=(8,'EA'))[0],
+                         'constrain')
+        self.assertFalse(self.session.evidence()['all_eight_base_targets_constrained'])
+        self.assertFalse(self.session.evidence()['attendance_verified'])
+
+    def test_core_native_request_rejects_multiple_students(self):
+        self.assertEqual(call(self.session,276592,args=(2,'EA'))[0],
+                         'preserve')
+        self.assertEqual(self.session.core_request_outcomes[278965]['decision'],
+                         'block')
+        self.assertEqual(call(self.session,276592)[0],'preserve')
+        self.assertFalse(self.session.evidence()['all_five_core_calls_constrained'])
+
+    def test_keyword_count_is_accepted_but_ambiguous_count_not_used(self):
+        args=()
+        kw={'number_of_sims_to_find':2,'sim_filter':'EA'}
+        action,_,options=self.session.constrain(
+            'matching',BASE_FILTER,args,kw,'11',24,'401',True,
+            school_verified=True)
+        self.assertEqual(action,'constrain')
+        self.assertEqual(len(options['sim_constraints']),2)
+        action,_,_=self.session.constrain(
+            'matching',BASE_FILTER,(1,'EA'),
+            {'number_of_sims_to_find':3},'11',24,'401',True,
+            school_verified=True)
+        self.assertEqual(action,'preserve')
+
     def test_no_new_game_situations_ever_created(self):
         source=(ROOT/'src'/'m105_day_controller'/
                 'mhs105_native_session.py').read_text()
