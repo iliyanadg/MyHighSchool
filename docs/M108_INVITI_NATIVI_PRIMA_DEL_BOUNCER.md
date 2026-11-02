@@ -321,3 +321,77 @@ Base 6→8, i job delle due classi e il cap NPC.
 sulle situazioni Core/Base e misurazione esatta dei
 `WeeklyScheduleDay` per poter programmare 8 chiamate
 Base EA originali senza creare nuove situazioni manuali.
+
+## Avanzamento M108 — conteggio Base EA 6 → 8, senza nuove situazioni manuali
+
+### Prova dal tuning originale EA
+
+I file `assets/ea_2026_11_01/277657.xml` (calendario liceo Main)
+e `assets/ea_2026_11_01/279958.xml` (FromVenue) impostano
+`situation_HighSchool_Active_NPC_Base_Student` (277733)
+con `count.lower_bound=6`, `upper_bound=6`.
+La Core 298052 viene dopo la Base nel calendario.
+I `count_modifiers` possono influenzare il valore che il
+metodo `WeeklyScheduleDay.get_long_term_situation_count`
+restituisce nella specifica partita e non vanno ignorati.
+
+### Nuovo codice scritto
+
+`src/m108_native_roster/mhs108_native_base_count.py`:
+
+- Riutilizza **lo stesso classmethod EA** individuato
+  dalla M96 (`get_long_term_situation_count`); non
+  crea situazioni esterne, non aggiunge nuovi controller
+  al calendario e non installa mod nel gioco.
+- La `propose_native_base_count` può restituire
+  `(8,8)` per le sole situazioni Base 277733
+  dei due calendari 277657 e 279958.
+- Richiede il **piano esatto 3 giocabili + 5 Core + 8 Base**,
+  i cinque ID Core trattenuti prima della prima
+  richiesta EA, nessun tentativo di invito già
+  emesso e nessun duplicato.
+- Contesto richiesto: stessa zona/save/giorno/scuola,
+  origine calendario verificata, attuazione prima
+  dell'inizio del calendario, corrispondenza ESATTA
+  fra il GUID del calendario ricevuto dal classmethod
+  e quello del contesto.
+- Non impone ciecamente `(8,8)` a ogni originale.
+  Occorre una prova esterna del numero di modificatori
+  playable effettivamente già applicati: solo se
+  `original==(6 - modifier,6 - modifier)`,
+  con modifier intero 0..3 esplicitamente verificato,
+  il nuovo valore viene proposto. In caso contrario
+  il ritorno originale EA è preservato.
+- `install_offline_only` è **disabilitato dalla build**
+  ed esige 8 gate runtime che non sono ancora verificati.
+  Rifiuta l'installazione contemporanea degli hook
+  `_mhs96_count_hook`, `_mhs105_schedule_audit`
+  e di un secondo `_mhs108_count_hook`.
+- Il classmethod originale è chiamato una volta sola
+  e il wrapper offre `uninstall` senza lasciare
+  la modifica attiva su altri calendari.
+
+**Test:** `tests/test_m108_native_base_count.py`
+prova il calcolo 6→8, i modifier 0,2,3,
+l'assenza di esterni e duplicati, contesti incoerenti
+Main/FromVenue, fallimento provider, precedenti hook
+M96/M105, classe ereditata, rollback e verifica che
+la richiesta 8 non sia scambiata per presenze 8/8.
+Il file è aggiunto alla CI `capacity_mac_beta`
+(Python 3.7) e al `unittest discover` generale.
+
+### Stato corretto
+
+Questo è **codice di proposta e unit test**, non
+una modifica di tuning EA applicata al salvataggio.
+La proposta `(8,8)` non prova che EA abbia davvero
+creato le 8 situazioni e non risolve il limite di
+6 per la fase di Classe 1 né il cap del lotto.
+Il prossimo passo utile sarà un'**integrazione
+atomica del calendario con la pre-create guest list**
+e una verifica esplicita delle situazioni effettivamente
+create. Poi occorre risolvere la distribuzione
+nelle due aule; solo allora valutare una beta Mac.
+
+**Nessuna installazione o test nel gioco richiesti ora.**
+`main` e i salvataggi restano invariati.
