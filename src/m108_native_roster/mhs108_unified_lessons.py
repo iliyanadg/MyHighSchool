@@ -177,9 +177,7 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
 
             if guid in EA_CLASS1_DATA_GUIDS:
                 coordinator = class1_budget_provider(cls, context)
-                if not _verified_context(
-                        coordinator,
-                        dict(context, mhs_class1_dual_route_active=True), guid):
+                if not _verified_context(coordinator, context, guid):
                     return None
                 counts = _native_modifier_counts(cls, situation_job_count)
                 if counts is None:
