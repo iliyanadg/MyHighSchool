@@ -576,3 +576,149 @@ le due varianti `WithTrait/NoTrait` con un budget
 totale di Classe 1 e proteggere i job docente
 durante la selezione, quindi la validazione di
 capienza fisica NPC e delle presenze nel salvataggio.
+
+## M108 — capienza Classe 1 e percorsi EA WithTrait / NoTrait
+
+**Intervento codice completato (offline); nessuna nuova beta da installare.**
+
+Fonte EA effettiva già fornita dall'utente:
+`venues/weekly_schedule_zone_director.py` della sua Library,
+e tuning XML `293642, 293644, 304563, 304561`
+in `assets/ea_2026_11_01`.
+
+### Scoperta decisiva verificata sul sorgente originale
+
+`WeeklyScheduleSituationData.try_start` applica
+`modified_upper_bounds` sottraendo i conteggi già
+presenti in `situation_job_count`. La Classe 1 ha
+**DUE percorsi per un'unica aula MHS**:
+- **GoToClass1 WithTrait 293642**, sit 293815, job
+  277919, massimo tuning 6; sottrae il numero nel
+  player job `(284555,278117)`.
+- **GoToClass1 NoTrait 293644**, sit 304701, stesso
+  student job 277919 e limite 6; sottrae player
+  `(284555,278117)` **e** gli NPC del WithTrait
+  `(293815,277919)`.
+- **AttendClass1 WithTrait 304563**, sit 304565,
+  massimo 6; sottrae player `(276681,278117)`.
+- **AttendClass1 NoTrait 304561**, sit 304703,
+  massimo 6; sottrae player `(276681,278117)` e
+  NPC del WithTrait `(304565,277919)`.
+
+La corrispondenza di questi quattro insiemi di
+modificatori è ora verificata da test che leggono
+gli **XML EA reali**.
+
+**Non confondere i tre playable della famiglia con il numero di
+playable della Classe 1.** Il job EA player-phase
+può includere i Sim giocabili di entrambe le aule.
+Quindi sostituire un `upper_bound` 6 con 8
+senza guardare i modificatori è sbagliato.
+
+### Nuovo contatore a ID fissi
+
+`src/m108_native_roster/mhs108_class1_dual_route_budget.py`:
+
+- Ricostruisce e verifica il manifesto immutabile
+  **16 iscritti / 3 playable / 5 Core / 8 Base**;
+- per una sola delle quattro finestre EA (09:30,
+  10:00, 13:30, 14:00) verifica 16 ID sul lotto e
+  nelle situazioni scolastiche e gli ID dei
+  playable attualmente nella fase player EA;
+- per il percorso richiesto legge *i conteggi veri*
+  di player job e WithTrait job, e gli ID che
+  superano i veri test del percorso EA;
+- prenota nel piano solo gli NPC non ancora presi
+  dall'altro percorso della stessa aula, senza
+  cambiare il tratto nascosto `293779`;
+- propone una **capienza specifica per questa singola
+  chiamata**, non un nuovo limite globale:
+  `upper_proposto = playable_gia_contati_da_EA
+    + with_trait_precedenti_se_NoTrait
+    + NPC_idonei_rimasti_per_questa_chiamata`.
+  I modificatori EA, sottratti dall'originale,
+  lasciano esattamente i posti richiesti;
+- registra il risultato solo dopo il ritorno
+  positivo della situazione EA **e un riscontro
+  dei singoli ID**, senza chiamarlo presenza;
+  su risultato parziale/sbagliato o errore
+  blocca il resto della fase, non sostituisce;
+- consente che un percorso non abbia alcun
+  candidato, ma non considera completa la
+  classe finché entrambi sono terminati e il
+  gruppo assegnato coincide con tutti gli NPC
+  previsti dall'iscrizione;
+- non assume quale percorso venga primo:
+  i `WeeklyScheduleSituationSet` specifici
+  non sono ancora stati verificati per l'ordine.
+
+**Esempio concreto**: 1 playable in Classe 1,
+2 in Classe 2; devono entrare **7 NPC Classe 1**.
+Se il primo percorso prende 2 NPC, con 3
+playable globali già contati:
+- WithTrait: `upper` proposto **5** − 3 = **2 NPC**;
+- NoTrait: `upper` proposto **10** − 3 − 2
+  precedenti = **5 NPC**;
+- totale 2+5 NPC + 1 playable Classe 1 = **8**
+  iscritti della Classe 1, senza duplicati.
+Questo è un calcolo di capienza, **non** la prova
+che EA abbia eseguito le due situazioni.
+
+### Proiezione per-call senza modifiche globali
+
+`src/m108_native_roster/mhs108_class1_shadow_cap.py`
+genera una classe Python temporanea e separata
+che riprende il job, il SimFilter test di fase,
+le references ai modificatori, la situation
+EA e l'identità testuale di `creation_source`,
+ma usa il `upper_bound` calcolato per una
+singola chiamata. **Non cambia il tuning EA in
+memoria, nel package o nel save.**
+
+Il suo utilizzo effettivo con il metodo EA
+`WeeklyScheduleSituationData.try_start` è
+**ancora una tecnica da verificare sul runtime**:
+il proxy non è la vera classe con metaclass
+`HashedTunedInstanceMetaclass`; un unit test verde
+NON conferma la compatibilità nativa.
+Non installare il proxy nel gioco prima della
+verifica del tipo e delle condizioni d'invocazione.
+
+### Test e stato della release
+
+- `tests/test_m108_class1_dual_route_budget.py`
+  verifica i quattro tuning originali, numero
+  playable in Classe 1 = **0 / 1 / 2**, l'assenza
+  di alunni con trait, entrambi gli ordini dei
+  percorsi, contatori EA incoerenti, roster
+  manipolato/invalidato, nessun riempimento casuale.
+- `tests/test_m108_class1_shadow_cap.py`
+  verifica che la proiezione conservi gli oggetti
+  di test, situation, job e modificatori EA,
+  che il cap calcolato differisca dall'originale,
+  che l'originale rimanga intatto e che tuning
+  diversi o cambiati vengano rifiutati.
+- I test sono iscritti alla job
+  `capacity_mac_beta` in Python 3.7 e al
+  `unittest discover` generale. La CI
+  dell'ultimo commit risultava **queued**:
+  non dichiarare alcun PASS ancora.
+
+**Limite residuo:** i moduli di calcolo e di
+proiezione non sono ancora invocati dal
+`mhs108_ea_phase_adapter.py` nella versione
+installabile, né abbiamo dimostrato che EA
+accetti lo shadow tuning. Il vecchio adapter
+blocca correttamente la Classe 1 7/6, invece
+di inventare un superamento del cap.
+
+**Prossimo passo tecnico:** unire in modo
+sperimentale (solo offline) il calcolo condiviso
+con `try_start`, leggendo il `situation_job_count`
+EA e le reali idoneità per percorso, con copia
+temporanea non globale dei `job_assignments`.
+Poi servirà anche la prova di capienza del lotto,
+dei 16 partecipanti, e delle posizioni in aula.
+Solo dopo si valuterà una beta Mac.
+
+`main` e il save della giocatrice restano intatti.
