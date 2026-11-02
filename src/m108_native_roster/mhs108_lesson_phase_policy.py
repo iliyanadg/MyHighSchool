@@ -15,6 +15,10 @@ coordinate them, including original eligibility tests, upper-bound
 modifiers and actual job assignment.
 """
 
+from mhs108_native_invitation import (
+    prepare_fixed_manifest, InvitationPlanError,
+)
+
 EA_SCHOOL_SCHEDULES = frozenset((277657, 279958))
 
 # tuning ID: (period kind, MHS class, EA background situation,
@@ -67,9 +71,19 @@ def _manifest_groups(manifest):
     if not isinstance(manifest, dict):
         return None
     try:
-        groups = manifest['classes']
-        playable = _ids(manifest['playable'])
-        enrolled = _ids(manifest['all_16'])
+        canonical = prepare_fixed_manifest(
+            manifest['classes'], manifest['playable'],
+            dict(manifest['core_assignments']),
+            manifest['save_slot'], manifest['sim_day'],
+            manifest['school_zone'])
+        for key in ('classes', 'all_16', 'playable',
+                    'core_assignments', 'base_ids',
+                    'save_slot', 'sim_day', 'school_zone'):
+            if manifest.get(key) != canonical[key]:
+                return None
+        groups = canonical['classes']
+        playable = _ids(canonical['playable'])
+        enrolled = _ids(canonical['all_16'])
         if (manifest['status'] !=
                 'M108_INVITATIONS_PREPARED_NOT_GAME_AUTHORIZED'
                 or type(groups) not in (tuple, list) or len(groups) != 2
@@ -84,7 +98,7 @@ def _manifest_groups(manifest):
                 or not set(playable) <= set(enrolled)):
             return None
         return (class1, class2, playable, enrolled)
-    except (TypeError, KeyError):
+    except (TypeError, KeyError, ValueError, InvitationPlanError):
         return None
 
 
