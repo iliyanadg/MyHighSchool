@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 for p in ('src/m89_selection','src/m88_selection','src/m58_selection'):
     sys.path.insert(0,str(ROOT/p))
 from mhs89_precreate_hook import install
-from tests.test_m88_replace_guest import Job,Guest,List,GuestInfo
+from tests.test_m88_replace_guest import Job,Guest,List,GuestInfo,EmptyEAList
 class Situation:
     guid64=277733
 class Other:
@@ -32,6 +32,57 @@ class M89Tests(unittest.TestCase):
         self.assertEqual([x.sim_id for x in instance.requests[0][1].items],[555])
         self.assertEqual([x.sim_id for x in original.items],[0])
         self.assertFalse(instance.requests[0][2])
+    def test_original_ea_request_keeps_spinup_flags_and_observes_real_id(self):
+        class OriginalManager:
+            def __init__(self):
+                self.calls=[]
+            def create_situation(self,kind,guest_list=None,
+                                 spawn_sims_during_zone_spin_up=False,
+                                 user_facing=True,duration_override=None,
+                                 creation_source=None):
+                self.calls.append((
+                    kind,guest_list,spawn_sims_during_zone_spin_up,
+                    user_facing,duration_override,creation_source))
+                return 123456
+        acknowledgements=[]
+        def gate(manager,kind,guests,args,kwargs):
+            return (kwargs.get('spawn_sims_during_zone_spin_up') is True
+                    and kwargs.get('creation_source')=='EA weekly')
+        self.assertTrue(install(
+            OriginalManager,lambda *_:(555,True,True),
+            Job(),GuestInfo,1,context_checker=gate,
+            on_created=lambda sid,created:acknowledgements.append(
+                (sid,created))))
+        manager=OriginalManager()
+        result=manager.create_situation(
+            Situation(),guest_list=EmptyEAList(),
+            spawn_sims_during_zone_spin_up=True,
+            user_facing=False,duration_override=34,
+            creation_source='EA weekly')
+        self.assertEqual(result,123456)
+        self.assertEqual(len(manager.calls),1)
+        self.assertEqual(acknowledgements,[(555,123456)])
+        _,guests,spin,user,duration,source=manager.calls[0]
+        self.assertEqual([x.sim_id for x in guests.items],[555])
+        self.assertTrue(spin)
+        self.assertFalse(user)
+        self.assertEqual(duration,34)
+        self.assertEqual(source,'EA weekly')
+
+    def test_unverified_origin_never_rewrites_ea(self):
+        class OriginalManager:
+            def create_situation(self,kind,guest_list=None,**kwargs):
+                self.received=guest_list
+                return 42
+        self.assertTrue(install(
+            OriginalManager,lambda *_:(555,True,True),
+            Job(),GuestInfo,1,
+            context_checker=lambda *_:False))
+        manager=OriginalManager()
+        original=EmptyEAList()
+        manager.create_situation(Situation(),guest_list=original)
+        self.assertIs(manager.received,original)
+
     def test_outside_school_never_changes(self):
         Manager=manager()
         self.assertTrue(install(Manager,lambda *args:(555,True,True),Job(),GuestInfo,1))
