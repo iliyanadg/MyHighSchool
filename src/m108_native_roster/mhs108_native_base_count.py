@@ -98,6 +98,7 @@ def propose_native_base_count(original, schedule_guid, situation_guid,
             not _is_int(situation_guid) or
             situation_guid != BASE_SITUATION or
             not _context_valid(session, context) or
+            context.get('schedule_guid') != schedule_guid or
             not _manifest_valid(session)):
         return original
     if (not isinstance(original, tuple) or len(original) != 2
