@@ -195,3 +195,62 @@ I prossimi controlli riguardano `scripts/filters/sim_filter_service.py`
 della medesima installazione EA e solo in seguito `situation_job.py`.
 Non pubblicare beta in gioco prima che sia noto il percorso di
 accettazione degli ID espliciti.
+
+## Evidenza diretta: SimFilterService originale dell'installazione Mac
+
+La giocatrice ha fornito anche `scripts/filters/sim_filter_service.py`,
+ottenuto tramite Motherlode dalla propria installazione. Ricerche
+concluse sui 3 strati originali EA (guest list, Bouncer, filtri).
+
+**Diagnosi con riscontro nel codice:**
+- `_SimFilterRequest._find_sims_matching_filter` itera esclusivamente
+  sui SimID indicati da `sim_constraints`, ma chiama su ciascuno
+  `_calculate_sim_filter_score` e ammette **soltanto score > 0**.
+  VINCOLARE il Sim ID non equivale a ignorare il filtro Core/Mean EA.
+  Questo è il limite reale della strategia M104/M105/M106.
+- `_MatchingFilterRequest._run_filter_query`: se i constrained non
+  passano e `continue_if_constraints_fail=False`, la selezione
+  ritorna vuota; se `continue_if_constraints_fail=True`, può
+  consultare anche Sim diversi e creare extra.
+- `_MatchingFilterRequest._should_try_conform`: con vincoli espliciti
+  e **entrambi** i flag `continue_if_constraints_fail` e
+  `conform_if_constraints_fail` falsi, non crea un nuovo Sim
+  per conformarsi al filtro. L'assenza di fallback in QUESTO
+  stadio non elimina l'eventuale sostituzione nella BaseSituation.
+- `_MatchingFilterRequest._select_sims_from_results` rimuove anche
+  Sim già istanziati se `allow_instanced_sims=False` (il default);
+  blacklist globali o della richiesta possono respingere gli ID
+  anche con score positivo.
+- `_SimFilterRequest.__init__` assegna
+  `TunableSimFilter.BLANK_FILTER` quando `sim_filter=None`.
+  **Dato utile ma non soluzione:** i `additional_filter_terms`
+  del SituationJob si aggiungono comunque alle condizioni, e blacklist,
+  selezione/spawn e job assignment devono ancora riuscire.
+- Il Bouncer passa a `submit_matching_filter` il filtro del job,
+  gli ID vincolati, i blacklist e gli `additional_filter_terms`;
+  questo accade sia durante `_spawn_all_during_zone_spin_up` sia
+  durante `_spawn_sim_for_next_request`. Non è sufficiente
+  intercettare solo uno dei due percorsi.
+- Anche dopo `filter_results`, EA esegue callback di spawning e
+  poi `_can_assign_sim_to_request` prima di
+  `_assign_sim_to_request`. Né test su filter score né richiesta
+  di spawn provano l'appartenenza alla scuola.
+
+**Conclusione tecnica:** il problema va affrontato come **un'unica
+transazione scolastica**: 16 ID fissi, 3 playable, 13 richieste
+esplicite con niente sostituti; risoluzione dei requisiti nativi di
+ciascun job (anche filtri aggiuntivi), conteggio delle situazioni Base,
+fasi della lezione e verifica del budget Sim; il fallimento di un
+prerequisito lascia la scuola vanilla senza alterare il salvataggio.
+
+**File più utile ancora da analizzare:**
+`scripts/situations/situation_job.py`. Serve a verificare
+`get_auto_invite()`, `get_additional_filter_terms()`,
+`no_show_action`, i vincoli dello studente e i default
+dei ruoli: evita di proporre `BLANK_FILTER` come scorciatoia
+senza aver verificato i requisiti aggiuntivi del job.
+
+**Nessuna modifica del gioco è stata fatta da questa analisi.**
+La beta M106 precedente resta bloccata nel salvataggio reale;
+i test offline superati non devono essere nuovamente confusi
+con il successo in-game.
