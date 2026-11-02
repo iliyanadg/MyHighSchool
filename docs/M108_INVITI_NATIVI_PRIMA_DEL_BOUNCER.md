@@ -172,3 +172,78 @@ iscritti ai loro SituationJob durante entrambi i percorsi
 cambiare i filtri globali di tutto il gioco. Anche questa
 modifica dovrà rifiutare qualunque fallback casuale se
 i vincoli originali non possono essere dimostrati.
+
+## Avanzamento M108 — filtri per richiesta Bouncer, NON globali
+
+Sorgenti EA originali verificati insieme (caricati dalla giocatrice):
+`bouncer.py`, `bouncer_request.py`, `sim_filter_service.py`,
+`situation_job.py`, `base_situation.py`.
+
+**Scoperta tecnica confermata dal codice originale:**
+`BouncerRequest.__init__` salva `_sim_filter=job_type.filter`
+e `_constrained_sim_ids={requested_sim_id}`.
+Il Bouncer consulta lo stesso `request._sim_filter` e
+`request.get_additional_filter_terms()` in **quattro punti**
+distinti: selezione dei Sim già presenti,
+selezione dei Sim già istanziati che cercano altri lavori,
+`_spawn_all_during_zone_spin_up` e
+`_spawn_sim_for_next_request`.
+Cambiare soltanto `SimFilterService.submit_matching_filter` non
+copre tutti questi punti. Cambiare il `SituationJob.filter` globale
+è pericoloso perché può influire su altri lotti e situazioni.
+
+**Codice aggiunto:**
+`src/m108_native_roster/mhs108_school_filter_scope.py`.
+È una prova architetturale **solo offline**:
+- richiede un piano di iscritti 3+5+8 e i cinque Core già
+  prenotati *internamente alla mod* prima del calendario;
+- ammette soltanto richieste con Sim ID ESPLICITO e vincolo
+  esattamente di un ID, senza `continue_if_constraints_fail`;
+- verifica situazione EA originale Base/Core, **SituationJob corretto**,
+  adulto escluso, specie umana, età adolescente, Sim NPC
+  non selezionabile, stessa zona/giorno/save;
+- non modifica dati Sim, tratti, `SituationJob.filter`, blacklist,
+  esclusività o lavoro del Sim;
+- **soltanto sulla singola richiesta** può sostituire
+  temporaneamente `_sim_filter` con un filtro vuoto
+  pre-verificato e disabilitare i termini aggiuntivi del job
+  per quella medesima richiesta;
+- rifiuta gli NPC casuali, i playable, le richieste tardive
+  del salvataggio, gli studenti di altri ruoli, situazioni
+  estranee e contesto non verificato;
+- ripristina il filtro originale a uninstall o se il contesto
+  scuola/save/day risulta diverso;
+- espone solo `requests_proposed`, **mai conferma presenze**.
+
+`tests/test_m108_school_filter_scope.py` verifica i casi
+positivi/negativi, l'isolamento degli altri job, il ripristino
+e l'installazione negata se manca anche un solo gate.
+
+**AVVERTENZE REALI:**
+1. `install_offline_only` non è importato da nessuna build del
+   gioco; i `REQUIRED_FILTER_PROOF` di CI sono sintetici.
+   Non esiste ancora una fonte runtime verificata che
+   autorizzi tutti i flag.
+2. Il filtro vuoto non garantisce, da solo, spawn o accettazione:
+   restano blacklist, job test, incompatibilità delle situazioni,
+   cap Sim del lotto, RoleState, e callback Bouncer.
+3. Il controllo `SituationJob.can_sim_be_given_job`
+   esegue ancora il filtro nativo originale quando il job stesso
+   non è stato cambiato. `BaseSituation` sembra proseguire
+   in un punto dopo un warn, ma bisogna verificare il percorso
+   completo fino al ruolo e alla lezione.
+4. `BaseSituation.submit_replace_request` e
+   `on_failed_to_spawn_sim_for_request` possono invocare
+   `BouncerRequest.clone_for_replace()`, che **omette l'ID**:
+   un sim fuori elenco può ancora essere convocato dopo no-show
+   o abbandono. **Blocco no-show non ancora installato.**
+5. Il carico di nove situazioni native (8 Base e 1 Core)
+   e il cambio delle fasi Class1 6→8 non sono risolti.
+6. Il codice EA decompilato rimane nei caricamenti della
+   conversazione e NON viene ripubblicato nel repository.
+
+**Decisione:** il prossimo intervento necessario prima
+di una beta è una protezione *school-only* contro la
+`clone_for_replace` che elimina l'ID richiesto, oltre alla
+verifica del conteggio EA Base e della capienza scolastica.
+Non chiedere alcuna prova in gioco adesso. `main` resta intatto.
