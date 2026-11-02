@@ -27,8 +27,8 @@ ADDED=(
     ROOT/'src'/'m101_original_slot'/'mhs101_original_slot_gate.py',
     ROOT/'src'/'m101_original_slot'/'mhs101_original_slot_runtime.py',
 )
-PKG='MHS_M101_UNO_SLOT_EA_MAC_TEST.package'
-SCRIPT='MHS_M101_UNO_SLOT_EA_MAC_TEST.ts4script'
+PKG='MHS_M101B_FILTRO_EA_DIAGNOSTICA_MAC_TEST.package'
+SCRIPT='MHS_M101B_FILTRO_EA_DIAGNOSTICA_MAC_TEST.ts4script'
 COUNT=40
 
 def script_sources():
@@ -73,7 +73,7 @@ def release(folder):
             if mandatory not in files:
                 raise RuntimeError('Missing one-slot Mac module: '+mandatory)
     summary={
-        'status':'M101_OPT_IN_ONE_ORIGINAL_EA_SLOT_MAC_TEST_NOT_16_STUDENTS',
+        'status':'M101B_OPT_IN_ORIGINAL_EA_SLOT_FILTER_DIAGNOSTIC_ONLY',
         'package_resources':63,'compiled_modules':COUNT,
         'EA_tuning_replaced':False,
         'armed_on_start':False,
@@ -85,7 +85,7 @@ def release(folder):
         'package_sha256':hashlib.sha256(package).hexdigest(),
         'game_report':'MHS_M101_UNO_SLOT_EA.json'
     }
-    (root/'MHS_M101_BUILD_REPORT.json').write_text(
+    (root/'MHS_M101B_BUILD_REPORT.json').write_text(
         json.dumps(summary,indent=2,sort_keys=True))
     return summary
 
