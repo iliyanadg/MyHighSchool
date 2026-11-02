@@ -93,16 +93,26 @@ class NativeInvitationTests(unittest.TestCase):
         for classes, playable, core in (
             (bad, PLAYABLE, CORE),
             (CLASSES, ('1', '9', '30'), CORE),
-            (CLASSES, PLAYABLE, dict(CORE, **{})),
+            (CLASSES, PLAYABLE,
+             {k: v for k, v in CORE.items() if k != 303765}),
             (CLASSES, PLAYABLE, dict(zip(CORE_JOBS, ['2'] * 5)))):
-            if core == CORE and classes == CLASSES and playable == PLAYABLE:
-                continue
             with self.assertRaises(InvitationPlanError):
                 prepare_fixed_manifest(classes, playable, core, 11, 12, 777)
         with self.assertRaises(InvitationPlanError):
             prepare_fixed_manifest(CLASSES, PLAYABLE, CORE, 11, -1, 777)
         with self.assertRaises(InvitationPlanError):
             prepare_fixed_manifest(CLASSES, PLAYABLE, CORE, True, 12, 777)
+
+    def test_manifest_is_revalidated_then_frozen_before_any_invites(self):
+        original = prepare_fixed_manifest(CLASSES, PLAYABLE, CORE, 11, 12, 777)
+        corrupted = dict(original)
+        corrupted['base_ids'] = ('999',) * 8
+        with self.assertRaises(InvitationPlanError):
+            SchoolNativeGuestSession(corrupted, EAInfo, 'INVITED', JOBS)
+        s = SchoolNativeGuestSession(original, EAInfo, 'INVITED', JOBS)
+        original['base_ids'] = ('999',) * 8
+        self.assertEqual(s.manifest['base_ids'],
+                         ('5', '6', '7', '8', '12', '13', '14', '15'))
 
     def test_unverified_context_never_prepares_mutation(self):
         s = session()
