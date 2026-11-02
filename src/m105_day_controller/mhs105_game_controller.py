@@ -17,7 +17,7 @@ import sims4.commands
 from date_and_time import sim_ticks_per_day
 from mhs_m2_game_bridge import current_slot
 from mhs57_filter_policy import guid_for_filter
-from mhs105_live_preflight import prepare_live_school_day,diagnose_live_role_choices
+from mhs105_live_preflight import prepare_live_school_day,diagnose_live_role_choices,find_outside_mean_candidates
 from mhs105_native_session import SchoolSession,EXPECTED_SCHOOL_FILTERS
 from mhs105_live_core_binding import inspect_core_jobs
 from mhs105_schedule_runtime import arm_schedule_observation,observation_status
@@ -270,6 +270,17 @@ def _idonei_command(_connection=None):
             sims4.commands.output(str(row),_connection)
     except Exception as exc:
         sims4.commands.output('M105 DIAGNOSI NON DISPONIBILE: '+type(exc).__name__,
+                             _connection)
+
+@sims4.commands.Command('mhs105.cerca_perfido',
+                        command_type=sims4.commands.CommandType.Live)
+def _find_mean_command(_connection=None):
+    # Diagnosis only; never changes the manually chosen class roster.
+    try:
+        for line in find_outside_mean_candidates():
+            sims4.commands.output(str(line),_connection)
+    except Exception as exc:
+        sims4.commands.output('M105 RICERCA NON DISPONIBILE: '+type(exc).__name__,
                              _connection)
 
 @sims4.commands.Command('mhs105.check',
