@@ -3,9 +3,14 @@ import sys
 import unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'src'/'m105_day_controller'))
+for sub in ('m105_day_controller','m97_core_reservations','m93_core','m92_full_roster','m96_scheduler'):
+    sys.path.insert(0,str(ROOT/'src'/sub))
 from mhs105_atomic_school_roster import (
     plan_school_day,BASE_JOB,CORE_JOBS,ALL_JOBS)
+from mhs97_early_role_plan import early_role_plan
+from mhs92_atomic_16 import full_cohort_plan
+from mhs96_exact_school_count import approved_base_count
+from types import SimpleNamespace
 
 CLASSES=(tuple(str(n) for n in range(1,9)),
          tuple(str(n) for n in range(9,17)))
@@ -71,10 +76,6 @@ class FullDayEAAllocationTests(unittest.TestCase):
         self.assertIn('not eligible',result['reason'])
 
     def test_pins_must_be_unique_nonplayable_and_enrolled(self):
-        for bad in (
-            dict(PINS,**{}),
-        ):
-            self.assertEqual(len(bad),5)
         duplicate=dict(PINS);duplicate[CORE_JOBS[1]]='2'
         self.assertEqual(plan_school_day(
             CLASSES,PLAYED,live_filters(),duplicate)['status'],'BLOCKED')
@@ -124,6 +125,33 @@ class FullDayEAAllocationTests(unittest.TestCase):
             CLASSES,('1','9','99'),filt,PINS)['status'],'BLOCKED')
         self.assertEqual(plan_school_day(
             CLASSES,('1','9','9'),filt,PINS)['status'],'BLOCKED')
+
+    def test_handoff_to_existing_m97_m92_m96_gates(self):
+        plan=plan_school_day(CLASSES,PLAYED,live_filters(),PINS)
+        self.assertEqual(plan['status'],'PREPARED_NOT_EA_BOUND')
+        core=dict(plan['core_role_assignments'])
+        # M97 also validates all five real job-specific eligibility sets
+        # and documents that the result has NOT been applied to EA yet.
+        role_plan=early_role_plan(
+            CLASSES,PLAYED,core,
+            {job:live_filters()[job] for job in CORE_JOBS})
+        self.assertEqual(role_plan['status'],
+                         'EARLY_ROLE_PLAN_VALIDATED_NOT_EA_BOUND')
+        self.assertEqual(tuple(role_plan['normal_npcs']),
+                         plan['normal_base_ids'])
+        manifest=SimpleNamespace(class_ids=CLASSES,
+             all_student_ids=frozenset(CLASSES[0]+CLASSES[1]),
+             active_household_teens=frozenset(PLAYED))
+        full=full_cohort_plan(
+            manifest,plan['normal_base_ids'],PLAYED,
+            tuple(core.values()),base_job_slots=8,phase1_slots=8,
+            phase2_slots=8,zone_cap_free_or_reserved=16,
+            ea_filters_verified=True,core_role_jobs=core)
+        self.assertEqual(full['status'],'READY_FOR_ADAPTER')
+        self.assertEqual(full['base_invites_needed'],8)
+        # The count hook REJECTS hypothetical capacity and unbound
+        # pre-school reservations. Do not turn it on until truly bound.
+        self.assertIsNone(approved_base_count(277657,277733,full))
 
     def test_does_not_mutate_input_roles_or_filter_lists(self):
         pins=dict(PINS)
