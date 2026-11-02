@@ -303,7 +303,54 @@ jobs:
         with:
           python-version: '3.7'
       - name: Test fixed 16 students without mandatory EA Mean eligibility
-        run: python -m unittest tests.test_m106_roster_first_policy tests.test_m106_bridge_arguments tests.test_m106_live_preflight -v
+        run: python -m unittest tests.test_m106_roster_first_policy tests.test_m106_bridge_arguments tests.test_m106_live_preflight tests.test_m106_school_session tests.test_m106_game_connector tests.test_m106_pilot_release -v
+
+  m106_mac_native_pilot:
+    name: M106 Mac native Core/Base pilot (not 16-in-game validation)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Validate M106 fixed roster and native request delegation
+        run: python -m unittest tests.test_m106_roster_first_policy tests.test_m106_bridge_arguments tests.test_m106_live_preflight tests.test_m106_school_session tests.test_m106_game_connector tests.test_m106_pilot_release -v
+      - name: Compile verified Python 3.7 M106 Mac native pilot
+        run: python -m tooling.build_mhs106_pilot dist_m106/
+      - name: Verify M106 53 compiled modules and archive safety flags
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_mhs106_pilot import PACKAGE,SCRIPT,ZIP,REPORT
+          folder=Path('dist_m106')
+          report=json.loads((folder/REPORT).read_text())
+          assert report['compiled_python37_modules']==53
+          assert report['package_resources']==76
+          assert report['release_ready'] is False
+          assert report['full_16_attendance_verified'] is False
+          assert report['ea_base_schedule_count_override_enabled'] is False
+          with ZipFile(str(folder/SCRIPT)) as script:
+              names=script.namelist()
+              assert len(names)==53
+              assert 'mhs106_game_controller.pyc' in names
+              assert 'mhs106_school_session.pyc' in names
+              assert 'mhs106_roster_first_policy.pyc' in names
+              assert all(script.read(n)[:4]==bytes((66,13,13,10))
+                         for n in names)
+          with ZipFile(str(folder/ZIP)) as bundle:
+              assert set(bundle.namelist())=={
+                  PACKAGE,SCRIPT,REPORT,'LEGGIMI_M106_PILOT.txt'}
+          print('M106 native Mac pilot compile passed; gameplay unverified')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M106_ROSTER_FIRST_MAC_PILOT_NON_VALIDATO_IN_GIOCO
+          path: |
+            dist_m106/MHS_M106_ROSTER_FIRST_MAC_PILOT_INSTALLAZIONE.zip
+            dist_m106/MHS_M106_PILOT_REPORT.json
+          if-no-files-found: error
 
   m105_mac_3_5_8_beta:
     runs-on: ubuntu-22.04
