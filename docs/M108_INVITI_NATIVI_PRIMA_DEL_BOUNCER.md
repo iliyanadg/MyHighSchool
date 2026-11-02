@@ -503,3 +503,78 @@ prima di reclamare le presenze 16/16.
 GitHub Actions dell'ultimo commit va controllato:
 **nessun test M108 viene dichiarato superato soltanto
 perché è stato inviato**. `main` e il gioco restano intatti.
+
+### Punto d'aggancio EA delle lezioni: codice originale recuperato dalla Library
+
+Recuperato **senza chiedere nuovi file all'utente** il suo
+`weekly_schedule_zone_director.py` dalla Library: metodo
+`WeeklyScheduleSituationData.try_start(cls, sims, sim_info,
+duration, additional_sim_ids, situation_job_count)`.
+
+Comportamento originale verificato nel sorgente EA:
+1. Calcola un `modified_upper_bounds` per job,
+   sottraendo i conteggi delle situazioni e dei job
+   indicati dagli `upper_bound_count_modifiers`.
+2. Scorre **due volte i Sim realmente istanziati**
+   su un insieme `sims`: prima riempie i job con
+   requisito minimo, poi quelli con minimo già raggiunto.
+   Per ogni Sim usa `DoubleSimResolver` ed esegue
+   `job_entry.tests.run_tests(resolver)` della fase EA.
+3. Crea **una sola** `SituationGuestList(invite_only=True)`
+   con gli ID selezionati e la passa al
+   `SituationManager.create_situation(...,
+   spawn_sims_during_zone_spin_up=True)`.
+4. **Solo se** `situation_id is not None` esegue
+   `sims.difference_update(assigned_sims)` e aggiorna
+   `situation_job_count`.
+5. Per `304570` non si può eliminare il personale
+   dalla lista delle candidature, perché la stessa
+   situazione contiene job dei professori e del preside.
+
+**Nuovo modulo disattivato:**
+`src/m108_native_roster/mhs108_ea_phase_adapter.py`.
+Intercetta solo il classmethod EA `try_start` e solo
+per i sei `phase_data_guid` scolastici già verificati.
+Su contesto attivo e validato:
+- convalida GUID situazione+job del tuning runtime;
+- richiede osservazioni di 16 iscritti presenti, ruoli
+  EA, idoneità di fase e staff;
+- seleziona in un **set locale** soltanto gli NPC
+  iscritti alla specifica classe, e aggiunge gli ID
+  staff verificati SOLO nelle fasi "Others" che
+  possiedono job del personale;
+- chiama il metodo EA originale **una volta sola**;
+- se EA ritorna una situation ID, propaga al set
+  originale soltanto le rimozioni effettivamente
+  eseguite dal metodo nativo; altrimenti lascia
+  il set originale intatto;
+- se gli otto iscritti o i requisiti non sono
+  verificati, non crea situazioni scolastiche
+  casuali né modifica tratti; restituisce None
+  per quella fase verificata ma non autorizzata;
+- su evento non scolastico, o mod MHS non attiva,
+  il comportamento EA rimane originale.
+
+`tests/test_m108_ea_phase_adapter.py` testa il
+percorso EA simulato, l'ordine corretto dei candidati,
+il personale, l'isolamento degli altri eventi,
+l'assenza di rimozione dei Sim senza creazione,
+il blocco per Classe 1 con richiesta 7/6,
+il contesto inattivo, gli errori di tuning,
+la doppia installazione e il ripristino.
+
+**NON è ancora una release.** I flag runtime
+`REQUIRED_LIVE_GATES` sono una simulazione nei test
+e non hanno ancora un provider verificato nel gioco.
+Il metodo originale usa ancora i test con trait
+e i modificatori: per le varianti Classe 1 bisogna
+coordinare entrambe le istanze e risolvere il
+cap 6 senza spostare NPC o cambiare personalità.
+Non affermare che gli otto studenti siano seduti
+perché una situazione EA è stata creata.
+
+Il prossimo controllo necessario è far combaciare
+le due varianti `WithTrait/NoTrait` con un budget
+totale di Classe 1 e proteggere i job docente
+durante la selezione, quindi la validazione di
+capienza fisica NPC e delle presenze nel salvataggio.
