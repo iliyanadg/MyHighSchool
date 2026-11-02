@@ -63,7 +63,7 @@ class RealSaveRegression(unittest.TestCase):
         self.assertTrue(set(x for _,x in p['original_assigned_core'])<=ids)
         self.assertTrue(set(p['remaining_original_base'])<=ids)
         self.assertNotIn('99999',ids)
-        self.assertIn('filtro autonomo',summary(p))
+        self.assertIn('filtro autonomo',' '.join(summary(p)))
         
     def test_missing_real_filter_data_is_not_a_success(self):
         f=dict(FILTERS)
@@ -72,7 +72,8 @@ class RealSaveRegression(unittest.TestCase):
             CLASSES,PLAYABLE,PINS,f)['status'],'INVALID_ROSTER_AUDIT')
 
     def test_invalid_manual_roles_are_not_reallocated(self):
-        p=dict(PINS,**{303765:'9'})
+        p=dict(PINS)
+        p[303765]='9'
         self.assertEqual(audit_fixed_roster(
             CLASSES,PLAYABLE,p,FILTERS)['status'],'INVALID_ROSTER_AUDIT')
 
