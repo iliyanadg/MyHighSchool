@@ -113,6 +113,28 @@ class ControllerTests(unittest.TestCase):
         self.assertFalse(gate(conflict))
         self.assertFalse(gate(missing))
 
+    def test_check_never_claims_ea_role_if_not_at_verified_school(self):
+        captured={}
+        session=SimpleNamespace(
+            save_slot='11',sim_day=24,home_zone='100',
+            evidence=lambda:{
+                'core_requests_constrained':5,
+                'base_student_targets_constrained':8,
+                'school_zone':'401'})
+        ns={'_SESSION':session,'_LAST':captured,'_REPORT':'report.json',
+            '_save':lambda:None,
+            'current_slot':lambda allow_travel:'11',
+            '_day':lambda:24,'_zone':lambda:'100',
+            '_school_schedule_verified':lambda:False}
+        fn=compile_fn('check',ns)
+        message=fn()
+        self.assertIn('UNKNOWN',message)
+        self.assertEqual(
+            captured['actual_ea_core_role_evidence']['status'],'UNKNOWN')
+        self.assertFalse(
+            captured['actual_ea_core_role_evidence'][
+                'actual_ea_core_binding_verified'])
+
     def test_no_situation_guest_change_or_slot_count_activated(self):
         self.assertNotIn('create_situation(',SOURCE)
         self.assertNotIn('SituationGuestList',SOURCE)
