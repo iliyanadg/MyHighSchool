@@ -76,6 +76,8 @@ def reconcile_16_school_members(manifest,job_audit,phase_key,
                 or context.get('observed_player_ea_job_verified') is not True
                 or context.get('observed_zone_teens_verified') is not True
                 or context.get('post_bouncer_phase_verified') is not True
+                or context.get('ea_all_classroom_phase_situations_verified')
+                   is not True
                 or context.get('zone_id')!=canonical['school_zone']
                 or context.get('time_window')!=phase_key[3]):
             return _blocked('UNVERIFIED_LIVE_OBSERVATIONS')
@@ -115,6 +117,17 @@ def reconcile_16_school_members(manifest,job_audit,phase_key,
                 return _blocked('DUPLICATE_SCHOOL_CLASS_MEMBERSHIP')
             seen[index].update(student_ids)
             statuses.append(('verified',sid))
+        native_phase_ids=_set_of_ids(
+            context.get('observed_ea_classroom_phase_situation_ids'))
+        if native_phase_ids is None:
+            return _blocked('NATIVE_SITUATION_ENUMERATION_UNVERIFIED')
+        recorded_phase_ids=set(str(sid) for _,sid in statuses)
+        if native_phase_ids!=recorded_phase_ids:
+            return _blocked('UNTRACKED_NATIVE_CLASSROOM_SITUATIONS',
+                            untracked_situation_ids=tuple(sorted(
+                                native_phase_ids-recorded_phase_ids)),
+                            missing_situation_ids=tuple(sorted(
+                                recorded_phase_ids-native_phase_ids)))
         if any(status!='verified' for status,_ in statuses):
             return _blocked('NATIVE_EA_JOBS_PENDING_OR_REJECTED',
                             phase_situation_states=tuple(statuses))
