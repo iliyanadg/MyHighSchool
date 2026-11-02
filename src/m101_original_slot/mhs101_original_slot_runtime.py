@@ -36,6 +36,7 @@ _ARMED=None
 _STATE={'phase':'NOT_ARMED'}
 _PILOT=OneSlotPilot()
 _INSTALLED=False
+_FILTER_CHECKED=False
 
 def _now_day():
     service=services.time_service()
@@ -123,7 +124,8 @@ def _actual_filter_ids(ordinary):
     enrolled teen age or arbitrary SimInfo IDs. Never spawns a Sim.
     """
     evidence={'requested_filter_guid':_FILTER,'candidate_count':len(ordinary),
-              'phase':'NOT_QUERIED','eligible_count':0}
+              'phase':'NOT_QUERIED','eligible_count':0,
+              'runtime_source':'M101C_EA_FILTER_DIAGNOSTICA'}
     try:
         if not hasattr(Types,'SIM_FILTER'):
             evidence['phase']='MISSING_SIM_FILTER_RESOURCE_TYPE'
@@ -144,6 +146,13 @@ def _actual_filter_ids(ordinary):
         if not callable(method):
             evidence['phase']='NO_SUBMIT_FILTER_METHOD'
             return (),evidence
+        evidence['service_type']=type(service).__name__
+        evidence['method_name']=getattr(method,'__name__',type(method).__name__)
+        evidence['method_module']=getattr(method,'__module__','unknown')
+        try:
+            evidence['method_signature']=str(inspect.signature(method))[:320]
+        except Exception:
+            evidence['method_signature']='UNAVAILABLE'
         evidence['phase']='CALLING_EA_FILTER'
         actual=method(sim_filter=filt,sim_constraints=ordinary,
                       allow_yielding=False)
@@ -169,10 +178,25 @@ def _actual_filter_ids(ordinary):
     except Exception as exc:
         evidence['phase']='EA_FILTER_QUERY_EXCEPTION'
         evidence['exception_type']=type(exc).__name__
+        # A catch-all TypeError label was not enough to identify the
+        # mismatch. Record a bounded, single-line error message for the
+        # private diagnostic report; no Sims IDs or names are included.
+        evidence['exception_message']=' '.join(str(exc).split())[:300]
+        try:
+            import traceback
+            frames=traceback.extract_tb(exc.__traceback__)
+            if frames:
+                last=frames[-1]
+                evidence['exception_location']={
+                    'module_file':os.path.basename(last.filename),
+                    'function':last.name,
+                    'line':last.lineno}
+        except Exception:
+            pass
         return (),evidence
 
 def arm():
-    global _ARMED,_PILOT
+    global _ARMED,_PILOT,_FILTER_CHECKED
     try:
         slot,classes,playable,ordinary,present=_valid_roster()
         day=_now_day()
@@ -184,6 +208,7 @@ def arm():
             raise RuntimeError('aggancio originale EA non disponibile')
         _ARMED=(str(slot),day)
         _PILOT=OneSlotPilot()
+        _FILTER_CHECKED=False
         _set('ARMED_BEFORE_SCHOOL',save_slot=str(slot),school_day=day,
              enrolled_count=16,npc_count=len(ordinary),
              playables=len(playable))
@@ -205,7 +230,8 @@ def _context(manager,situation_type,guest_list,args,kwargs):
     return True
 
 def _resolve(manager,situation,guests):
-    if _ARMED is None:
+    global _FILTER_CHECKED
+    if _ARMED is None or _FILTER_CHECKED:
         return None
     try:
         data=_valid_roster()
@@ -213,6 +239,9 @@ def _resolve(manager,situation,guests):
             _set('SKIPPED_INVALID_ROSTER')
             return None
         slot,classes,playable,ordinary,present=data
+        # The EA schedule may request several Base situations at spin-up.
+        # Inspect the live filter API at most once in this opt-in pilot.
+        _FILTER_CHECKED=True
         eligible,filter_evidence=_actual_filter_ids(ordinary)
         if not eligible:
             # Save the FIRST informative diagnostic rather than overwriting
