@@ -410,3 +410,96 @@ distinti e preserva lo stesso tipo di situazione EA.
 che il motore EA accetti o faccia apparire 13 NPC.
 La CI GitHub dell'ultimo commit risultava **queued**
 al momento della verifica (non superata).
+
+## Avanzamento M108 — smistamento dei 16 iscritti nelle lezioni (SOLO offline)
+
+**Nuovo modulo:** `src/m108_native_roster/mhs108_lesson_phase_policy.py`.
+
+Analizzati i sei dati originali `WeeklyScheduleSituationData` in
+`assets/ea_2026_11_01`:
+
+| Dato EA | Momento | Classe MHS | Situation EA | Job alunno | Max NPC tuning |
+|---|---|---|---|---|---|
+| 293642 | Vai in classe, con trait | 1 | 293815 | 277919 | 6 |
+| 293644 | Vai in classe, senza trait | 1 | 304701 | 277919 | 6 |
+| 297773 | Vai in classe, altri | 2 | 297774 | **277919** | 8 |
+| 304561 | Lezione, senza trait | 1 | 304703 | 277919 | 6 |
+| 304563 | Lezione, con trait | 1 | 304565 | 277919 | 6 |
+| 304570 | Lezione, altri | 2 | 304567 | **280777** | 8 |
+
+**Punto nuovo fondamentale:** nella fase *Vai in classe*, anche
+la situation "Others" usa il job **277919**. Il Job ID da solo
+NON determina l'aula. Serve la combinazione
+`phase_data_guid + situation_guid + job_guid + SimID iscritto`.
+Le due varianti Classe 1 con/senza trait nascosto **sono lo
+stesso gruppo MHS**, non due classi diverse. Non assegnare
+il trait EA 293779 a caso.
+
+La fase "Others" Lezione 304570 include anche **job docente
+277918** e **preside 278224**. La policy isola soltanto
+il job studente 280777, non altera il personale.
+
+**Finestre EA mantenute:** 09:30 "Vai in classe",
+10:00 Lezione, 13:30 "Vai in classe", 14:00 Lezione.
+La policy è applicabile solo a queste finestre e ai due
+calendari liceo verificati 277657/279958.
+
+**Conteggio autentico per classe (non 8 NPC ciascuna):**
+`need_npc_class = 8 - enrolled_playable_in_class`.
+Esempio: 1 giocabile Classe 1 significa 7 NPC Classe 1;
+2 giocabili Classe 2 significa 6 NPC Classe 2.
+La vecchia Classe 1 con limite 6 ha quindi **almeno un posto
+mancante** nel tuning nominale (oltre ai modificatori EA, che
+possono ridurre ulteriormente). In un gruppo senza giocabili
+la Classe 1 può richiedere **8 NPC**: mancano fino a due posti.
+Non è dimostrato che una semplice modifica del cap
+porti 8 alunni a lezione.
+
+**Nuove funzioni della policy:**
+- `propose_phase_students` convalida tutto il
+  manifesto 3 giocabili/5 Core/8 Base senza modificarlo;
+  legge registrazione 8+8, save, giorno, zona, calendario,
+  fase, native situation e job; esige come input liste
+  **osservate in-game** di Sim presenti, partecipanti
+  effettivi a EA school situation ed eleggibilità dei
+  test di fase. Propone solo NPC della classe scelta.
+- Indica specificamente `REGISTERED_STUDENT_ABSENT`,
+  `EA_SCHOOL_ROLE_MISMATCH`,
+  `NATIVE_PHASE_ELIGIBILITY_BLOCKED`,
+  `NATIVE_PHASE_CAPACITY_BLOCKED`,
+  `PROPOSED_NOT_EA_ASSIGNED`. Non inventa NPC
+  sostitutivi e non sposta uno studente di classe.
+- `assess_native_phase_result` distingue appartenenza
+  ai job di fase EA da **alunni seduti davvero**.
+  Richiede liste di job realmente osservate, aggregate
+  sulle due varianti Class1 WithTrait/NoTrait;
+  una proposta senza osservazione non passa.
+- Si tratta di una **politica Python priva di effetti**:
+  non chiama EA `try_start`, non scrive tuning, non crea
+  situazioni e non porta Sims in aula.
+
+**Test aggiunti:** `tests/test_m108_lesson_phase_policy.py`:
+- confronta GUID, job, situations e limiti di **tutti e 6
+  gli XML originali EA**, non soltanto fake;
+- prova tutte le quattro finestre e le distribuzioni
+  playable 1+2, 2+1, 0+3 (senza cambiare i cinque
+  ruoli Core scelti);
+- esclude gruppi/salvataggi/ore sbagliati, extra casuali,
+  studenti mancanti, trait scambiati per iscrizione,
+  personale e manifesti modificati;
+- separa appartenenza native EA, presenza e verifiche dei
+  posti realmente occupati.
+
+**Limite attuale da NON occultare:** la policy identifica
+il punto di blocco ma non è ancora un hook capace di
+superare i test trait/upper bound di
+`WeeklyScheduleSituationData.try_start`.
+Prima della prossima beta serve una soluzione che agisca
+**all'interno dell'assegnazione EA** per i soli SimID
+della classe e preservi i due job del personale.
+Dopo di ciò, occorre un test integrato unico
+prima di reclamare le presenze 16/16.
+
+GitHub Actions dell'ultimo commit va controllato:
+**nessun test M108 viene dichiarato superato soltanto
+perché è stato inviato**. `main` e il gioco restano intatti.
