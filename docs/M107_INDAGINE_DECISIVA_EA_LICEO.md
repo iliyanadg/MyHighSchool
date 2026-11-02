@@ -97,3 +97,59 @@ di beta per singolo NPC.
 Un test Python o GitHub Actions verde non soddisfa i criteri di
 presenza nel gioco; servirebbe **un solo** test integrato su copia
 del salvataggio, dopo il superamento di questi controlli.
+
+## Analisi di prima mano degli script EA caricati il 2 novembre
+
+La giocatrice ha estratto la propria installazione EA con Motherlode e
+fornito **i file sorgente decompilati**, non soltanto screenshot:
+`situations/bouncer/bouncer.py`,
+`situations/bouncer/bouncer_request.py`,
+`situations/bouncer/bouncer_client.py`,
+`situations/bouncer/bouncer_types.py` e
+`situations/bouncer/specific_sim_request_factory.py`.
+
+Si annotano solo fatti tecnici sintetici, non si copia il sorgente EA
+nel repository pubblico.
+
+**Prove rilevanti nell'attuale codice EA:**
+- `BouncerRequest.__init__` accetta `requested_sim_id` e
+  `accept_alternate_sim=False`. Una richiesta esplicita viene marcata
+  diversa da una non esplicita nella priorità della Bouncer.
+- La richiesta contiene `job_type` e viene associata a una specifica
+  situazione. L'ID, da solo, non autorizza arbitrariamente il Sim ad
+  assumere quel job: il Bouncer richiama il `SimFilterService` e usa
+  anche blacklist e additional filter terms.
+- Nei due percorsi EA, istanziazione in zone spin-up e chiamate successive,
+  l'ID richiesto può diventare `sim_constraints`: questo è il punto in
+  cui le modifiche tardive ai filtri della M105/M106 hanno fallito.
+- La `SpecificSimRequestFactory` non è un invito generalizzato di un
+  Sim assente: la factory imposta `CANNOT_SPAWN` nelle richieste create
+  per Sim già presenti. **Non usarla per promettere 13 NPC convocati**.
+- Il Bouncer gestisce anche richieste di **prenotazione SimID** e può
+  elevare la capacità NPC tramite `add_npc_cap_modifier(1)`. Va verificato
+  se e quando lo specifico `SituationManager` scolastico ne fa uso;
+  non aumentare il cap genericamente.
+- Il Bouncer applica regole di esclusività per evitare doppie situazioni
+  incompatibili e gestisce NPC soft-cap: un invito esatto può comunque
+  essere respinto o una presenza già soddisfatta può essere eliminata.
+- Dopo `submit_matching_filter`, EA invoca `_sim_filter_service_callback`
+  per richiedere la generazione del Sim e solo successivamente
+  `on_sim_creation_callback` per assegnare alla situazione. **Una
+  richiesta vincolata NON è una prova di assegnazione o presenza**.
+
+**Decisione:** non scrivere un nuovo hook che modifichi globalmente i
+filtri. L'ipotesi migliore da esaminare è generare nel calendario EA
+`SituationGuestInfo` con ID espliciti e senza fallback, rispettando
+la divisione Core/Base e l'ordine di spin-up. Prima è necessario
+verificare la trasformazione `SituationGuestList -> BouncerRequest`
+e il comportamento di `SimFilterService` sui Sim ID espliciti.
+
+**Due file ancora necessari da Motherlode:**
+1. `scripts/situations/situation_guest_list.py`.
+2. `scripts/situations/base_situation.py`.
+
+Terzo file utile per stabilire come non penalizzare i Sim premade:
+`scripts/filters/sim_filter_service.py`. Le assunzioni andranno
+confrontate con i tuning originali già presenti nel repository.
+
+Nessun test nel gioco richiesto in questa fase.
