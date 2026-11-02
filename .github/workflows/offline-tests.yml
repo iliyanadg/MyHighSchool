@@ -92,7 +92,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Verify school day deterministic count and anti-random guest fallback
-        run: python -m unittest tests.test_m100_one_slot_policy tests.test_m97_core_filter_policy tests.test_m97_core_role_store tests.test_m97_early_role_plan tests.test_m96_exact_school_count tests.test_m90_m89_bridge tests.test_m89_precreate_hook tests.test_m92_atomic_16 tests.test_full_16_school_day_contract tests.test_m105_atomic_school_roster tests.test_m105_native_core_requests tests.test_m105_live_preflight tests.test_m105_native_session tests.test_m105_game_connector tests.test_m105_role_binding_gate tests.test_m105_lesson_gate tests.test_m105_live_core_binding tests.test_m105_schedule_audit -v
+        run: python -m unittest tests.test_m100_one_slot_policy tests.test_m97_core_filter_policy tests.test_m97_core_role_store tests.test_m97_early_role_plan tests.test_m96_exact_school_count tests.test_m90_m89_bridge tests.test_m89_precreate_hook tests.test_m92_atomic_16 tests.test_full_16_school_day_contract tests.test_m105_atomic_school_roster tests.test_m105_native_core_requests tests.test_m105_live_preflight tests.test_m105_native_session tests.test_m105_game_connector tests.test_m105_role_binding_gate tests.test_m105_lesson_gate tests.test_m105_live_core_binding tests.test_m105_schedule_audit tests.test_mhs105_beta_release -v
 
   m98_mac_native_role_menu:
     runs-on: ubuntu-22.04
@@ -292,4 +292,52 @@ jobs:
             dist_m104/MHS_M104_NATIVE_EA_FILTER_MAC_TEST.package
             dist_m104/MHS_M104_NATIVE_EA_FILTER_MAC_TEST.ts4script
             dist_m104/MHS_M104_BUILD_REPORT.json
+          if-no-files-found: error
+
+  m105_mac_3_5_8_beta:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test M105 early selection, scheduler audit and Mac build graph
+        run: python -m unittest tests.test_m105_atomic_school_roster tests.test_m105_native_core_requests tests.test_m105_live_preflight tests.test_m105_native_session tests.test_m105_game_connector tests.test_m105_role_binding_gate tests.test_m105_lesson_gate tests.test_m105_live_core_binding tests.test_m105_schedule_audit tests.test_mhs105_beta_release -v
+      - name: Compile single-pair Mac beta package and Python 3.7 scripts
+        run: python -m tooling.build_mhs105_beta dist_m105/
+      - name: Audit 76-resource menu, 48 Python 3.7 modules and ZIP contents
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          from tooling.build_mhs105_beta import PKG,SCRIPT,REPORT,ZIP
+          root=Path('dist_m105')
+          rep=json.loads((root/REPORT).read_text())
+          pkg=inspect_bytes((root/PKG).read_bytes())
+          assert pkg['status']=='STATIC_GATE_PASSED'
+          assert (pkg['resource_count'],pkg['category_count'])==(76,11)
+          assert rep['compiled_python37_modules']==48
+          assert rep['m96_ea_count_override_enabled'] is False
+          assert rep['full_16_attendance_verified'] is False
+          with ZipFile(str(root/SCRIPT)) as scripts:
+              names=scripts.namelist()
+              assert len(names)==48
+              assert 'mhs105_game_controller.pyc' in names
+              assert 'mhs105_schedule_runtime.pyc' in names
+              assert 'mhs98_core_role_ui.pyc' in names
+              assert all(scripts.read(n)[:4]==bytes((66,13,13,10))
+                         for n in names)
+          with ZipFile(str(root/ZIP)) as install:
+              assert set(install.namelist())=={PKG,SCRIPT,REPORT,
+                                              'LEGGIMI_M105_BETA.txt'}
+          print('M105 Mac beta build validated OFFLINE only')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M105_CONTROLLO_16_MAC_BETA_NON_VALIDATA_IN_GIOCO
+          path: |
+            dist_m105/MHS_M105_CONTROLLO_16_MAC_BETA_INSTALLAZIONE.zip
+            dist_m105/MHS_M105_BUILD_REPORT.json
           if-no-files-found: error
