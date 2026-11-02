@@ -22,6 +22,7 @@ from mhs108_class1_shadow_cap import project_class1_tuning
 from mhs108_class1_try_start_bridge import (
     EA_CLASS1_DATA_GUIDS, _native_modifier_counts, _verified_context,
 )
+from mhs108_post_bouncer_audit import NativeJobAudit
 
 CLASS_TWO = frozenset((297773, 304570))
 CLASS_TWO_JOB_LAYOUT = {
@@ -38,6 +39,7 @@ REQUIRED_LIVE_GATES = (
     'native_post_creation_job_receipt_verified',
     'no_random_phase_fallback_verified',
     'npc_lot_capacity_verified',
+    'native_assignment_timing_verified',
 )
 
 
@@ -127,11 +129,14 @@ def _staff_for_native_jobs(cls, manifest, context, data_guid):
 
 def install_offline_only(weekly_data_class, manifest, context_provider,
                          class1_budget_provider, post_ea_receipt_provider,
-                         live_proofs):
+                         live_proofs, deferred_native_audit=None):
     """Single original EA hook, both registered classrooms, no global tuning."""
     if (not callable(context_provider)
             or not callable(class1_budget_provider)
             or not callable(post_ea_receipt_provider)
+            or (deferred_native_audit is not None
+                and (not isinstance(deferred_native_audit, NativeJobAudit)
+                     or deferred_native_audit.manifest is not manifest))
             or not isinstance(live_proofs, dict)
             or any(live_proofs.get(gate) is not True
                    for gate in REQUIRED_LIVE_GATES)):
@@ -263,9 +268,50 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
                 coordinator.cancel(ticket)
             return None
 
-        # The EA original may have assigned the wrong job or a partial set.
-        # Inspect its *actual* guest list: simply checking set difference
-        # cannot distinguish a student from a principal/teacher assignment.
+        # During zone spin-up the Bouncer has NOT yet assigned Sim jobs.
+        # The deferred mode records only native guest-list invitations.
+        # Another observer must verify actual EA jobs AFTER Bouncer.
+        if deferred_native_audit is not None:
+            try:
+                native_removed = before.difference(restricted)
+                invited_exact = (
+                    set(_sid(s) for s in native_removed) == allowed
+                    and len(native_removed) == len(allowed))
+                if coordinator is not None and invited_exact:
+                    key = (cls.situation, cls.job_assignments[0].job)
+                    actual_count = situation_job_count.get(key, 0)
+                    invited_exact = (
+                        type(actual_count) is int
+                        and actual_count ==
+                        context.get('expected_native_class1_job_count_after'))
+                phase_key = (str(context.get('save_slot')),
+                             context.get('sim_day'),
+                             str(context.get('zone_id')),
+                             context.get('time_window'))
+                registered = False
+                if invited_exact:
+                    registered = deferred_native_audit.register_created(
+                        situation_id, spec[2], expected_jobs, phase_key)
+                if registered:
+                    if coordinator is not None:
+                        # Pre-Bouncer *invitation* commit only, never a
+                        # confirmation of physical EA role assignment.
+                        registered = coordinator.confirm(
+                            ticket, expected_students, situation_id)
+                    if registered:
+                        sims.difference_update(native_removed)
+                if not registered:
+                    if coordinator is not None:
+                        coordinator.cancel(ticket)
+                    blocked_receipts.append((guid, situation_id))
+            except Exception:
+                if coordinator is not None:
+                    coordinator.cancel(ticket)
+                blocked_receipts.append((guid, situation_id))
+            return situation_id
+
+        # Legacy synthetic immediate receipt path is NOT a reliable
+        # timing model for real zone spin-up. Never use it in a Mac beta.
         try:
             proof = post_ea_receipt_provider(cls, situation_id, context)
             native_ok = _receipt_valid(proof, situation_id, expected_jobs)
@@ -313,4 +359,5 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
 
     uninstall.blocked_receipts = blocked_receipts
     uninstall.attempted_phases = attempted_phases
+    uninstall.deferred_native_audit = deferred_native_audit
     return uninstall
