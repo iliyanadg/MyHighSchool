@@ -136,7 +136,7 @@ def install_offline_only(weekly_data_class, manifest, context_provider,
             or not callable(post_ea_receipt_provider)
             or (deferred_native_audit is not None
                 and (not isinstance(deferred_native_audit, NativeJobAudit)
-                     or deferred_native_audit.manifest is not manifest))
+                     or deferred_native_audit.manifest != manifest))
             or not isinstance(live_proofs, dict)
             or any(live_proofs.get(gate) is not True
                    for gate in REQUIRED_LIVE_GATES)):
