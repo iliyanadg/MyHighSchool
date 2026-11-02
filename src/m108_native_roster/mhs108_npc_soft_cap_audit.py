@@ -121,8 +121,15 @@ def assess_npc_school_capacity(
         'predicted_instantiated_npcs': predicted,
         'observed_npc_soft_cap': npc_soft_cap,
         'projected_soft_cap_margin': margin,
-        'npc_spawner_capacity_verified': margin >= 0,
+        # At equality the EA Bouncer may replace a lower-priority
+        # already assigned NPC with a higher-priority unfulfilled request.
+        'npc_spawner_capacity_verified': margin > 0,
     }
+    if margin == 0:
+        return _report(
+            'SCHOOL_NPC_SOFT_CAP_AT_LIMIT',
+            'EA Bouncer can evict an NPC even at the exact soft cap',
+            **details)
     if margin < 0:
         return _report(
             'SCHOOL_NPC_SOFT_CAP_SHORTFALL',
