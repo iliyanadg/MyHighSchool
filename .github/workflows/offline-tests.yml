@@ -216,3 +216,41 @@ jobs:
             dist_m101/MHS_M101D_CALLBACK_EA_MAC_TEST.ts4script
             dist_m101/MHS_M101D_BUILD_REPORT.json
           if-no-files-found: error
+
+  m102_mac_bouncer_readonly:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test read-only situation/Bouncer observer and M101d overlay
+        run: python -m unittest tests.test_m102_bouncer_observer tests.test_mhs102_bouncer_build tests.test_m101b_filter_evidence tests.test_m101_original_slot_gate tests.test_m100_one_slot_policy -v
+      - name: Compile 41 Python 3.7 scripts for Mac M102
+        run: python -m tooling.build_mhs102_bouncer dist_m102/
+      - name: Verify preserved EA resources and pure observer archive
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          from tooling.build_m55_attendance_trial import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          folder=Path('dist_m102')
+          payload=(folder/'MHS_M102_BOUNCER_READONLY_MAC_TEST.package').read_bytes()
+          assert payload==package_bytes()
+          assert inspect_bytes(payload)['resource_count']==63
+          with ZipFile(str(folder/'MHS_M102_BOUNCER_READONLY_MAC_TEST.ts4script')) as z:
+              names=z.namelist()
+              assert len(names)==41
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+              assert 'mhs102_bouncer_observer.pyc' in names
+          print('M102 safe offline build OK; live EA behavior still untested')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M102_BOUNCER_READONLY_MAC_TEST
+          path: |
+            dist_m102/MHS_M102_BOUNCER_READONLY_MAC_TEST.package
+            dist_m102/MHS_M102_BOUNCER_READONLY_MAC_TEST.ts4script
+            dist_m102/MHS_M102_BUILD_REPORT.json
+          if-no-files-found: error
