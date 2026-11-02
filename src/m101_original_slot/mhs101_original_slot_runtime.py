@@ -117,20 +117,59 @@ def _valid_roster():
     return slot,classes,playable,ordinary,present
 
 def _actual_filter_ids(ordinary):
-    # Query the current EA Base Student filter on *existing* Sims only.
-    # submit_filter does not create a Sim as submit_matching_filter may.
+    """Diagnostic M101b: tell API errors apart from genuinely empty filters.
+
+    The result MUST be actual scored EA filter matches; no guessing from
+    enrolled teen age or arbitrary SimInfo IDs. Never spawns a Sim.
+    """
+    evidence={'requested_filter_guid':_FILTER,'candidate_count':len(ordinary),
+              'phase':'NOT_QUERIED','eligible_count':0}
     try:
+        if not hasattr(Types,'SIM_FILTER'):
+            evidence['phase']='MISSING_SIM_FILTER_RESOURCE_TYPE'
+            return (),evidence
         manager=services.get_instance_manager(Types.SIM_FILTER)
-        filt=manager.get(_FILTER) if manager is not None else None
+        if manager is None:
+            evidence['phase']='NO_EA_FILTER_INSTANCE_MANAGER'
+            return (),evidence
+        filt=manager.get(_FILTER)
+        if filt is None:
+            evidence['phase']='MISSING_EA_BASE_FILTER_TUNING'
+            return (),evidence
         service=services.sim_filter_service()
-        if filt is None or service is None:
-            return ()
-        actual=service.submit_filter(
-            sim_filter=filt,sim_constraints=ordinary,
-            allow_yielding=False)
-        return validated_filter_ids(actual,ordinary)
-    except Exception:
-        return ()
+        if service is None:
+            evidence['phase']='NO_EA_FILTER_SERVICE'
+            return (),evidence
+        method=getattr(service,'submit_filter',None)
+        if not callable(method):
+            evidence['phase']='NO_SUBMIT_FILTER_METHOD'
+            return (),evidence
+        evidence['phase']='CALLING_EA_FILTER'
+        actual=method(sim_filter=filt,sim_constraints=ordinary,
+                      allow_yielding=False)
+        evidence['result_type']=type(actual).__name__
+        if actual is None:
+            evidence['phase']='EA_FILTER_RETURNED_NONE'
+            return (),evidence
+        if not isinstance(actual,(tuple,list)):
+            evidence['phase']='EA_FILTER_UNEXPECTED_RESULT_TYPE'
+            return (),evidence
+        evidence['raw_result_count']=len(actual)
+        if not actual:
+            evidence['phase']='EA_FILTER_RETURNED_EMPTY'
+            return (),evidence
+        evidence['sample_result_type']=type(actual[0]).__name__
+        evidence['sample_has_sim_info']=getattr(actual[0],'sim_info',None) is not None
+        evidence['sample_has_score']=hasattr(actual[0],'score')
+        ids=validated_filter_ids(actual,ordinary)
+        evidence['eligible_count']=len(ids)
+        evidence['phase']=('EA_FILTER_VERIFIED_MATCH' if ids else
+                           'EA_FILTER_RESULTS_NOT_VERIFIED')
+        return ids,evidence
+    except Exception as exc:
+        evidence['phase']='EA_FILTER_QUERY_EXCEPTION'
+        evidence['exception_type']=type(exc).__name__
+        return (),evidence
 
 def arm():
     global _ARMED,_PILOT
@@ -174,10 +213,16 @@ def _resolve(manager,situation,guests):
             _set('SKIPPED_INVALID_ROSTER')
             return None
         slot,classes,playable,ordinary,present=data
-        eligible=_actual_filter_ids(ordinary)
+        eligible,filter_evidence=_actual_filter_ids(ordinary)
         if not eligible:
-            _set('SKIPPED_NO_VERIFIED_EA_BASE_FILTER_MATCH',
-                 filter_guid=_FILTER)
+            # Save the FIRST informative diagnostic rather than overwriting
+            # it with each subsequent vanilla EA Base request.
+            if _STATE.get('phase') not in (
+                    'EA_ORIGINAL_CALL_ACCEPTED',
+                    'ORIGINAL_SITUATION_CREATED',
+                    'PRESELECTED_FOR_ORIGINAL_EA_BASE_CALL'):
+                _set('SKIPPED_NO_VERIFIED_EA_BASE_FILTER_MATCH',
+                     filter_guid=_FILTER,filter_diagnostic=filter_evidence)
             return None
         key=(str(slot),_zone(),_now_day())
         action,sid,reason=_PILOT.resolve(
@@ -202,7 +247,8 @@ def _resolve(manager,situation,guests):
              name='{} {}'.format(info.first_name,info.last_name).strip(),
              sim_id=sid,save_slot=str(slot),zone_id=_zone(),
              class_id=1 if str(sid) in classes[0] else 2,
-             eligible_ids_from_live_ea_filter=list(eligible))
+             eligible_ids_from_live_ea_filter=list(eligible),
+             filter_diagnostic=filter_evidence)
         return (sid,True,True)
     except Exception as exc:
         _set('SKIPPED_ERROR',error=type(exc).__name__)
