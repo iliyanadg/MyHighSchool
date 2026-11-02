@@ -815,3 +815,103 @@ entrambe le classi, senza doppie patch al
 metodo nativo. Nessuna beta installabile ancora.
 
 `main` e il salvataggio sono rimasti intatti.
+
+## M108 — unico controller delle lezioni Classe 1 e Classe 2
+
+**Codice scritto; SOLO test offline. Nessun hook installato in The Sims 4.**
+
+Nuovo modulo:
+`src/m108_native_roster/mhs108_unified_lessons.py`.
+Nuovi test: `tests/test_m108_unified_lessons.py`, presenti
+anche nel job Mac Python 3.7 `capacity_mac_beta` e nel
+`unittest discover` generale.
+
+**Un solo wrapper EA** su
+`WeeklyScheduleSituationData.try_start`, non due controller
+in competizione. Rifiuta installazione se sono già
+presenti `_mhs108_exact_phase` (vecchio adapter),
+`_mhs108_class1_bridge` (prototipo Classe 1) o un'altra
+istanza `_mhs108_unified_lessons`. Sono tre *strategie
+alternative*, non da abilitare contemporaneamente.
+
+Percorsi gestiti:
+- Classe 1 WithTrait e NoTrait, 09:30/13:30
+  (293642/293644), 10:00/14:00 (304563/304561):
+  riutilizza lo stesso `ClassOneDualRouteBudget` per
+  entrambi i percorsi e proietta il cap per chiamata
+  con `project_class1_tuning`.
+- Classe 2 preparazione 297773 e lezione 304570:
+  usa il job studente originale 277919 per
+  preparazione e 280777 per lezione;
+  non modifica il suo limite nativo 8.
+- Non tocca richieste estranee a quei sei snippet
+  EA, senza creare situazioni, rinominare classi,
+  distribuire tratti o cambiare EA schedule.
+
+**Protezione staff:** la fase "Others" richiede
+l'esatto layout di job EA e gli ID del personale
+certificati per *ciascun* job:
+`277918` insegnanti (massimo due) e, nella
+fase 304570, `278224` preside (uno).
+Niente generica whitelist di staff usata anche
+per altri ruoli.
+
+**Nuovo requisito fondamentale dopo original EA:**
+il risultato `situation_id` non basta. Occorre
+che un provider leggibile dal motore reale produca
+un riscontro nativo `ids_by_job` legato alla
+specifica situazione appena creata, da confrontare
+con gli ID selezionati per OGNI job.
+Questo rileva scambio insegnante/studente anche
+quando il numero totale di Sim è identico.
+Solo l'esito completo consente di togliere dal
+set condiviso dei candidati gli ID consumati
+nel metodo nativo; nessuna assegnazione fittizia
+in una classe.
+
+**Blocchi duplicati:** una situazione di lezione
+verificata viene tentata al massimo una volta per
+`(slot, giorno, zona, finestra, phase_data_guid)`
+nel singolo controller. Se il metodo EA ha creato
+la situazione ma il riscontro dei job è sbagliato,
+il wrapper RESTITUISCE l'ID della situazione
+per evitare retry (non può però annullare
+retroattivamente gli effetti EA già avvenuti)
+e segna il blocco, senza dichiarare riuscita
+la classe. I tentativi successivi sono negati.
+
+**Test nuovi** (NON prova runtime):
+- Classe 2 + due percorsi Classe 1 nella stessa
+  fase, 13 NPC scolastici unici e staff esatto;
+- entrambi i passaggi `prepare` e `lesson`;
+- dipendenza dai due professori e dal preside
+  identificati dal relativo SituationJob;
+- stesso numero di ID ma job studente/docente
+  scambiati: rifiuto dopo `create_situation`;
+- fallimenti/assegnazioni parziali: niente
+  rimozione fittizia dal set EA condiviso, niente
+  seconda richiesta EA;
+- niente doppio hook e nessuna interferenza
+  con situazioni estranee al liceo.
+
+**Sicurezza/runtime ancora NON verificati:**
+1. Proiezione Class1 con metaclasse EA reale
+   (il test usa classi Python simulate);
+2. provider reale per il contesto
+   save/day/zone/fase, source e idoneità EA;
+3. lettura attendibile degli ID effettivi
+   PER JOB dalla situazione dopo la sua creazione;
+4. controllo reale del cap del lotto, Bouncer,
+   no-show/fallback e presenza 16/16;
+5. tre giocabili a lezione nelle aule registrate
+   e posti fisici/blackboards: il solo job NPC
+   non prova il percorso del giocabile.
+6. coordinamento dell'intera catena M108 (inviti,
+   8 Base, Core, filtri, protezione no-show e
+   lezioni) in una sola build sicura.
+
+**Conclusione:** l'integrazione tra le due aule
+esiste ora come codice sperimentale con un wrapper
+unico, ma NON è un pilot giocabile. Non proporre
+ancora installazione sul save reale. `main` è
+rimasto intatto.
