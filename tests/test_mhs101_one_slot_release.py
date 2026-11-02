@@ -27,6 +27,10 @@ class M101BuildTests(unittest.TestCase):
         self.assertNotIn('create_one_existing_student(',runtime)
         self.assertNotIn('create_situation(',runtime)
         self.assertIn('context_checker=_context',runtime)
+        self.assertIn('on_created=_created',runtime)
+        self.assertIn('trace_situation(',runtime)
+        self.assertIn('created_situation_id',runtime)
+        self.assertIn('latest_verification',runtime)
         self.assertIn('if not install():',runtime)
 
     def test_m89_keeps_original_ea_request_flags(self):
