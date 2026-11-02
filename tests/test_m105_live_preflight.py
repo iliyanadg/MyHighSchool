@@ -74,7 +74,8 @@ def create_runtime(bad_guid=None,bad_kind=None,missing_roles=False):
            (278967,'Football'),(278968,'Informatica'),
            (303765,'Sim perfido'))}
     for key in ('_result','_teen','_base_data','_query_ea_filters',
-                'prepare_live_school_day','diagnose_live_role_choices'):
+                'prepare_live_school_day','diagnose_live_role_choices',
+                'find_outside_mean_candidates'):
         code=compile(ast.Module(body=[FUNCTIONS[key]],type_ignores=[]),
                      str(PATH),'exec')
         exec(code,values)
@@ -156,6 +157,51 @@ class M105NativePreflightTests(unittest.TestCase):
         summary='\\n'.join(env['diagnose_live_role_choices']())
         self.assertIn('Studenti Base EA idonei: 7/13',summary)
         self.assertIn('NESSUN piano 5 Core + 8 Base',summary)
+
+    def test_mean_external_scan_queries_ea_without_changing_roster(self):
+        env,_=create_runtime()
+        extra=[
+            SimpleNamespace(sim_id=17,age='TEEN',species='HUMAN',
+                            household_id=55,first_name='A',last_name='B'),
+            SimpleNamespace(sim_id=18,age='TEEN',species='HUMAN',
+                            household_id=55,first_name='C',last_name='D')]
+        scanned=[]
+        game=env['services']
+        original_mgr=game.sim_info_manager()
+        game.sim_info_manager=lambda:SimpleNamespace(
+            get=lambda sid: next((v for v in extra if v.sim_id==sid),None)
+                  or original_mgr.get(sid),
+            get_all=lambda:tuple(extra))
+        game.active_household=lambda:SimpleNamespace(
+            id=11,sim_info_gen=lambda:(
+                SimpleNamespace(sim_id=int(i),age='TEEN',species='HUMAN')
+                for i in PLAYABLE))
+        def native(callback,sim_filter,sim_constraints,allow_yielding):
+            scanned.append(tuple(sim_constraints))
+            return [SimpleNamespace(sim_info=extra[0],score=1.0)]
+        game.sim_filter_service=lambda:SimpleNamespace(submit_filter=native)
+        message='\\n'.join(env['find_outside_mean_candidates']())
+        self.assertIn('1 idonei EA tra 2 NPC esterni',message)
+        self.assertIn('A B',message)
+        self.assertNotIn('C D',message)
+        self.assertIn('I tuoi 16 iscritti restano invariati',message)
+        self.assertEqual(scanned,[(17,18)])
+
+    def test_mean_external_scan_empty_and_invalid_data_fail_closed(self):
+        env,_=create_runtime()
+        env['services'].sim_info_manager=lambda:SimpleNamespace(
+            get=lambda sid:None,get_all=lambda:())
+        self.assertIn('nessun altro adolescente NPC',
+                      ' '.join(env['find_outside_mean_candidates']()))
+        game=env['services']
+        game.sim_info_manager=lambda:SimpleNamespace(
+            get=lambda sid:None,
+            get_all=lambda:(SimpleNamespace(
+                sim_id=17,age='TEEN',species='HUMAN',household_id=55),))
+        game.sim_filter_service=lambda:SimpleNamespace(
+            submit_filter=lambda **kwargs:None)
+        self.assertIn('non verificabile',
+                      ' '.join(env['find_outside_mean_candidates']()))
 
     def test_no_game_mutators_or_situation_hooks_in_preflight(self):
         self.assertNotIn('create_situation(',SOURCE)
