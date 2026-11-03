@@ -93,12 +93,16 @@ def inspect_hook_targets(classes, method_observations):
         methods = [by_key.get((class_key, name)) for name in names]
         owners = tuple(item['declaring_owner'] for item in methods
                        if item is not None and item['declaring_owner'])
+        native_cls = classes.get(class_key) if isinstance(classes, dict) else None
+        owner_objects = tuple(_owner(native_cls, name)[0] for name in names)
         if (len(methods) != len(names) or
                 any(item is None or
                     item['status'] != 'METHOD_AVAILABLE_NOT_LIVE_VERIFIED'
                     for item in methods)):
             status = 'STAGE_BLOCKED_BY_METHOD_CONTRACT'
-        elif len(owners) != len(names) or len(set(owners)) != 1:
+        elif (any(owner is None for owner in owner_objects) or
+              any(owner is not owner_objects[0]
+                  for owner in owner_objects[1:])):
             status = 'STAGE_OWNER_SPLIT_OR_UNKNOWN'
         else:
             status = 'STAGE_TARGET_LOCATED_NOT_LIVE_VERIFIED'
