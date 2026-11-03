@@ -5,10 +5,12 @@ on:
       - feature/m55-presenze-studente-test
     paths:
       - 'src/m108_native_roster/mhs108_native_invitation.py'
+      - 'src/m108_native_roster/mhs108_native_base_count.py'
       - 'src/m108_native_roster/mhs108_native_precreate.py'
       - 'tests/test_m108_native_invitation.py'
       - 'tests/test_m108_native_precreate.py'
       - 'tests/test_m112_native_guest_takeover.py'
+      - 'tests/test_m112_native_count_and_admission.py'
       - '.github/workflows/m112-school-admission-safety.yml'
   workflow_dispatch:
 jobs:
@@ -20,8 +22,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.7'
-      - name: Run M108 and M112 original EA guest clone and rollback tests
-        run: python -m unittest tests.test_m108_native_invitation tests.test_m108_native_precreate tests.test_m112_native_guest_takeover -v
+      - name: Run M108 / M112 original EA count, guest takeover and rollback tests
+        run: python -m unittest tests.test_m108_native_invitation tests.test_m108_native_precreate tests.test_m108_native_base_count tests.test_m112_native_guest_takeover tests.test_m112_native_count_and_admission -v
       - name: Check exact source bytecode compatibility (no runtime hooks)
         run: |
           python - <<'PY'
@@ -35,6 +37,7 @@ jobs:
           files = [
               Path('src/m108_native_roster/mhs108_native_invitation.py'),
               Path('src/m108_native_roster/mhs108_native_precreate.py'),
+              Path('src/m108_native_roster/mhs108_native_base_count.py'),
           ]
           with tempfile.TemporaryDirectory() as root:
               for source in files:
