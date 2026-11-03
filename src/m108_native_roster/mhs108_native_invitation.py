@@ -135,6 +135,8 @@ class SchoolNativeGuestSession(object):
         self._core_confirmed = False
         self._base_cursor = 0
         self._created_situation_ids = set()
+        # Exact original EA ID per guest ticket; not Bouncer assignment.
+        self._created_by_ticket = {}
         self._local_core_holds = None
 
     def reserve_core_before_schedule(self, context):
@@ -340,11 +342,20 @@ class SchoolNativeGuestSession(object):
         self._pending.remove(ticket)
         self._confirmed.add(ticket)
         self._created_situation_ids.add(situation_id)
+        self._created_by_ticket[ticket] = situation_id
         if ticket == 'core':
             self._core_confirmed = True
         else:
             self._base_cursor += 1
         return True
+
+    def native_created_receipts(self):
+        """Immutable original EA situation IDs linked to exact invitations.
+
+        This does not attest any Sim has joined a job. Intended for a
+        read-only, independently post-Bouncer job audit.
+        """
+        return tuple(sorted(self._created_by_ticket.items()))
 
     def cancel(self, ticket):
         """Rollback an unsuccessful original EA creation attempt."""
@@ -367,6 +378,7 @@ class SchoolNativeGuestSession(object):
             'core_reservations_before_ea_verified': False,
             'all_nine_situations_created': (
                 self._core_confirmed and self._base_cursor == 8),
+            'native_creation_receipts_count': len(self._created_by_ticket),
             'student_ids_requested': (
                 tuple(sid for _, sid in self.manifest['core_assignments'])
                 if self._core_confirmed else ()) +
