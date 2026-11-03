@@ -1,0 +1,49 @@
+name: M114 Bouncer exact invitation safety (offline only)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m108_native_roster/mhs108_native_invitation.py'
+      - 'src/m108_native_roster/mhs108_school_filter_scope.py'
+      - 'src/m108_native_roster/mhs108_no_show_guard.py'
+      - 'src/m114_bouncer/**'
+      - 'tests/test_m108_native_invitation.py'
+      - 'tests/test_m108_school_filter_scope.py'
+      - 'tests/test_m108_no_show_guard.py'
+      - 'tests/test_m114_school_bouncer_pair.py'
+      - '.github/workflows/m114-bouncer-exact-invite-safety.yml'
+  workflow_dispatch:
+jobs:
+  m114_offline:
+    name: M114 EA Bouncer invitation, filter and no-show rollback (Python 3.7)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify ticket-bound Bouncer request scope and reversible no-show guard
+        run: python -m unittest tests.test_m108_native_invitation tests.test_m108_school_filter_scope tests.test_m108_no_show_guard tests.test_m109_native_hook_stage tests.test_m114_school_bouncer_pair -v
+      - name: Check bytecode version without creating installable game mod
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import py_compile
+          import tempfile
+          from pathlib import Path
+          magic=bytes((66,13,13,10))
+          assert importlib.util.MAGIC_NUMBER==magic
+          sources=[
+              Path('src/m108_native_roster/mhs108_native_invitation.py'),
+              Path('src/m108_native_roster/mhs108_school_filter_scope.py'),
+              Path('src/m108_native_roster/mhs108_no_show_guard.py'),
+              Path('src/m114_bouncer/mhs114_school_bouncer_pair.py'),
+          ]
+          with tempfile.TemporaryDirectory() as temp:
+              for source in sources:
+                  dest=Path(temp)/(source.stem+'.pyc')
+                  py_compile.compile(str(source),cfile=str(dest),doraise=True)
+                  assert dest.read_bytes()[:4]==magic
+          print('M114 Python 3.7 source passes, NO .ts4script released')
+          PY
