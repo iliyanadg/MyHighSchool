@@ -55,7 +55,8 @@ class M109LiveReadOnlyDiagnosticsTests(unittest.TestCase):
         mod,printed=load_live_command_with_fake_sims()
         self.assertEqual(printed,[])
         self.assertEqual(len(mod.MODULES),6)
-        self.assertNotIn('sims4',mod.__dict__)
+        self.assertIn('sims4',mod.__dict__)
+        # Importing sims4.commands registers the command, but never runs it.
         # The command is not executed at module import time.
         self.assertTrue(callable(mod._m109_probe_command))
 
