@@ -12,6 +12,7 @@ on:
       - 'tests/test_m108_school_filter_scope.py'
       - 'tests/test_m108_no_show_guard.py'
       - 'tests/test_m114_school_bouncer_pair.py'
+      - 'tests/test_m114_native_bouncer_owner.py'
       - '.github/workflows/m114-bouncer-exact-invite-safety.yml'
   workflow_dispatch:
 jobs:
@@ -24,7 +25,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Verify ticket-bound Bouncer request scope and reversible no-show guard
-        run: python -m unittest tests.test_m108_native_invitation tests.test_m108_school_filter_scope tests.test_m108_no_show_guard tests.test_m109_native_hook_stage tests.test_m114_school_bouncer_pair -v
+        run: python -m unittest tests.test_m108_native_invitation tests.test_m108_school_filter_scope tests.test_m108_no_show_guard tests.test_m109_native_hook_stage tests.test_m114_school_bouncer_pair tests.test_m114_native_bouncer_owner -v
       - name: Check bytecode version without creating installable game mod
         run: |
           python - <<'PY'
@@ -39,6 +40,7 @@ jobs:
               Path('src/m108_native_roster/mhs108_school_filter_scope.py'),
               Path('src/m108_native_roster/mhs108_no_show_guard.py'),
               Path('src/m114_bouncer/mhs114_school_bouncer_pair.py'),
+              Path('src/m114_bouncer/mhs114_native_bouncer_owner.py'),
           ]
           with tempfile.TemporaryDirectory() as temp:
               for source in sources:
