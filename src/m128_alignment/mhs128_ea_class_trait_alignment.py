@@ -70,9 +70,9 @@ def align_roster_trait(rows,trait):
                            row['ea_class1_trait_expected'] else
                            'remove_trait')
             method(trait)
+            changed.append(row)
             if not tracker.has_trait(trait)==row['ea_class1_trait_expected']:
                 raise RuntimeError('TRAIT_POSTCHECK_FAILED')
-            changed.append(row)
     except Exception as exc:
         rollback_ok=True
         for row in reversed(changed):
