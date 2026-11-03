@@ -12,18 +12,24 @@ class Job(object):
     def __init__(self,guid):self.guid64=guid
 
 
-class MirrorPractice(object):
-    __module__='sims4.tuning.instances'
-    __name__='mirror_ResearchDebateSkill_Practice'
-    calls=0
-    def cancel(self,finish,reason):
-        self.calls+=1
+def _cancel_mirror(self,finish,reason):
+    self.calls+=1
 
 
-class WritingLesson(object):
-    __module__='sims4.tuning.instances'
-    __name__='mixer_HighSchool_Active_WriteOnBook'
-    def cancel(self,*args):raise AssertionError('MUST NOT TOUCH LESSON')
+MirrorPractice=type('mirror_ResearchDebateSkill_Practice',(object,),{
+    '__module__':'sims4.tuning.instances',
+    'calls':0,'cancel':_cancel_mirror,
+})
+
+
+def _forbid_cancel(self,*args):
+    raise AssertionError('MUST NOT TOUCH INTERACTION')
+
+
+WritingLesson=type('mixer_HighSchool_Active_WriteOnBook',(object,),{
+    '__module__':'sims4.tuning.instances',
+    'cancel':_forbid_cancel,
+})
 
 
 class Sim(object):
@@ -104,10 +110,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(act.calls,0)
 
     def test_other_non_school_interaction_not_preempted(self):
-        class Toilet(object):
-            __module__='sims4.tuning.instances'
-            __name__='super_Toilet_Use'
-            def cancel(self,*args):raise AssertionError('must not cancel')
+        Toilet=type('super_Toilet_Use',(object,),{
+            '__module__':'sims4.tuning.instances',
+            'cancel':_forbid_cancel,
+        })
         success,_=recover_one(
             '1',1,Info(),Sim(Toilet()),Manager(),
             'teen','human',set(),'SITUATIONS')
