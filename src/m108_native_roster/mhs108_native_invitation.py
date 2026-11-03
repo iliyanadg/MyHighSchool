@@ -306,6 +306,32 @@ class SchoolNativeGuestSession(object):
         self._pending.add(ticket)
         return ticket, clone
 
+    def has_native_student_invitation(self, situation_guid, job_guid,
+                                      sim_id):
+        """True only for THIS student/job with a native guest ticket.
+
+        Pending tickets cover synchronous BouncerRequest construction
+        during create_situation(); confirmed tickets cover later Bouncer
+        allocation after EA returns a positive situation ID.
+        A cancelled or unattempted invite NEVER authorizes filter bypass.
+        This is MHS guest-list evidence only, not actual EA acceptance.
+        """
+        try:
+            sid = _sid(sim_id)
+            if situation_guid == BASE_SITUATION and job_guid == BASE_JOB:
+                ticket = 'base:' + sid
+                return (sid in self.manifest['base_ids']
+                        and (ticket in self._pending
+                             or ticket in self._confirmed))
+            if situation_guid == CORE_SITUATION and job_guid in CORE_JOBS:
+                selected = dict(self.manifest['core_assignments'])
+                return (selected.get(job_guid) == sid
+                        and ('core' in self._pending
+                             or 'core' in self._confirmed))
+            return False
+        except (InvitationPlanError, ValueError, TypeError, KeyError):
+            return False
+
     def acknowledge_created(self, ticket, situation_id):
         """Commit only an EA situation-creation receipt, NOT attendance."""
         if (ticket not in self._pending or type(situation_id) is not int or
