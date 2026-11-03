@@ -83,7 +83,7 @@ class M118AdmissionThenLessonsTests(unittest.TestCase):
         from tests.test_m108_no_show_guard import guard_proofs
         bouncer=pair.stage_graph(proofs(),guard_proofs())
         self.assertIsNotNone(bouncer)
-        guest,original,observer,reads=setting()
+        guest,original,native,observer,reads=setting()
         stage=observer.stage(original,evidence())
         real_precreate={'install':lambda m,c:True,
                         'restore':lambda:True}
@@ -102,7 +102,7 @@ class M118AdmissionThenLessonsTests(unittest.TestCase):
         from tests.test_m108_school_filter_scope import proofs
         from tests.test_m108_no_show_guard import guard_proofs
         pair.stage_graph(proofs(),guard_proofs())
-        guest,original,observer,reads=setting()
+        guest,original,native,observer,reads=setting()
         stage=observer.stage(original,evidence())
         self.assertTrue(observer.install(original,evidence()))
         try:
