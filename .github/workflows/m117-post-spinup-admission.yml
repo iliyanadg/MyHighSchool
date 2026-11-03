@@ -1,0 +1,38 @@
+name: M117 Original EA post-spinup 13 NPC job audit (offline)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m117_spinup/**'
+      - 'tests/test_m117_post_spinup_admission.py'
+      - 'docs/M117_POST_SPINUP_RUOLI_13_NPC.md'
+      - '.github/workflows/m117-post-spinup-admission.yml'
+  workflow_dispatch:
+jobs:
+  original_ea_spinup:
+    name: Python 3.7 original EA post-spinup callback -> 13 NPC job readback
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test native callback, wrong save/zone, job mismatch, rollback
+        run: python -m unittest tests.test_m117_post_spinup_admission tests.test_m116_native_guest_job_readback tests.test_m108_spinup_barrier -v
+      - name: Verify native Python 3.7 bytecode, do not release playable mod
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import py_compile
+          import tempfile
+          from pathlib import Path
+          magic=bytes((66,13,13,10))
+          assert importlib.util.MAGIC_NUMBER==magic
+          with tempfile.TemporaryDirectory() as folder:
+              for source in Path('src/m117_spinup').glob('*.py'):
+                  result=Path(folder)/(source.stem+'.pyc')
+                  py_compile.compile(str(source),cfile=str(result),doraise=True)
+                  assert result.read_bytes()[:4]==magic
+          print('M117 Python 3.7 original callback verified offline; no game artifact')
+          PY
