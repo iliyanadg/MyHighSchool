@@ -27,7 +27,7 @@ jobs:
           from tooling.build_mhs126_beta import SOURCES,MAGIC,NAME
           from zipfile import ZipFile
           with ZipFile('dist_m126/'+NAME) as z:
-              assert len(z.namelist())==len(SOURCES)==11
+              assert len(z.namelist())==len(SOURCES)==12
               assert set(z.namelist())==set(p.stem+'.pyc' for p in SOURCES)
               assert all(z.read(x)[:4]==MAGIC for x in z.namelist())
               assert 'mhs126_early_school_controller.pyc' in z.namelist()
