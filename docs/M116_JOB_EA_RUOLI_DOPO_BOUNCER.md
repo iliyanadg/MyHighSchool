@@ -87,7 +87,7 @@ un dizionario di True per forzare l'installazione.
   mancanti, flag Bouncer falso e sessione incompleta).
 - Rilanciate le regressioni inviti M108 / M112.
 - Workflow Python3.7:
-  https://github.com/iliyanadg/MyHighSchool/actions/runs/41687623327
+  https://github.com/iliyanadg/MyHighSchool/actions/runs/41687855452
 
 Questi test sono sintetici, NON giocati su Mac.
 NON esiste una .ts4script M116 da installare.
