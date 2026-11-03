@@ -28,7 +28,7 @@ jobs:
           from tooling.build_mhs124_beta import SOURCES,MAGIC,NAME
           from zipfile import ZipFile
           with ZipFile('dist_m124/'+NAME) as archive:
-              assert len(archive.namelist())==len(SOURCES)==10
+              assert len(archive.namelist())==len(SOURCES)==9
               assert set(archive.namelist())==set(s.stem+'.pyc' for s in SOURCES)
               assert all(archive.read(p)[:4]==MAGIC for p in archive.namelist())
           print('M124 Python3.7 compiled; no seat/interaction intervention yet')
