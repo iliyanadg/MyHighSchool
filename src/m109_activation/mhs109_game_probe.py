@@ -62,7 +62,14 @@ def capture_native_shapes():
     report['native_modules'] = imports
     report['source'] = 'LOADED_GAME_MODULES_READ_ONLY'
     report['activation_authorized_by_game'] = False
-    report['mhs108_school_hooks_installed'] = False
+    # Absence of markers in these 15 methods is NOT proof that no old or
+    # third-party controller is installed elsewhere in the game.
+    marker_count = len(report['known_mhs_hook_markers_found'])
+    report['known_mhs_hook_marker_count'] = marker_count
+    report['known_mhs_hook_scan'] = (
+        'KNOWN_MHS_MARKERS_DETECTED'
+        if marker_count else 'NO_KNOWN_MARKERS_OTHER_HOOKS_UNVERIFIED')
+    report['mhs108_school_hooks_installed'] = None
     report['full_16_student_attendance_verified'] = False
     report['game_modified'] = False
     return report
@@ -85,10 +92,15 @@ def _m109_probe_command(_connection=None):
     try:
         report = capture_native_shapes()
         save_native_report(report)
-        message = ('M109 SOLO DIAGNOSTICA: {}/{} metodi EA disponibili; '
-                   'rapporto {}. Nessuna lezione o Sim modificato.').format(
+        message = ('M109 SOLA LETTURA: {}/{} metodi EA; '
+                   '{}/{} punti di aggancio individuati (non validati); '
+                   '{} marker MHS rilevati; rapporto {}. '
+                   'Nessun Sim modificato.').format(
                        report['method_count_available'],
                        report['method_count_expected'],
+                       report['hook_target_count_located_unverified'],
+                       report['hook_target_count_expected'],
+                       report['known_mhs_hook_marker_count'],
                        REPORT_NAME)
     except Exception as exc:
         message = ('M109 diagnostica non eseguita: {}. '
