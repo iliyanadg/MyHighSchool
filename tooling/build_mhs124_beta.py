@@ -20,7 +20,8 @@ SOURCES=(
     ROOT/'src'/'m97_core_reservations'/'mhs97_core_role_store.py',
     ROOT/'src'/'m122_classrooms'/'mhs122_classroom_job_readback.py',
     ROOT/'src'/'m123_class_repair'/'mhs123_lesson_guest_projection.py',
-    ROOT/'src'/'m123_class_repair'/'mhs123_thirteen_npc_class_trial.py',
+    ROOT/'src'/'m124_behavior'/'mhs124_lesson_action_readback.py',
+    ROOT/'src'/'m124_behavior'/'mhs124_thirteen_npc_plus_behavior.py',
 )
 
 
@@ -91,5 +92,5 @@ def build(directory):
 
 if __name__=='__main__':
     if len(sys.argv)!=2:
-        raise SystemExit('Usage python -m tooling.build_mhs122_beta OUTDIR')
+        raise SystemExit('Usage python -m tooling.build_mhs124_beta OUTDIR')
     print(json.dumps(build(sys.argv[1]),indent=2))
