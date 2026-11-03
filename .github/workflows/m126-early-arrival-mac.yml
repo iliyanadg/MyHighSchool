@@ -1,0 +1,48 @@
+name: M126 EA early classroom preparation Mac experiment
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m126_early/**'
+      - 'tests/test_m126_*.py'
+      - 'tooling/build_mhs126_beta.py'
+      - '.github/workflows/m126-early-arrival-mac.yml'
+  workflow_dispatch:
+jobs:
+  compile_and_verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test original EA preparation plus prior school regressions
+        run: python -m unittest tests.test_m126_early_preparation_projection tests.test_m126_early_school_integration tests.test_m125_safe_recovery tests.test_m124_lesson_action_readback tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
+      - name: Compile one Mac beta
+        run: python -m tooling.build_mhs126_beta dist_m126
+      - name: Verify M126 actual commands and source modules
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs126_beta import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m126/'+NAME) as z:
+              assert len(z.namelist())==len(SOURCES)==11
+              assert set(z.namelist())==set(p.stem+'.pyc' for p in SOURCES)
+              assert all(z.read(x)[:4]==MAGIC for x in z.namelist())
+              assert 'mhs126_early_school_controller.pyc' in z.namelist()
+              assert 'mhs126_early_preparation_projection.pyc' in z.namelist()
+              assert 'mhs125_thirteen_npc_plus_recovery.pyc' not in z.namelist()
+              commands=z.read('mhs126_early_school_controller.pyc')
+              for name in ('mhs126.arm','mhs126.prepara','mhs126.status','mhs126.classi','mhs126.stop'):
+                  assert name.encode() in commands,name
+          print('M126 early school controller commands verified')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M126_EA_EARLY_PREPARATION_MAC_EXPERIMENTAL
+          path: |
+            dist_m126/MHS_M126_INGRESSO_ANTICIPATO_MAC_BETA.ts4script
+            dist_m126/M126_BUILD_REPORT.json
+            dist_m126/LEGGIMI_M126.txt
+          if-no-files-found: error
