@@ -9,6 +9,9 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'/'m122_classrooms'))
 sys.path.insert(0,str(ROOT/'src'/'m126_early'))
+sys.path.insert(0,str(ROOT/'src'/'m125_recovery'))
+sys.path.insert(0,str(ROOT/'src'/'m124_behavior'))
+sys.path.insert(0,str(ROOT/'src'/'m123_class_repair'))
 from tests.test_m121_thirteen_npc_trial import (
     environment, GuestList, Guest, Job, OriginalManager,
     OriginalBouncerRequest, PINNED
