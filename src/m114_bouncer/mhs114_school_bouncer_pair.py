@@ -49,7 +49,6 @@ class M114SchoolBouncerPair(object):
         self.owner = owner
         self.scope = scope
         self.guard = SchoolNoShowGuard(scope)
-        self.installs = ()
         self._stages = None
 
     def stage_graph(self, filter_proofs, no_show_proofs):
@@ -98,7 +97,10 @@ class M114SchoolBouncerPair(object):
             'two_reversible_stages_constructed': self._stages is not None,
             'student_invitation_receipt_required': True,
             'real_runtime_evidence_provider_connected': False,
-            'game_bouncer_modified': False,
+            'ea_descriptors_currently_modified': (
+                self._stages is not None and any(
+                    stage._captured is not None
+                    for stage in self._stages.values())),
             'live_filter_admission_verified': False,
             'native_student_role_assignment_verified': False,
             'roster_16_verified': False,
