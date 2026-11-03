@@ -96,6 +96,16 @@ def environment():
         sim_info_gen=lambda:(infos[i] for i in (1,9,16)))
     services.get_instance_manager=lambda t:types.SimpleNamespace(
         get=lambda guid:base if guid==277894 else None)
+    state['assigned_id']=2
+    class NativeSchoolBase(object):
+        guid64=277733
+        def all_jobs_gen(self):
+            return (base,)
+        def all_sims_in_job_gen(self,job):
+            return (types.SimpleNamespace(id=state['assigned_id'],
+                                         sim_id=state['assigned_id']),)
+    services.get_zone_situation_manager=lambda:types.SimpleNamespace(
+        get=lambda sid:NativeSchoolBase() if sid==101 else None)
 
     simtypes=types.ModuleType('sims.sim_info_types')
     simtypes.Age=type('Age',(),{'TEEN':'TEEN'})
@@ -227,6 +237,11 @@ class M119OneEAStudentTests(unittest.TestCase):
             self.assertIsNone(replacement)
             self.assertEqual(mod._STATE.filter_applied,1)
             self.assertEqual(mod._STATE.replacements_blocked,1)
+            self.assertIn('EA_ruolo=SI_TARGET_PRESENTE',
+                          mod._STATE.report())
+            state['assigned_id']=999
+            self.assertIn('EA_ruolo=NO_SIM_DIVERSO',
+                          mod._STATE.report())
         finally:
             self.assertIn('RIPRISTINATA',mod._stop())
 
