@@ -1,0 +1,1 @@
+M127 records native EA situation times and student running targets; seating is not verified.
