@@ -284,13 +284,54 @@ class OneBaseTrial(object):
         self.active=False
         return True
 
+    def _read_native_job(self):
+        """Read original EA Base job, no new situation or Sim spawned."""
+        if not self.created_id:
+            return 'NON_CREATA'
+        if not self._school():
+            return 'FUORI_LICEO'
+        try:
+            manager=services.get_zone_situation_manager()
+            situation=manager.get(self.created_id) if manager else None
+            if situation is None:
+                return 'SITUAZIONE_NON_TROVATA'
+            if getattr(situation,'guid64',None)!=BASE_GUID:
+                return 'TIPO_SITUAZIONE_ERRATO'
+            jobs=getattr(situation,'all_jobs_gen',None)
+            members=getattr(situation,'all_sims_in_job_gen',None)
+            if not callable(jobs) or not callable(members):
+                return 'EA_API_NON_DISPONIBILE'
+            target_jobs=[j for j in tuple(jobs())
+                         if getattr(j,'guid64',None)==BASE_JOB]
+            if len(target_jobs)!=1:
+                return 'RUOLO_BASE_NON_UNICO'
+            sims=tuple(members(target_jobs[0]))
+            ids=set()
+            for sim in sims:
+                a=getattr(sim,'id',None)
+                b=getattr(sim,'sim_id',None)
+                if a is not None and b is not None and a!=b:
+                    return 'SIM_ID_AMBIGUO'
+                value=a if a is not None else b
+                if type(value) is not int or value<=0:
+                    return 'SIM_ID_NON_VALIDO'
+                ids.add(str(value))
+            if ids=={self.target}:
+                return 'SI_TARGET_PRESENTE'
+            if not ids:
+                return 'NO_RUOLO_VUOTO'
+            return 'NO_SIM_DIVERSO'
+        except Exception as exc:
+            return 'LETTURA_EA_'+type(exc).__name__
+
     def report(self):
         return ('M119 active={} target={} attempts={} EA_situation={} '
-                'filter={} blocked_random={} refused={} error={}'.format(
+                'EA_ruolo={} filter={} blocked_random={} refused={} '
+                'error={}'.format(
                     self.active,self.target,self.attempts,
-                    self.created_id or 0,self.filter_applied,
-                    self.replacements_blocked,self.request_refusal_count,
-                    self.error or 'none'))
+                    self.created_id or 0,self._read_native_job(),
+                    self.filter_applied,self.replacements_blocked,
+                    self.request_refusal_count,self.error or 'none'))
 
 
 def _arm():
