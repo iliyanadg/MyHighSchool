@@ -144,3 +144,87 @@ di 10 mod sperimentali.
    una copia del salvataggio e osservazioni native complete.
 
 **Vietato fare claim «16/16 funzionano» senza prove dal gioco.**
+
+## Avanzamento M109: coordinatore atomico e ripristino EA (prototipo offline)
+
+**Implementato, non collegato a una build giocabile:**
+- `src/m109_activation/mhs109_atomic_activation.py`
+  contiene `M109SchoolActivation`: manifesto canonico verificato
+  con `prepare_fixed_manifest` (2 classi da 8, 3 giocabili,
+  5 Core, 8 Base); prova preventiva di salvataggio, giorno,
+  zona, calendario, API EA e assenza di controllori concorrenti;
+  attivazione una volta sola della sequenza di **sei hook M108**
+  (conteggio Base, precreate, school filter, no-show guard,
+  lezioni unificate, osservatore post-Bouncer);
+  `disarm` e ripristino in **ordine inverso**, con stato
+  `ROLLBACK_INCOMPLETE` se uno dei ripristini fallisce.
+- La struttura di ogni stage prevede `install` e
+  `restore` **già disponibili prima della mutazione**.
+  Questo copre l'errore di un installer che riesce a
+  modificare un metodo ma genera un'eccezione prima di
+  restituire il callback di uninstall.
+- `src/m109_activation/mhs109_native_hook_stage.py`
+  contiene `M109NativeStage`: cattura i descrittori EA
+  nativi originali prima di installare i wrapper M108;
+  se l'installer fallisce parzialmente, ripristina soltanto
+  metodi con il marker M108 esatto. Per
+  `school_filter_scope` sono controllati **entrambi**
+  `__init__` e `get_additional_filter_terms`.
+  Se una mod terza interviene nel frattempo,
+  la M109 **NON sovrascrive** il suo wrapper:
+  segnala invece ripristino incompleto.
+  Per le mutazioni *sulle singole richieste*
+  `BouncerRequest` serve anche un cleanup apposito
+  (non basta ripristinare i metodi della classe).
+- Nessun meccanismo globale installato automaticamente;
+  il provider degli attestati runtime reali
+  **non è stato ancora implementato**.
+
+**Test aggiunti** al job Mac Python 3.7 e al
+`unittest discover`:
+- `tests/test_m109_atomic_activation.py`:
+  attivazione di sei stage, ordine, preflight,
+  errori dopo mutazioni parziali, eccezioni durante
+  restore, blocco al cambio save/day/zone e
+  singola attivazione per sessione.
+- `tests/test_m109_native_hook_stage.py`:
+  metodo EA classmethod originale, restore
+  descrittore, doppio metodo di SchoolFilterScope,
+  fallimento a metà, callback assente, controllo
+  mod concorrenti, owner classmethod errato e
+  cleanup che richiede un secondo tentativo.
+
+**Limiti noti e requisiti prima del runtime:**
+1. Test M109 usano classi e flag *sintetici*, non
+   verificano compatibilità con la metaclasse EA
+   di `WeeklyScheduleSituationData` o col Bouncer.
+2. Il vero provider EA per i 15
+   `REQUIRED_RUNTIME_EVIDENCE` NON esiste; il campo
+   `source='EA_RUNTIME_OBSERVATION'` dei test è
+   soltanto un valore di fixture e non va mai usato
+   come prova a runtime.
+3. M109 non usa ancora `M109NativeStage` con sei
+   proprietari EA verificati in-game: necessita
+   un adattatore di ambiente che fornisca owner,
+   risorse native, contesti e installer reali M108.
+4. Per `SchoolFilterScope`, l'installer M108
+   modifica filtri di request individuali:
+   una procedura di cleanup deve chiamare
+   `scope.restore()` anche se la patch ha
+   fallito dopo il primo dei due metodi.
+5. Ripristinare classmethod EA non può
+   annullare una situazione scolastica che
+   EA ha già creato. Non intervenire su save
+   principale e non spacciare un rollback come
+   cancellazione di effetti EA già prodotti.
+6. Le esecuzioni GitHub Actions più recenti
+   risultavano **queued** all'ultimo controllo.
+   Non dichiarare i test M109 superati finché
+   non si ottiene il relativo risultato.
+
+**Prossimo lavoro tecnico:** validare i test
+eseguiti e i loro traceback, poi realizzare un
+*live adapter read-only* che misuri i gate EA
+e fornisca gli owner nativi. Soltanto dopo
+autorizzare l'installazione dell'intera catena
+e una beta su copia del salvataggio.
