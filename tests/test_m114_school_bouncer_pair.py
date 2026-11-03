@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'/'m108_native_roster'))
 sys.path.insert(0,str(ROOT/'src'/'m109_activation'))
+sys.path.insert(0,str(ROOT/'src'/'m113_controller'))
 sys.path.insert(0,str(ROOT/'src'/'m114_bouncer'))
 
 from tests.test_m108_native_invitation import (
