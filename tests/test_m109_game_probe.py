@@ -1,4 +1,5 @@
 """M109 live command + tiny Mac build: offline regression without Sims."""
+import ast
 import importlib.util
 import os
 import sys
@@ -45,7 +46,23 @@ class M109LiveReadOnlyDiagnosticsTests(unittest.TestCase):
             'mhs109_game_probe.py'})
         self.assertTrue(NAME.endswith('.ts4script'))
         content='\n'.join(p.read_text(encoding='utf-8') for p in SOURCES)
-        self.assertNotIn('mhs108_unified_lessons',content)
+        # The probe intentionally lists M108 marker names for conflict
+        # detection. A string occurrence is not an imported M108 controller.
+        self.assertIn('_mhs108_unified_lessons', content)
+        for source in paths:
+            tree = ast.parse(source.read_text(encoding='utf-8'),
+                             filename=str(source))
+            imported = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    imported.append(node.module or '')
+            self.assertFalse(any(
+                name.startswith('mhs108_') or '.mhs108_' in name
+                for name in imported
+            ), 'M108 controller imported by read-only probe: {}'.format(
+                source.name))
         self.assertNotIn('mhs108_native_precreate',content)
         self.assertNotIn('create_situation(',content)
         self.assertNotIn('clone_for_replace(',content)
