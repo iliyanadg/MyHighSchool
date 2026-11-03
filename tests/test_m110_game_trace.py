@@ -59,6 +59,41 @@ class GameTraceTests(unittest.TestCase):
         self.assertIn('ripristinati',outputs[2])
         self.assertFalse(mod.TRACER.report()['temporary_runtime_wrappers_active'])
 
+    def test_stop_without_active_trace_is_not_a_restore_error(self):
+        mod, cmds, outputs = load_game_trace()
+        with patch.object(mod, '_save') as save:
+            cmds['mhs110.stop']()
+            save.assert_not_called()
+        self.assertIn('NON ATTIVA', outputs[-1])
+        self.assertIn('NON sovrascritto', outputs[-1])
+        self.assertNotIn('ripristino non confermato', outputs[-1])
+
+    def test_second_stop_preserves_first_saved_report(self):
+        mod, cmds, outputs = load_game_trace()
+        classes, _ = native()
+        with patch.object(mod, '_classes', return_value=classes),\\
+             patch.object(mod, '_save', return_value='trace.json') as save:
+            cmds['mhs110.start']()
+            classes['weekly_day'].get_long_term_situation_count(None, None)
+            cmds['mhs110.stop']()
+            cmds['mhs110.stop']()
+            self.assertEqual(save.call_count, 1)
+        self.assertIn('ripristinati', outputs[-2])
+        self.assertIn('NON ATTIVA', outputs[-1])
+        self.assertEqual(mod.TRACER.report()['event_total'], 2)
+
+    def test_actual_rollback_conflict_keeps_warning(self):
+        mod, cmds, outputs = load_game_trace()
+        classes, _ = native()
+        with patch.object(mod, '_classes', return_value=classes),\\
+             patch.object(mod, '_save', return_value='trace.json'):
+            cmds['mhs110.start']()
+            classes['weekly_data'].try_start = classmethod(
+                lambda cls, *a, **kw: None)
+            cmds['mhs110.stop']()
+        self.assertIn('ripristino non confermato', outputs[-1])
+        self.assertEqual(mod.TRACER.report()['status'], 'RESTORE_CONFLICT')
+
     def test_only_two_diagnostic_modules_and_no_python37_build_here(self):
         self.assertEqual(set(s.name for s in SOURCES),{
             'mhs110_call_trace_core.py','mhs110_game_trace.py'})
