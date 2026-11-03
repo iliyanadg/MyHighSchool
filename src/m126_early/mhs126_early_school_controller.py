@@ -651,6 +651,7 @@ class ThirteenNPCController(object):
                            if status!='PRESENTE')
         return ('M126 active={} EA_base_created={}/8 EA_base_present={}/8 '
                 'EA_core_created={}/1 EA_core_present={}/5 '
+                'prep_create={}/2 prep_filter={} prep_refused={} '
                 'lezioni_proiettate={}/2 lezione_job={} '
                 'count_override={} native_count={} filter={} '
                 'core_filter={} lesson_filter={} blocked_random={} '
@@ -659,6 +660,8 @@ class ThirteenNPCController(object):
                 'error={}'.format(
                     self.active,len(self.created),present,
                     int(self.core_created is not None),core_present,
+                    len(self.prep_created),self.prep_filter_hits,
+                    self.prep_refused,
                     len(self.lesson_created),self.lesson_report(),
                     self.base_count_overrides,self.base_count_last,
                     self.filter_hits,self.core_filter_hits,
