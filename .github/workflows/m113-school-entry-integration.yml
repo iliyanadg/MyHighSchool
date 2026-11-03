@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Verify home save/role snapshot and earliest EA callback
-        run: python -m unittest tests.test_m113_live_home_bridge tests.test_m113_early_school_entry tests.test_m112_native_guest_takeover tests.test_m112_native_count_and_admission -v
+        run: python -m unittest tests.test_m113_live_home_bridge tests.test_m113_native_guest_factory tests.test_m113_early_school_entry tests.test_m112_native_guest_takeover tests.test_m112_native_count_and_admission -v
       - name: Verify Sims 4 Python 3.7 source bytecode without publishing controller
         run: |
           python - <<'PY'
