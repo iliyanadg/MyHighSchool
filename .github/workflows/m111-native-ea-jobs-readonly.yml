@@ -1,0 +1,54 @@
+name: M111 read-only EA classroom job report (Mac diagnostic)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m111_bouncer/**'
+      - 'tests/test_m111_*.py'
+      - 'tooling/build_mhs111_readback.py'
+      - 'docs/M111_READBACK_RUOLI_EA_NO_HOOK.md'
+      - '.github/workflows/m111-native-ea-jobs-readonly.yml'
+  workflow_dispatch:
+jobs:
+  m111_native_job_readonly_mac:
+    name: M111 Mac 3.7 original EA job report (NOT 16 student controller)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test membership, save bridge and no-hook game commands
+        run: python -m unittest tests.test_m111_school_job_readback tests.test_m111_live_school_bridge tests.test_m111_game_probe -v
+      - name: Compile isolated Sims 4 Python 3.7 diagnostic
+        run: python -m tooling.build_mhs111_readback dist_m111/
+      - name: Verify exact diagnostic archive and no M57 filter hooks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_mhs111_readback import (
+              NAME, SOURCES, EXPECTED_MAGIC, REPORT, GUIDE,
+          )
+          d = Path('dist_m111')
+          expected = set(p.name + 'c' for p in SOURCES)
+          assert len(expected) == len(SOURCES) == 10
+          assert 'mhs57_filter_runtime.pyc' not in expected
+          assert 'mhs108_native_base_count.pyc' not in expected
+          assert 'mhs110_call_trace_core.pyc' not in expected
+          with ZipFile(str(d/NAME)) as archive:
+              assert set(archive.namelist()) == expected
+              assert all(archive.read(x)[:4] == EXPECTED_MAGIC
+                         for x in expected)
+          assert (d/REPORT).is_file() and (d/GUIDE).is_file()
+          print('PASS: M111 Mac Python3.7 read-only, no Bouncer hooks')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M111_READ_ONLY_EA_JOB_SNAPSHOT_MAC_NOT_GAMEPLAY
+          path: |
+            dist_m111/MHS_M111_EA_JOB_READ_ONLY_MAC_TEST.ts4script
+            dist_m111/MHS_M111_BUILD_REPORT.json
+            dist_m111/LEGGIMI_M111_RUOLI_EA.txt
+          if-no-files-found: error
