@@ -68,3 +68,25 @@ Non è autorizzato impostare gate finti a true nel gioco.
 Il workflow .github/workflows/m113-school-entry-integration.yml
 verifica i moduli con Python 3.7 e non crea alcun file installabile.
 Non installare M113 adesso. Ramo sperimentale separato da main.
+
+## Collegamento reale agli oggetti invito EA
+
+Aggiunto src/m113_controller/mhs113_native_guest_factory.py.
+Con import al momento dell'uso, legge da
+services.get_instance_manager(Types.SITUATION_JOB) gli OGGETTI EA
+originali per i sei job scolastici (Base 277894, Core 278965,
+278966, 278967, 278968, 303765), verifica i loro guid64
+e carica il costruttore originale
+situations.situation_guest_list.SituationGuestInfo con la
+finalita SituationInvitationPurpose.INVITED.
+
+Usa questi oggetti nativi per creare SchoolNativeGuestSession,
+senza scegliere altri Sim, inviare inviti, installare wrapper,
+creare situazioni o alterare il salvataggio. Se un job manca,
+il GUID è sbagliato oppure manca il costruttore EA, blocca
+la preparazione e non utilizza oggetti fittizi.
+
+Test: tests/test_m113_native_guest_factory.py (4 casi offline,
+oggetti EA emulati). Questo risolve il percorso del
+session_factory nativo, NON l'origine/gate Bouncer e NON
+l'attivazione installabile.
