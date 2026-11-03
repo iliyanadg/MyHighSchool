@@ -84,6 +84,7 @@ def fake_game(active=True, count=2, schedule=277657, slot='11',
     manifest_mod=types.ModuleType('mhs57_school_manifest')
     manifest_mod.make_manifest=lambda roster, staff, n, teen_ids:chosen
     modules['mhs57_school_manifest']=manifest_mod
+    manager._sim_assignment_complete=True
     return modules, manager
 
 
@@ -97,6 +98,8 @@ class M111LiveBridgeTests(unittest.TestCase):
         self.assertEqual(r['school_schedule_guid'],277657)
         self.assertTrue(r['roster_slot_verified'])
         self.assertTrue(r['ea_school_schedule_observed'])
+        self.assertTrue(r['zone_spinup_assignment_flag_observed'])
+        self.assertTrue(r['zone_spinup_assignment_flag_known'])
         self.assertFalse(r['post_bouncer_barrier_verified'])
         self.assertFalse(r['exact_16_native_membership_verified'])
         self.assertFalse(r['two_classroom_seating_verified'])
@@ -140,6 +143,16 @@ class M111LiveBridgeTests(unittest.TestCase):
         self.assertEqual(manager.calls,0)
         self.assertEqual(inspect_current_school_ea_jobs('lunch')['status'],
                          'PHASE_NOT_SPECIFIED')
+
+    def test_no_spinup_flag_cannot_masquerade_as_late_assignment(self):
+        modules, manager = fake_game()
+        delattr(manager, '_sim_assignment_complete')
+        with patch.dict(sys.modules, modules):
+            r = inspect_current_school_ea_jobs('lesson')
+        self.assertFalse(r['zone_spinup_assignment_flag_observed'])
+        self.assertFalse(r['zone_spinup_assignment_flag_known'])
+        self.assertFalse(r['post_bouncer_barrier_verified'])
+        self.assertFalse(r['exact_16_native_membership_verified'])
 
     def test_game_service_error_returns_unknown_not_false_success(self):
         modules, manager=fake_game()
