@@ -100,6 +100,11 @@ class M109LiveReadOnlyDiagnosticsTests(unittest.TestCase):
                             for x in result['native_modules'].values()))
         self.assertFalse(result['activation_authorized_by_game'])
         self.assertFalse(result['game_modified'])
+        self.assertEqual(result['hook_target_count_located_unverified'], 6)
+        self.assertEqual(result['hook_target_count_expected'], 6)
+        self.assertEqual(result['known_mhs_hook_marker_count'], 0)
+        self.assertEqual(result['mhs108_school_hooks_installed'], None)
+        self.assertFalse(result['runtime_hook_install_authorized'])
         self.assertEqual(
             {key:dict(cls.__dict__) for key,cls in classes.items()},original)
 
@@ -109,10 +114,50 @@ class M109LiveReadOnlyDiagnosticsTests(unittest.TestCase):
                    side_effect=ImportError('EA not loaded')):
             result=mod.capture_native_shapes()
         self.assertEqual(result['method_count_available'],0)
+        self.assertEqual(result['hook_target_count_located_unverified'],0)
+        self.assertEqual(result['mhs108_school_hooks_installed'], None)
         self.assertEqual(result['status'],'NATIVE_EA_METHODS_NOT_READY')
         self.assertTrue(all(v=='IMPORT_ImportError'
                             for v in result['native_modules'].values()))
         self.assertFalse(result['activation_authorized_by_game'])
+
+    def test_command_prints_six_stage_status_without_claiming_validity(self):
+        mod, printed = load_live_command_with_fake_sims()
+        sample = {
+            'method_count_available': 15,
+            'method_count_expected': 15,
+            'hook_target_count_located_unverified': 6,
+            'hook_target_count_expected': 6,
+            'known_mhs_hook_marker_count': 0,
+        }
+        with patch.object(mod, 'capture_native_shapes', return_value=sample):
+            with patch.object(mod, 'save_native_report',
+                              return_value='/tmp/test.json'):
+                mod._m109_probe_command()
+        self.assertEqual(len(printed), 1)
+        self.assertIn('15/15', printed[0])
+        self.assertIn('6/6', printed[0])
+        self.assertIn('non validati', printed[0])
+        self.assertNotIn('funzionante', printed[0])
+
+    def test_known_old_hook_is_reported_not_hidden(self):
+        mod, _ = load_live_command_with_fake_sims()
+        classes = fixture()
+        old = classes['weekly_data'].__dict__['try_start'].__func__
+        old._mhs108_unified_lessons = True
+        fake_modules = {}
+        for key, (path, name) in mod.MODULES.items():
+            fake_modules.setdefault(path, types.ModuleType(path))
+            setattr(fake_modules[path], name, classes[key])
+        with patch('importlib.import_module',
+                   side_effect=lambda path: fake_modules[path]):
+            report = mod.capture_native_shapes()
+        self.assertEqual(report['known_mhs_hook_marker_count'], 1)
+        self.assertEqual(report['hook_target_count_located_unverified'], 5)
+        self.assertEqual(report['known_mhs_hook_scan'],
+                         'KNOWN_MHS_MARKERS_DETECTED')
+        self.assertIsNone(report['mhs108_school_hooks_installed'])
+        self.assertFalse(report['activation_authorized_by_game'])
 
     def test_report_written_to_explicit_test_dir_only(self):
         mod,_=load_live_command_with_fake_sims()
