@@ -1,0 +1,43 @@
+name: M119 one real Base intervention Mac beta (experimental)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m119_live_trial/**'
+      - 'tests/test_m119_one_base_live_trial.py'
+      - 'tooling/build_mhs119_trial.py'
+      - '.github/workflows/m119-one-base-mac-beta.yml'
+  workflow_dispatch:
+jobs:
+  build_one_real_base:
+    name: M119 one student original EA Base, Mac Python3.7 beta
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test original EA Base invitation intervention and rollback
+        run: python -m unittest tests.test_m119_one_base_live_trial -v
+      - name: Compile Mac Sims 4 experimental single-slot beta
+        run: python -m tooling.build_mhs119_trial dist_m119
+      - name: Verify only six intended EA Python 3.7 modules in ts4script
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs119_trial import NAME,FILES,EXPECTED
+          from zipfile import ZipFile
+          with ZipFile('dist_m119/'+NAME) as z:
+              assert set(z.namelist())==set(p.stem+'.pyc' for p in FILES)
+              assert len(z.namelist())==6
+              assert all(z.read(n)[:4]==EXPECTED for n in z.namelist())
+          print('PASS one Base real EA intervention build, not gameplay proof')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M119_SINGLE_BASE_MAC_EXPERIMENTAL
+          path: |
+            dist_m119/MHS_M119_UN_POSTO_BASE_MAC_BETA.ts4script
+            dist_m119/M119_BUILD_REPORT.json
+            dist_m119/LEGGIMI_M119.txt
+          if-no-files-found: error
