@@ -55,7 +55,7 @@ class M122LiveCommandsTests(unittest.TestCase):
 
     def test_does_not_claim_class_seating_or_jobs_when_at_home(self):
         obj,modules,state,day,services,original=load()
-        self.assertIn('non sei al liceo',
+        self.assertIn('attivare da casa',
                       obj._snapshot_classes('lesson'))
         # Registered 13 NPCs remain under M121 EA intervention module.
         self.assertTrue(hasattr(obj,'ThirteenNPCController'))
