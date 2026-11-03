@@ -24,7 +24,7 @@ def _valid_ids(raw):
     return ids
 
 
-def project_original_PREP_guests(situation_guid,original,classes,
+def project_early_preparation_guests(situation_guid,original,classes,
                                    job_by_guid,guest_cls,purpose,
                                    already_projected_classes):
     """(new_guest_list,reason). Unrecognized input preserves vanilla EA.
