@@ -8,7 +8,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src' / 'm108_native_roster'))
-from tests.test_m108_native_invitation import session, CORE_JOBS
+from tests.test_m108_native_invitation import (
+    session, CORE_JOBS, EAList, CONTEXT
+)
 from mhs108_school_filter_scope import (
     BASE_JOB, BASE_SITUATION, CORE_SITUATION, REQUIRED_FILTER_PROOF,
     SchoolFilterScope, install_offline_only)
@@ -89,7 +91,13 @@ def make_scope(overrides=None, extra_info=None):
              for sid in range(1, 17)}
     if extra_info:
         infos.update(extra_info)
-    return SchoolFilterScope(session(), BLANK, 'TEEN', 'HUMAN',
+    invited = session()
+    # Only the exact Base:5 and five confirmed Core holders have
+    # pending invitations. Tests model the period while original EA
+    # create_situation is running, not just registry membership.
+    assert invited.preview(BASE_SITUATION, EAList(), CONTEXT)[0] == 'base:5'
+    assert invited.preview(CORE_SITUATION, EAList(), CONTEXT)[0] == 'core'
+    return SchoolFilterScope(invited, BLANK, 'TEEN', 'HUMAN',
                              infos.get, lambda: context)
 
 
@@ -133,6 +141,60 @@ class FilterScopeTests(unittest.TestCase):
         self.assertEqual(targeted.get_additional_filter_terms(),
                          ('keep-EA-terms',))
         self.assertFalse(undo())
+
+    def test_registered_but_not_invited_student_never_bypasses_ea_filter(self):
+        class NativeRequest(Request):
+            pass
+        scope = make_scope()
+        undo = install_offline_only(NativeRequest, scope, proofs())
+        try:
+            # Student 6 is registered Base, but no individual Base:6
+            # invitation has been prepared in the EA native guest list.
+            not_yet_invited = NativeRequest(
+                SchoolBase(), Job(BASE_JOB), 6)
+            self.assertIs(not_yet_invited._sim_filter, ORIGINAL)
+            self.assertEqual(not_yet_invited.get_additional_filter_terms(),
+                             ('keep-EA-terms',))
+            accepted = NativeRequest(SchoolBase(), Job(BASE_JOB), 5)
+            self.assertIs(accepted._sim_filter, BLANK)
+        finally:
+            self.assertTrue(undo())
+
+    def test_cancelled_native_guest_ticket_revokes_filter_and_no_show_scope(self):
+        class NativeRequest(Request):
+            pass
+        scope = make_scope()
+        undo = install_offline_only(NativeRequest, scope, proofs())
+        try:
+            req = NativeRequest(SchoolBase(), Job(BASE_JOB), 5)
+            self.assertIs(req._sim_filter, BLANK)
+            self.assertEqual(req.get_additional_filter_terms(), ())
+            self.assertTrue(scope.guests.cancel('base:5'))
+            # The selected student is still registered, but original
+            # EA create_situation failed or was cancelled: bypass ends.
+            self.assertEqual(req.get_additional_filter_terms(),
+                             ('keep-EA-terms',))
+            self.assertIs(req._sim_filter, ORIGINAL)
+            self.assertFalse(scope.is_tracked(req))
+        finally:
+            self.assertTrue(undo())
+
+    def test_native_guest_ticket_rejected_when_wrong_job_or_no_ticket(self):
+        scope = make_scope()
+        sessions = scope.guests
+        self.assertTrue(sessions.has_native_student_invitation(
+            BASE_SITUATION, BASE_JOB, 5))
+        self.assertTrue(sessions.has_native_student_invitation(
+            CORE_SITUATION, CORE_JOBS[0], 2))
+        for situation, job, sid in (
+                (BASE_SITUATION, BASE_JOB, 6),
+                (BASE_SITUATION, CORE_JOBS[0], 2),
+                (CORE_SITUATION, CORE_JOBS[0], 3),
+                (CORE_SITUATION, BASE_JOB, 5),
+                (CORE_SITUATION, CORE_JOBS[0], 0),
+                (CORE_SITUATION, CORE_JOBS[0], True)):
+            self.assertFalse(sessions.has_native_student_invitation(
+                situation, job, sid))
 
     def test_exact_five_special_roles_respect_user_mapping(self):
         class NativeRequest(Request):
