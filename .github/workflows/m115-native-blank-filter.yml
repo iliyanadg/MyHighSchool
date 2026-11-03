@@ -1,0 +1,43 @@
+name: M115 Native EA blank filter + Bouncer assembly (read-only)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m115_filter/**'
+      - 'tests/test_m115_*.py'
+      - 'src/m114_bouncer/**'
+      - 'tests/test_m114_*.py'
+      - 'docs/M115_FILTRO_EA_NATIVO.md'
+      - '.github/workflows/m115-native-blank-filter.yml'
+  workflow_dispatch:
+jobs:
+  native_filter_and_bouncer:
+    name: Native BLANK_FILTER and original BouncerRequest (Python 3.7)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Native EA constant, fail-closed cases, filter+no-show regression
+        run: |
+          python -m unittest tests.test_m115_native_blank_filter tests.test_m115_native_bouncer_assembly tests.test_m114_school_bouncer_pair tests.test_m114_native_bouncer_owner tests.test_m108_school_filter_scope tests.test_m108_no_show_guard -v
+      - name: Check Python 3.7 compilation without releasing hooks
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import py_compile
+          import tempfile
+          from pathlib import Path
+          magic = bytes((66, 13, 13, 10))
+          assert importlib.util.MAGIC_NUMBER == magic
+          sources = list(Path('src/m115_filter').glob('*.py'))
+          assert len(sources) == 2
+          with tempfile.TemporaryDirectory() as root:
+              for src in sources:
+                  dest = Path(root) / (src.stem+'.pyc')
+                  py_compile.compile(str(src),cfile=str(dest),doraise=True)
+                  assert dest.read_bytes()[:4] == magic
+          print('Native EA class constant checked; no installable mod released')
+          PY
