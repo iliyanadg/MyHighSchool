@@ -29,11 +29,15 @@ LESSON_STAGE_ORDER = ('unified_lessons',)
 
 
 def build_morning_admission_stages(native_precreate, bouncer_pair,
-                                   post_spinup):
+                                   post_spinup, observer_stage):
     """Require real prepared stage dicts; never make placeholder hooks."""
     if (not isinstance(native_precreate,dict)
             or not isinstance(bouncer_pair,M114SchoolBouncerPair)
-            or not isinstance(post_spinup,M117PostSpinupAdmission)):
+            or not isinstance(post_spinup,M117PostSpinupAdmission)
+            or not isinstance(observer_stage,dict)
+            or set(observer_stage)!={'install','restore'}
+            or not callable(observer_stage['install'])
+            or not callable(observer_stage['restore'])):
         return None
     if (set(native_precreate) != {'install','restore'}
             or not callable(native_precreate['install'])
@@ -51,7 +55,8 @@ def build_morning_admission_stages(native_precreate, bouncer_pair,
         return None
     return {'native_precreate':native_precreate,
             'school_filter_scope':filter_stages['school_filter_scope'],
-            'no_show_guard':filter_stages['no_show_guard']}
+            'no_show_guard':filter_stages['no_show_guard'],
+            'post_bouncer_observer':observer_stage}
 
 
 def _canonical_sid(value):
