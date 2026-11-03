@@ -85,3 +85,43 @@ Test offline `tests/test_m111_school_job_readback.py` e
 `tests/test_m111_live_school_bridge.py` in Python3.7/3.11;
 questi test sono sintetici e non dimostrano che gli NPC siano entrati
 realmente a lezione.
+
+## Prima diagnostica M111 installabile (solo lettura, nessun .package)
+
+È stato preparato un **artefatto separato e opt-in** per Python 3.7
+che include i dieci moduli necessari (registro M54/M57, personale,
+identità slot, lettura dei veri job EA). Il file si chiamerà
+`MHS_M111_EA_JOB_READ_ONLY_MAC_TEST.ts4script`.
+
+Comandi:
+- `mhs111.arm` da casa prima di andare al liceo: ancora slot e giorno,
+  nessuna modifica ai metodi EA.
+- `mhs111.check` al liceo durante una lezione: confronta i Sim
+  effettivamente istanziati, i job EA e le due classi da otto; crea
+  `MHS_M111_NATIVE_SCHOOL_JOB_READBACK.json` dentro
+  `MY_HIGH_SCHOOL_M25_TEST_DATA`.
+- `mhs111.status` per leggere solo lo stato, senza effetto sul gioco.
+
+Non esiste comando stop: nessun wrapper viene installato.
+Non installare altre beta MHS nello stesso test. Usare solo una
+**copia del salvataggio** e non cancellare i vecchi registri M54
+con gli iscritti. I rapporti contengono gli ID dei Sim scelti:
+condividere solo se desiderato.
+
+**Importantissimo:** il comando controlla l'appartenenza ad una
+SituationJob, non la seduta a un banco. La fase `lesson` viene
+indicata dall'utente eseguendo `check`, non da una prova esterna
+che il Bouncer abbia finito la transizione. Il report ha sempre
+`post_bouncer_barrier_verified=false` e
+`exact_16_native_membership_verified=false`, anche se tutte le
+identità e job letti combaciano.
+
+Il bridge registra inoltre soltanto lo stato osservato del flag
+EA `SituationManager._sim_assignment_complete` dopo lo spin-up:
+un valore true non prova che siano conclusi gli assegnamenti delle
+lezioni delle 10 o 14.
+
+La build Mac è affidata al workflow
+`.github/workflows/m111-native-ea-jobs-readonly.yml`.
+**Superare i test automatici non equivale a un test nel gioco**.
+Non installare fino a build confermata.
