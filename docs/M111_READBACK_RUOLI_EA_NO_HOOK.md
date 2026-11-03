@@ -29,8 +29,22 @@ human_species, phase)`, una funzione **di sola lettura** che:
 
 La funzione non modifica il lotto, non muove i Sim, non chiama i
 filtri EA e non attiva patch automatiche. **Non è ancora un comando nel
-gioco**: l'integrazione col manifest del salvataggio e con un contesto
-di fase realmente verificato resta da collegare.
+gioco**.
+
+Aggiunto anche `src/m111_bouncer/mhs111_live_school_bridge.py`:
+`inspect_current_school_ea_jobs(phase)` rilegge il registro, il personale
+e le impostazioni dal salvataggio reale (`current_slot(allow_travel=True)`),
+verifica le due classi complete, il calendario EA
+`277657` o `279958` del lotto e passa il vero
+`SituationManager` a M111. Rifiuta gli altri lotti e i registri
+incompleti prima di cercare i job.
+
+Il nuovo ponte è un modulo di integrazione, **non ancora incluso in una
+beta installabile**. La fase `prepare`/`lesson` deve essere letta e
+verificata dal chiamante prima di considerarne attendibile il risultato:
+un input artificiale non dimostra che il gioco sia in quella fase.
+Nessuna modifica alla partita, nessuna chiamata al Bouncer per forzare
+nuovi Sim.
 
 ## Contratto native situation / student job
 
@@ -48,12 +62,12 @@ automaticamente contati come studenti seduti in una classe.
 
 ## Limiti da risolvere per l'integrazione reale
 
-1. Leggere il `SchoolManifest` effettivo del salvataggio attraverso
-   `current_slot(allow_travel=True)`, `RosterStore`, `StaffStore`
-   e `SettingsStore` di M54/M57; bloccare i salvataggi con meno di 16
-   iscritti senza inventare i mancanti.
-2. Verificare tramite EA che ci si trovi realmente al liceo e nella fase
-   della lezione, non utilizzare booleane passate a mano nei test.
+1. **Implementato nel bridge, da validare in gioco:** leggere il
+   `SchoolManifest` effettivo tramite `current_slot(allow_travel=True)`,
+   `RosterStore`, `StaffStore`, `SettingsStore` e verificare il
+   calendario originale del liceo. Registri incompleti sono bloccati.
+2. **Manca:** ricavare e verificare automaticamente la finestra
+   prepare/lesson del giorno reale, non fidarsi di una stringa fittizia.
 3. Eseguire il readback **dopo** una barriera Bouncer indipendente:
    `on_all_sims_spawned_during_zone_spin_up` vale solo al caricamento
    del lotto, non garantisce l'assegnazione tardiva delle lezioni.
@@ -67,6 +81,7 @@ chiamate `create_situation` è già conclusa. La prossima prova nel
 gioco, quando necessaria, deve mirare esclusivamente al readback di
 membership/ruoli EA, non ai callback del calendario.
 
-Test offline `tests/test_m111_school_job_readback.py` in Python3.7/3.11;
+Test offline `tests/test_m111_school_job_readback.py` e
+`tests/test_m111_live_school_bridge.py` in Python3.7/3.11;
 questi test sono sintetici e non dimostrano che gli NPC siano entrati
 realmente a lezione.
