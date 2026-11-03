@@ -104,6 +104,17 @@ def propose_native_base_count(original, schedule_guid, situation_guid,
     if (not isinstance(original, tuple) or len(original) != 2
             or not all(_is_int(x) and x >= 0 for x in original)):
         return original
+    # The live M110 callback returned (3,3) for original EA Base 277733.
+    # Do NOT infer that its cause is "six minus three playables".
+    # A count obtained directly from THIS VERY invocation of the original
+    # native classmethod may instead be treated as a real starting count.
+    # The wrapper below stamps this evidence ONLY after original(...) ran.
+    # Runtime install still requires every separate Bouncer/capacity gate.
+    if (original == (3, 3) and
+            context.get('native_count_return_observed_in_current_callback')
+            is True and
+            context.get('exact_original_base_count_observed') == original):
+        return (MHS_BASE_COUNT, MHS_BASE_COUNT)
     # No inferred adjustments. An actual EA observation must supply
     # this deduction (0 through 3), separately from the original count.
     adjustment = context.get('ea_original_playable_adjustment')
@@ -156,6 +167,13 @@ def install_offline_only(schedule_class, session, context_provider,
             if sguid not in SCHOOL_SCHEDULES or guid != BASE_SITUATION:
                 return original
             context = context_provider()
+            if not isinstance(context, dict):
+                return original
+            # The ORIGINAL EA return is captured in this call, without
+            # deriving or claiming a cause for the count of three.
+            context = dict(context)
+            context['native_count_return_observed_in_current_callback'] = True
+            context['exact_original_base_count_observed'] = original
             return propose_native_base_count(original, sguid, guid,
                                              session, context)
         except Exception:
