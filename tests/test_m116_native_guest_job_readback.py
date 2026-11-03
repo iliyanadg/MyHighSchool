@@ -111,11 +111,14 @@ class OriginalJobReadbackTests(unittest.TestCase):
     def test_wrong_special_role_holder_fails(self):
         guest,manager=assembled()
         job=CORE_JOBS[0]
-        manager.situations[300].jobs[job]=(3,)
+        # Use a distinct outsider so the error is a wrong identity,
+        # not an earlier duplicate-member validation failure.
+        manager.situations[300].jobs[job]=(888,)
         r=inspect_created_native_guest_jobs(guest,manager)
         self.assertEqual(r['status'],'NATIVE_GUEST_JOBS_DIFFER')
         self.assertIn(('core','CORE_NPC_JOB_MISMATCH'),
                       r['discrepancies'])
+        self.assertIn('888',r['extra_native_student_ids'])
 
     def test_wrong_staff_job_for_registered_student_fails(self):
         guest,manager=assembled()
