@@ -11,8 +11,6 @@ Class 1 uses two alternate EA native situations (WithTrait/NoTrait).
 The same job GUID 277919 is also used in Class 2 preparation.
 Python 3.7 compatible. Not a standalone game entry point.
 """
-from collections import defaultdict
-
 # situation GUID -> (EA phase, MHS class, exact student job GUID)
 # Taken from M108 native phase tuning and checked by real M110 Mac trace.
 CLASS_PHASES = {
@@ -207,10 +205,12 @@ def observe_school_job_memberships(manifest, manager, sim_infos,
         duplicate_memberships=tuple(sorted(
             duplicate_jobs | set(repeated_cross_class), key=int)),
         wrong_native_job_guids=tuple(wrong_jobs),
-        base_core_native_memberships=tuple(sorted(base_core)),
+        base_core_native_memberships=tuple(sorted(
+            base_core, key=lambda x:(int(x[0]), x[1], -1 if x[2] is None else x[2]))),
         untrusted_observation_reasons=tuple(sorted(set(untrusted))),
         # These are actual game job readbacks, NOT post-Bouncer attestation.
-        observed_native_school_memberships=tuple(sorted(rows)),
+        observed_native_school_memberships=tuple(sorted(
+            rows, key=lambda x:(int(x[0]), x[1], -1 if x[2] is None else x[2]))),
         source='EA_GET_SITUATIONS_SIM_IS_IN_AND_GET_CURRENT_JOB',
     )
     matches = (
