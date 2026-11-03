@@ -1,0 +1,50 @@
+name: M110 opt-in native EA callback trace (diagnostic only)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m110_trace/**'
+      - 'tests/test_m110_*.py'
+      - 'tooling/build_mhs110_trace.py'
+      - 'docs/M110_CALLBACK_TRACE_MAC.md'
+      - '.github/workflows/m110-native-callback-trace.yml'
+  workflow_dispatch:
+jobs:
+  m110_trace_mac:
+    name: M110 Python 3.7 callback trace, NOT school controller
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test pass-through invocation, rollback, conflict handling
+        run: python -m unittest tests.test_m110_trace_core tests.test_m110_game_trace -v
+      - name: Compile Mac Python 3.7 diagnostic
+        run: python -m tooling.build_mhs110_trace dist_m110/
+      - name: Verify two Python 3.7 bytecode modules and report
+        run: |
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_mhs110_trace import NAME,EXPECTED_MAGIC,REPORT,GUIDE
+          folder=Path('dist_m110')
+          with ZipFile(str(folder/NAME)) as z:
+              expected={'mhs110_call_trace_core.pyc',
+                        'mhs110_game_trace.pyc'}
+              assert set(z.namelist())==expected
+              assert all(z.read(name)[:4]==EXPECTED_MAGIC for name in expected)
+          assert importlib.util.MAGIC_NUMBER==EXPECTED_MAGIC
+          assert (folder/REPORT).is_file() and (folder/GUIDE).is_file()
+          print('M110 isolated diagnostic, PY37 offline validated')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M110_OPT_IN_CALLBACK_TRACE_MAC_TEST_NOT_GAMEPLAY
+          path: |
+            dist_m110/MHS_M110_EA_CALLBACK_TRACE_MAC_TEST.ts4script
+            dist_m110/MHS_M110_BUILD_REPORT.json
+            dist_m110/LEGGIMI_M110_TRACCIA_EA.txt
+          if-no-files-found: error
