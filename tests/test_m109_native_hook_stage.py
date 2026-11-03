@@ -171,7 +171,7 @@ class OriginalNativeHookStages(unittest.TestCase):
             pass
         stage=M109NativeStage(
             'native_base_count',Child,
-            install_count_hook(Child))
+            lambda m,e:None)
         # The actual descriptor owner for an inherited EA method is
         # the parent class, never Child.__dict__.
         self.assertFalse(stage.install(None,None))
