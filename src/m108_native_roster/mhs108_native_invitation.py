@@ -186,23 +186,65 @@ class SchoolNativeGuestSession(object):
         except (KeyError, TypeError):
             return False
 
-    def _guest_list(self, original, new_entries, permit_teacher_guests):
+    def _guest_list(self, original, new_entries, permit_teacher_guests,
+                    context=None):
+        """Clone EA guests, replacing ONLY verified vanilla student slots.
+
+        EA can supply an *already populated* original Base/Core guest list.
+        Appending new students to it would leave random classmates, while
+        refusing every non-empty list prevents roster-first takeover.
+        Replace only original EA student-job guests, never teachers/other
+        roles, and only with separate verified native call provenance.
+        This is an OFFLINE proposal; no runtime override is authorized.
+        """
         if original is None:
             return None
         try:
             old = tuple(original.guest_info_gen())
-            if permit_teacher_guests:
-                if any(getattr(getattr(g, 'job_type', None), 'guid64', None)
-                       not in TEACHER_JOBS for g in old):
+            # We cannot identify arbitrary jobs as school students. Core
+            # has exactly five distinct special student jobs; Base one.
+            expected_student_jobs = (
+                frozenset(CORE_JOBS) if permit_teacher_guests
+                else frozenset((BASE_JOB,)))
+            preserved = []
+            replaceable = []
+            original_jobs = set()
+            for g in old:
+                job = getattr(getattr(g, 'job_type', None), 'guid64', None)
+                sid = _sid(getattr(g, 'sim_id', None))
+                if (sid is None or
+                        (job not in expected_student_jobs and
+                         job not in TEACHER_JOBS)):
                     return None
-            elif old:
-                # Never silently erase a pre-existing EA invitation.
+                if job in TEACHER_JOBS:
+                    if (not permit_teacher_guests or
+                            sid in self.manifest['all_16']):
+                        return None
+                    preserved.append(g)
+                else:
+                    # Multiple guests for the same native special slot,
+                    # or two Base students in the same Base situation,
+                    # are ambiguous and must never be erased.
+                    if job in original_jobs:
+                        return None
+                    original_jobs.add(job)
+                    replaceable.append(g)
+            if (replaceable and
+                    (not isinstance(context, dict) or
+                     context.get('original_ea_school_guest_takeover_verified')
+                     is not True)):
+                return None
+            requested_jobs = tuple(job for _, job in new_entries)
+            if (len(requested_jobs) != len(set(requested_jobs)) or
+                    set(requested_jobs) != (
+                        set(CORE_JOBS) if permit_teacher_guests
+                        else {BASE_JOB})):
                 return None
             replacement = type(original)(
                 invite_only=True,
                 host_sim_id=original.host_sim_id,
                 filter_requesting_sim_id=original.filter_requesting_sim_id)
-            for guest in old:
+            for guest in preserved:
                 replacement.add_guest_info(guest.clone_for_guest_list())
             for sid, job_id in new_entries:
                 guest = self.guest_info_class.construct_from_purpose(
@@ -214,13 +256,15 @@ class SchoolNativeGuestSession(object):
                     return None
                 replacement.add_guest_info(guest)
             actual = tuple(replacement.guest_info_gen())
-            if (len(actual) != len(old) + len(new_entries) or
-                    tuple(str(g.sim_id) for g in actual[len(old):]) !=
+            if (len(actual) != len(preserved) + len(new_entries) or
+                    tuple(str(g.sim_id) for g in actual[len(preserved):]) !=
                     tuple(sid for sid, _ in new_entries) or
-                    replacement.invite_only is not True):
+                    replacement.invite_only is not True or
+                    any(str(g.sim_id) in self.manifest['all_16']
+                        for g in actual[:len(preserved)])):
                 return None
             return replacement
-        except (AttributeError, ValueError, TypeError):
+        except (AttributeError, ValueError, TypeError, InvitationPlanError):
             return None
 
     def preview(self, situation_guid, original_guest_list, context):
@@ -238,7 +282,8 @@ class SchoolNativeGuestSession(object):
                 return None, None
             entries = tuple((sid, job) for job, sid in
                             self._local_core_holds)
-            clone = self._guest_list(original_guest_list, entries, True)
+            clone = self._guest_list(original_guest_list, entries, True,
+                                     context)
         elif situation_guid == BASE_SITUATION:
             # EA's original WeeklyScheduleDay lists Base BEFORE Core.
             # Plan selection here; an independent pre-spin-up role
@@ -252,7 +297,8 @@ class SchoolNativeGuestSession(object):
             ticket = 'base:' + sid
             if ticket in self._pending or ticket in self._confirmed:
                 return None, None
-            clone = self._guest_list(original_guest_list, ((sid, BASE_JOB),), False)
+            clone = self._guest_list(original_guest_list, ((sid, BASE_JOB),),
+                                     False, context)
         else:
             return None, None
         if clone is None:
