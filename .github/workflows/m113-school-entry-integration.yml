@@ -1,0 +1,37 @@
+name: M113 two-phase school controller safety (offline only)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m113_controller/**'
+      - 'tests/test_m113_*.py'
+      - 'docs/M113_DUE_FASI_PRIMA_DEL_BOUNCER.md'
+      - '.github/workflows/m113-school-entry-integration.yml'
+  workflow_dispatch:
+jobs:
+  m113_early_school:
+    name: Python 3.7 M113 native count early hook and 5-stage rollback
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify home save/role snapshot and earliest EA callback
+        run: python -m unittest tests.test_m113_live_home_bridge tests.test_m113_early_school_entry tests.test_m112_native_guest_takeover tests.test_m112_native_count_and_admission -v
+      - name: Verify Sims 4 Python 3.7 source bytecode without publishing controller
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import py_compile
+          import tempfile
+          from pathlib import Path
+          assert importlib.util.MAGIC_NUMBER == bytes((66,13,13,10))
+          with tempfile.TemporaryDirectory() as folder:
+              for src in sorted(Path('src/m113_controller').glob('*.py')):
+                  dest=Path(folder)/(src.stem+'.pyc')
+                  py_compile.compile(str(src),cfile=str(dest),doraise=True)
+                  assert dest.read_bytes()[:4]==bytes((66,13,13,10))
+          print('M113 Python3.7 source check PASSED; no game artifact released')
+          PY
