@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 NAME='MHS_M128_ALLINEAMENTO_CLASSI_MAC_BETA.ts4script'
-MAGIC=bytes((66,14,13,10))
+MAGIC=bytes((66,13,13,10))
 SOURCES=tuple(ROOT/path for path in (
 'src/m2_registry/mhs_m2_roster.py',
 'src/m2_registry/mhs_m2_store.py',
@@ -49,10 +49,10 @@ def build(folder):
     (out/'M128_BUILD_REPORT.json').write_text(
         json.dumps(details,indent=2),encoding='utf-8')
     (out/'LEGGIMI_M128.txt').write_text(
-        'M128 Mac: usare solo copia del salvataggio. Rimuovere M126 da Mods.\n'
+        'M128 Mac: usare solo copia del salvataggio. Rimuovere M127 e altre beta sperimentali da Mods.\n'
         'Da casa: mhs128.arm\n'
-        'A scuola alle 09:40 09:55 10:05: mhs128.tempo\n'
-        'Inviare MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M128_ORARI_PERCORSI_EA.json\n'
+        'Al liceo PRIMA delle 09:30: mhs128.verifica poi mhs128.allinea SOLO SU COPIA SALVATAGGIO\n'
+        'Inviare MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M128_TRATTI_EA.json\n'
         'La M128 verifica tratti EA e opzionalmente allinea 16 iscritti; NON forza la seduta.\n'
         'Fine prova: mhs128.stop.\n',encoding='utf-8')
     return details
@@ -60,5 +60,5 @@ def build(folder):
 
 if __name__=='__main__':
     if len(sys.argv)!=2:
-        raise SystemExit('Usage: python -m tooling.build_mhs127_verified OUTDIR')
+        raise SystemExit('Usage: python -m tooling.build_mhs128_verified OUTDIR')
     print(json.dumps(build(sys.argv[1]),indent=2))
