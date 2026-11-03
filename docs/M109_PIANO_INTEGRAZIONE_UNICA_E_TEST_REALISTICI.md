@@ -268,3 +268,62 @@ caricato, e i controlli dei SimInfo/tuning risorse, conteggi
 dinamici Bouncer, Class1 shadow e provenienza calendario.
 La sonda è quindi diagnostica preparatoria, NON un nuovo
 controller da attivare.
+
+## M109 — diagnostica console realmente eseguibile (solo dopo build verde)
+
+**Realizzato nel sorgente, non ancora validato nel gioco:**
+- `src/m109_activation/mhs109_game_probe.py`: registra
+  `mhs109.probe` con la normale API
+  `sims4.commands.Command(..., CommandType.Live)`.
+  Il comando importa **solo quando viene usato**
+  le classi native:
+  `venues.weekly_schedule_zone_director.WeeklyScheduleDay`,
+  `WeeklyScheduleSituationData`,
+  `situations.situation_manager.SituationManager`,
+  `situations.bouncer.bouncer_request.BouncerRequest`,
+  `situations.bouncer.bouncer.Bouncer` e
+  `situations.base_situation.BaseSituation`.
+  Se l'installazione EA reale ha una struttura diversa,
+  riporta `EA_CLASS_MISSING`/`IMPORT_<tipo>` e
+  NON inventa l'esito. Non raccoglie Sim ID.
+- Richiama `inspect_runtime_shapes` e salva
+  `MHS_M109_NATIVE_METHODS_READ_ONLY.json` in
+  `Documents/Electronic Arts/The Sims 4/
+  MY_HIGH_SCHOOL_M25_TEST_DATA/`.
+- La diagnostica **non importa alcun controller M108**,
+  non attiva `try_start`, non intercetta il Bouncer,
+  non cambia classi, Sim, studenti, presenze,
+  situazioni o il registro. NON è il liceo M109.
+- `tooling/build_mhs109_readonly.py`: produce
+  `MHS_M109_NATIVE_METHODS_READ_ONLY.ts4script` con
+  **soltanto due .pyc**, senza `.package`, e
+  rifiuta Python diverso da **3.7** e bytecode
+  diverso da `42 0D 0D 0A`.
+- `tests/test_m109_game_probe.py`: testa la
+  registrazione del comando senza eseguirlo,
+  moduli EA simulati, lettura a sola visualizzazione,
+  import non riusciti, nessun M108 hook incluso,
+  scrittura sicura di report in cartella temporanea.
+- Il workflow `.github/workflows/offline-tests.yml`
+  contiene un job **indipendente**
+  `m109_readonly_mac_probe`: testa, compila con
+  Python 3.7, verifica l'archivio e carica
+  l'artifact `MHS_M109_NATIVE_METHODS_READ_ONLY_NOT_CLASSROOM_MOD`.
+
+**Condizioni prima dell'eventuale installazione:**
+1. GitHub Actions di questo *esatto commit* deve
+   concludere con **success** del job specifico.
+2. Scaricare unicamente l'artifact verificato,
+   non compilare localmente con Python 3.13.
+3. Usare una copia di salvataggio e un'installazione
+   di Mods priva di vecchie coppie MHS.
+4. Comando in console `mhs109.probe`, fornire
+   il JSON risultante per il confronto degli owner
+   EA e dei metodi disponibili.
+5. Questa prova **non vale** come test di
+   presenza/lezione 16/16: dopo la diagnostica
+   manca ancora l'adapter vero di integrazione M109.
+
+All'ultimo controllo la CI M109 era **queued**.
+Non dichiarare il .ts4script pronto al download
+finché il workflow non fornisce l'artifact.
