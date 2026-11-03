@@ -1,0 +1,39 @@
+name: M116 Read exact original EA Base/Core job receipt (offline)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m116_admission/**'
+      - 'src/m108_native_roster/mhs108_native_invitation.py'
+      - 'tests/test_m116_native_guest_job_readback.py'
+      - 'docs/M116_JOB_EA_RUOLI_DOPO_BOUNCER.md'
+      - '.github/workflows/m116-native-ea-job-readback.yml'
+  workflow_dispatch:
+jobs:
+  original_ea_guest_jobs:
+    name: Python 3.7 nine original EA Base/Core situation jobs (read-only)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test original EA nine-create receipts and thirteen jobs
+        run: python -m unittest tests.test_m108_native_invitation tests.test_m112_native_guest_takeover tests.test_m116_native_guest_job_readback -v
+      - name: Verify Sims Python 3.7 compatibility without releasing a mod
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import py_compile
+          import tempfile
+          from pathlib import Path
+          magic=bytes((66,13,13,10))
+          assert importlib.util.MAGIC_NUMBER==magic
+          with tempfile.TemporaryDirectory() as temp:
+              for source in Path('src/m116_admission').glob('*.py'):
+                  compiled=Path(temp)/(source.stem+'.pyc')
+                  py_compile.compile(str(source),cfile=str(compiled),doraise=True)
+                  assert compiled.read_bytes()[:4]==magic
+          print('Native EA job readback checked; no installable game mod published')
+          PY
