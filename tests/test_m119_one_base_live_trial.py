@@ -183,6 +183,13 @@ def load_trial():
     obj=importlib.util.module_from_spec(spec)
     with patch.dict(sys.modules,mods):
         spec.loader.exec_module(obj)
+    # _arm() performs live EA imports lazily; those are fake modules
+    # in the Python3.7 unit environment but real EA modules in Sims 4.
+    native_arm=obj._arm
+    def with_test_imports():
+        with patch.dict(sys.modules,mods):
+            return native_arm()
+    obj._arm=with_test_imports
     return obj,mods,state,blank,base
 
 
