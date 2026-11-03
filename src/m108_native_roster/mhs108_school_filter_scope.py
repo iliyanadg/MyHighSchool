@@ -101,6 +101,16 @@ class SchoolFilterScope(object):
         expected = self._expected_for_request(request)
         if str(requested) not in expected:
             return False
+        # Merely being in the 2x8 registry does NOT mean EA invited
+        # this Sim. Require a per-student, per-job native guest ticket:
+        # pending (inside create_situation) or creation acknowledged.
+        # This check prevents bypass for an uninvited registered teen.
+        situation_guid = _guid(getattr(request, '_situation', None))
+        job_guid = _guid(getattr(request, '_job_type', None))
+        invitation = getattr(self.guests, 'has_native_student_invitation', None)
+        if (not callable(invitation)
+                or invitation(situation_guid, job_guid, requested) is not True):
+            return False
         constrained = getattr(request, '_constrained_sim_ids', None)
         if (type(constrained) not in (set, frozenset, tuple, list)
                 or len(constrained) != 1 or requested not in constrained):
@@ -148,7 +158,12 @@ class SchoolFilterScope(object):
                     and request._sim_filter is self.blank_filter
                     and self._context_ok()
                     and str(_id(getattr(request, '_requested_sim_id', None)))
-                    in self._expected_for_request(request))
+                    in self._expected_for_request(request)
+                    and self.guests.has_native_student_invitation(
+                        _guid(getattr(request, '_situation', None)),
+                        _guid(getattr(request, '_job_type', None)),
+                        getattr(request, '_requested_sim_id', None))
+                    is True)
         except (TypeError, AttributeError):
             return False
 
