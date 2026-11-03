@@ -14,13 +14,21 @@ TARGETS = (
     ('situation_manager', 'create_situation', 'method',
      'situations.situation_manager.SituationManager'),
 )
-EVENT_LIMIT = 256
+EVENT_LIMIT = 1024
 
 
 def _guid(value):
     try:
         guid = getattr(value, 'guid64', None)
         return guid if type(guid) is int and guid > 0 else None
+    except Exception:
+        return None
+
+
+def _related_guid(value, attribute):
+    # Diagnostic metadata must never prevent or retry the native EA call.
+    try:
+        return _guid(getattr(value, attribute, None))
     except Exception:
         return None
 
@@ -46,7 +54,8 @@ class M110Trace(object):
         self._errors = []
         self._counts = {item[1]: 0 for item in TARGETS}
 
-    def _record(self, stage, phase, guid, result=None):
+    def _record(self, stage, phase, guid, result=None,
+                related_guid=None):
         # Logging must never block or modify an EA callback.
         try:
             self._counts[stage] += (1 if phase == 'enter' else 0)
@@ -55,6 +64,20 @@ class M110Trace(object):
                 return
             event = {'n': self._total, 'method': stage,
                      'phase': phase, 'target_guid': guid}
+            if related_guid is not None:
+                event['related_situation_guid'] = related_guid
+            if stage in ('create_situation', 'try_start') and phase == 'return':
+                # This is NOT proof of a spawned Sim or assigned EA job.
+                if result is None:
+                    event['ea_return_state'] = 'NONE'
+                elif type(result) is bool:
+                    event['ea_return_state'] = (
+                        'TRUE' if result else 'FALSE')
+                elif type(result) is int:
+                    event['ea_return_state'] = (
+                        'POSITIVE_INT' if result > 0 else 'NONPOSITIVE_INT')
+                else:
+                    event['ea_return_state'] = 'OTHER'
             if stage == 'get_long_term_situation_count' and phase == 'return':
                 if (type(result) is tuple and len(result) == 2
                         and all(type(x) is int and 0 <= x <= 100
@@ -70,25 +93,34 @@ class M110Trace(object):
         if method_name == 'get_long_term_situation_count':
             def wrapper(cls, *args, **kwargs):
                 guid = _guid(cls)
-                tracker._record(method_name, 'enter', guid)
+                data = args[0] if args else kwargs.get('data')
+                related = _related_guid(data, 'situation')
+                tracker._record(method_name, 'enter', guid,
+                                related_guid=related)
                 try:
                     result = original(cls, *args, **kwargs)
                 except BaseException:
-                    tracker._record(method_name, 'raise', guid)
+                    tracker._record(method_name, 'raise', guid,
+                                    related_guid=related)
                     raise
-                tracker._record(method_name, 'return', guid, result)
+                tracker._record(method_name, 'return', guid, result,
+                                related_guid=related)
                 return result
             wrapped = classmethod(wrapper)
         elif method_name == 'try_start':
             def wrapper(cls, *args, **kwargs):
                 guid = _guid(cls)
-                tracker._record(method_name, 'enter', guid)
+                related = _related_guid(cls, 'situation')
+                tracker._record(method_name, 'enter', guid,
+                                related_guid=related)
                 try:
                     result = original(cls, *args, **kwargs)
                 except BaseException:
-                    tracker._record(method_name, 'raise', guid)
+                    tracker._record(method_name, 'raise', guid,
+                                    related_guid=related)
                     raise
-                tracker._record(method_name, 'return', guid)
+                tracker._record(method_name, 'return', guid, result,
+                                related_guid=related)
                 return result
             wrapped = classmethod(wrapper)
         else:
@@ -101,7 +133,7 @@ class M110Trace(object):
                 except BaseException:
                     tracker._record(method_name, 'raise', guid)
                     raise
-                tracker._record(method_name, 'return', guid)
+                tracker._record(method_name, 'return', guid, result)
                 return result
             wrapped = wrapper
         wrapper._mhs110_trace_wrapper = True
@@ -201,6 +233,7 @@ class M110Trace(object):
             'event_limit': EVENT_LIMIT,
             'event_total': self._total,
             'events_kept': len(self._events),
+            'event_details_truncated': self._total > len(self._events),
             'event_counts': dict(self._counts),
             'events': list(self._events),
             'errors': list(self._errors),

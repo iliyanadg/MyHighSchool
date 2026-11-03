@@ -70,6 +70,7 @@ def release(output):
         'Rapporto: Documents/Electronic Arts/The Sims 4/\n'
         'MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M110_NATIVE_EA_CALL_TRACE.json\n'
         'Il rapporto NON contiene nomi o identificativi dei Sim.\n'
+        'Traccia fino a 1024 eventi, inclusi stato risultato e situation GUID.\n'
         'Non prova che 16 studenti siano presenti o seduti.\n',
         encoding='utf-8')
     return report

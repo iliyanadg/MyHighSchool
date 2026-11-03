@@ -116,6 +116,47 @@ class TraceTest(unittest.TestCase):
         self.assertEqual(trace.report()['status'],'INACTIVE')
         self.assertFalse(trace.report()['runtime_descriptors_temporarily_modified'])
 
+    def test_full_school_day_covers_374_events_without_truncation(self):
+        classes, calls = native()
+        trace = M110Trace()
+        self.assertTrue(trace.start(classes))
+        for _ in range(187):
+            classes['weekly_day'].get_long_term_situation_count(None, None)
+        self.assertTrue(trace.stop())
+        report = trace.report()
+        self.assertEqual(report['event_total'], 374)
+        self.assertEqual(report['events_kept'], 374)
+        self.assertFalse(report['event_details_truncated'])
+
+    def test_school_count_records_which_native_situation_was_counted(self):
+        classes, calls = native()
+        trace = M110Trace()
+        self.assertTrue(trace.start(classes))
+        data = type('ScheduleRow', (object,), {
+            'situation': type('Base', (object,), {'guid64': 277733})()
+        })()
+        self.assertEqual(
+            classes['weekly_day'].get_long_term_situation_count(data, None),
+            (6, 6))
+        self.assertTrue(trace.stop())
+        self.assertEqual(
+            trace.report()['events'][0]['related_situation_guid'], 277733)
+        self.assertEqual(
+            trace.report()['events'][1]['ea_count_pair'], [6, 6])
+
+    def test_try_start_related_situation_and_return_value_state(self):
+        classes, calls = native()
+        phase = classes['weekly_data']
+        phase.situation = type('EAType', (object,), {'guid64': 304565})()
+        trace = M110Trace()
+        self.assertTrue(trace.start(classes))
+        self.assertEqual(phase.try_start([], None, 15, [], {}), 123456)
+        self.assertTrue(trace.stop())
+        events = trace.report()['events']
+        self.assertEqual(events[0]['related_situation_guid'], 304565)
+        self.assertEqual(events[1]['ea_return_state'], 'POSITIVE_INT')
+        self.assertNotIn('ea_return_id', events[1])
+
     def test_capped_events_never_contain_sim_ids_or_names(self):
         classes,_=native()
         trace=M110Trace()

@@ -25,8 +25,8 @@ Non prova compatibilità con altre mod script senza marker riconosciuti.
 - Nessun file `.package`, nessuna modifica al registro, agli studenti,
   alle situazioni già esistenti o ai tuning EA
 - Il wrapper altera TEMPORANEAMENTE il codice Python in memoria
-- Al massimo 256 eventi dettagliati (contatori continuano)
-- GUID delle situazioni e conteggi EA, nessun SimID o nome
+- Al massimo 1024 eventi dettagliati (contatori continuano)
+- GUID delle situazioni e conteggi EA, stato del valore restituito, nessun SimID o nome
 - Un registro di callback NON dimostra che 16 studenti siano stati assegnati
   né che frequentino lezioni in aule separate
 - Eseguire SOLO su COPIA del salvataggio e senza altre beta MHS
