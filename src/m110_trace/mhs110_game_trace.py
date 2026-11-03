@@ -54,10 +54,20 @@ def _start(_connection=None):
 @sims4.commands.Command('mhs110.stop', command_type=sims4.commands.CommandType.Live)
 def _stop(_connection=None):
     try:
-        restored = TRACER.stop()
-        report_path = _save()
-        message = ('M110 STOP: metodi originali ripristinati. ' if restored else
-                   'M110 ATTENZIONE: ripristino non confermato. ') + REPORT
+        before = TRACER.report()
+        if (not before['temporary_runtime_wrappers_active']
+                and not before['runtime_descriptors_temporarily_modified']):
+            # The prior implementation claimed a restore conflict here and
+            # overwrote a good trace with an empty file. Neither is correct.
+            message = ('M110 NON ATTIVA: nessun wrapper da ripristinare. '
+                       'Rapporto precedente NON sovrascritto. '
+                       'Avvia mhs110.start prima della scuola.')
+        else:
+            restored = TRACER.stop()
+            _save()
+            message = (
+                'M110 STOP: metodi originali ripristinati. ' if restored else
+                'M110 ATTENZIONE: ripristino non confermato. ') + REPORT
     except Exception as exc:
         message = 'M110 ERRORE stop: ' + type(exc).__name__
     sims4.commands.output(message, _connection)
