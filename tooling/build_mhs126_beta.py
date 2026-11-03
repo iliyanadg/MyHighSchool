@@ -22,7 +22,8 @@ SOURCES=(
     ROOT/'src'/'m123_class_repair'/'mhs123_lesson_guest_projection.py',
     ROOT/'src'/'m124_behavior'/'mhs124_lesson_action_readback.py',
     ROOT/'src'/'m125_recovery'/'mhs125_safe_recovery.py',
-    ROOT/'src'/'m125_recovery'/'mhs125_thirteen_npc_plus_recovery.py',
+    ROOT/'src'/'m126_early'/'mhs126_early_preparation_projection.py',
+    ROOT/'src'/'m126_early'/'mhs126_early_school_controller.py',
 )
 
 
