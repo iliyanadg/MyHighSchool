@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src' / 'm109_activation'))
 
 from mhs109_readonly_ea_probe import (
-    METHOD_CONTRACT, inspect_runtime_shapes,
+    METHOD_CONTRACT, HOOK_TARGET_CONTRACT, inspect_runtime_shapes,
 )
 
 
@@ -102,6 +102,72 @@ class M109NativeEAReadOnlyProbeTests(unittest.TestCase):
         self.assertEqual(result['method_count_available'], 0)
         self.assertEqual(inspect_runtime_shapes(None)['method_count_available'],
                          0)
+
+
+    def test_all_six_hook_targets_are_located_but_not_authorized(self):
+        report = inspect_runtime_shapes(fixture())
+        self.assertEqual(report['hook_target_count_expected'], 6)
+        self.assertEqual(report['hook_target_count_expected'],
+                         len(HOOK_TARGET_CONTRACT))
+        self.assertEqual(report['hook_target_count_located_unverified'], 6)
+        self.assertTrue(all(
+            target['status'] == 'STAGE_TARGET_LOCATED_NOT_LIVE_VERIFIED'
+            for target in report['hook_target_observations']))
+        self.assertFalse(report['runtime_hook_install_authorized'])
+        self.assertFalse(report['absence_of_other_school_hooks_verified'])
+        self.assertEqual(report['known_mhs_hook_markers_found'], ())
+
+    def test_school_filter_stage_fails_when_methods_have_split_owners(self):
+        classes = fixture()
+        original = classes['bouncer_request']
+        # Same class name on both levels: comparing owner names alone
+        # would silently miss that these are two distinct patch owners.
+        parent = type('SameOwner', (object,), {
+            'get_additional_filter_terms':
+                original.__dict__['get_additional_filter_terms']
+        })
+        child_attrs = {
+            name: value for name, value in original.__dict__.items()
+            if name not in (
+                'get_additional_filter_terms', '__module__',
+                '__dict__', '__weakref__', '__doc__')
+        }
+        classes['bouncer_request'] = type('SameOwner', (parent,),
+                                           child_attrs)
+        report = inspect_runtime_shapes(classes)
+        targets = {item['stage']: item for item in
+                   report['hook_target_observations']}
+        self.assertEqual(
+            targets['school_filter_scope']['status'],
+            'STAGE_OWNER_SPLIT_OR_UNKNOWN')
+        self.assertEqual(report['hook_target_count_located_unverified'], 5)
+        self.assertFalse(report['runtime_hook_install_authorized'])
+
+    def test_marker_blocks_stage_and_reports_site_not_fake_hook_absence(self):
+        classes = fixture()
+        original = classes['weekly_data'].__dict__['try_start'].__func__
+        original._mhs108_unified_lessons = True
+        report = inspect_runtime_shapes(classes)
+        targets = {item['stage']: item for item in
+                   report['hook_target_observations']}
+        self.assertEqual(targets['unified_lessons']['status'],
+                         'STAGE_BLOCKED_BY_METHOD_CONTRACT')
+        self.assertEqual(report['hook_target_count_located_unverified'], 5)
+        self.assertEqual(
+            report['known_mhs_hook_markers_found'],
+            ({'class_key': 'weekly_data',
+              'method_name': 'try_start',
+              'status': 'COMPETING_SCHOOL_HOOK_ALREADY_INSTALLED'},))
+
+    def test_missing_owner_blocks_stage_and_never_fake_fills_targets(self):
+        classes = fixture()
+        classes['weekly_day'] = type('NoEAWeeklyDay', (object,), {})
+        report = inspect_runtime_shapes(classes)
+        targets = {item['stage']: item for item in
+                   report['hook_target_observations']}
+        self.assertEqual(targets['native_base_count']['status'],
+                         'STAGE_BLOCKED_BY_METHOD_CONTRACT')
+        self.assertFalse(report['runtime_hook_install_authorized'])
 
     def test_bouncer_request_filter_is_checked_as_two_separate_methods(self):
         report = inspect_runtime_shapes(fixture())
