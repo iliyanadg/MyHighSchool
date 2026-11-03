@@ -63,6 +63,55 @@ def _function(descriptor):
     return descriptor
 
 
+
+# The six future M109 atomic stages and their precise EA descriptor owners.
+# This inventory does not install hooks or authorize a controller.
+HOOK_TARGET_CONTRACT = (
+    ('native_base_count', 'weekly_day',
+     ('get_long_term_situation_count',)),
+    ('native_precreate', 'situation_manager', ('create_situation',)),
+    ('school_filter_scope', 'bouncer_request',
+     ('__init__', 'get_additional_filter_terms')),
+    ('no_show_guard', 'bouncer_request', ('clone_for_replace',)),
+    ('unified_lessons', 'weekly_data', ('try_start',)),
+    ('post_bouncer_observer', 'situation_manager',
+     ('on_all_sims_spawned_during_zone_spin_up',)),
+)
+
+
+def inspect_hook_targets(classes, method_observations):
+    """Read-only owner inventory for the six M109 hook stages.
+
+    A stage is only *located*, never game-authorized. In particular,
+    SchoolFilterScope must patch both methods on their true owners; when
+    those owners differ, the current single-owner adapter cannot be used.
+    """
+    by_key = {(item['class_key'], item['method_name']): item
+              for item in method_observations}
+    observations = []
+    for stage, class_key, names in HOOK_TARGET_CONTRACT:
+        methods = [by_key.get((class_key, name)) for name in names]
+        owners = tuple(item['declaring_owner'] for item in methods
+                       if item is not None and item['declaring_owner'])
+        if (len(methods) != len(names) or
+                any(item is None or
+                    item['status'] != 'METHOD_AVAILABLE_NOT_LIVE_VERIFIED'
+                    for item in methods)):
+            status = 'STAGE_BLOCKED_BY_METHOD_CONTRACT'
+        elif len(owners) != len(names) or len(set(owners)) != 1:
+            status = 'STAGE_OWNER_SPLIT_OR_UNKNOWN'
+        else:
+            status = 'STAGE_TARGET_LOCATED_NOT_LIVE_VERIFIED'
+        observations.append({
+            'stage': stage,
+            'class_key': class_key,
+            'method_names': names,
+            'declaring_owners': owners,
+            'status': status,
+        })
+    return tuple(observations)
+
+
 def inspect_runtime_shapes(classes):
     """Observe loaded method descriptors without touching EA runtime.
 
@@ -105,6 +154,14 @@ def inspect_runtime_shapes(classes):
             'declaring_owner': detail,
             'status': status,
         })
+    hook_targets = inspect_hook_targets(classes, items)
+    located = sum(item['status'] == 'STAGE_TARGET_LOCATED_NOT_LIVE_VERIFIED'
+                  for item in hook_targets)
+    known_markers = [
+        {'class_key': key, 'method_name': name, 'status': status}
+        for key, name, status in problems
+        if status == 'COMPETING_SCHOOL_HOOK_ALREADY_INSTALLED'
+    ]
     return {
         'kind': 'M109_READ_ONLY_EA_METHOD_DIAGNOSTIC',
         'status': ('METHOD_SHAPES_AVAILABLE_UNVERIFIED'
@@ -113,6 +170,13 @@ def inspect_runtime_shapes(classes):
         'problems': tuple(problems),
         'method_count_expected': len(METHOD_CONTRACT),
         'method_count_available': len(METHOD_CONTRACT) - len(problems),
+        'hook_target_observations': hook_targets,
+        'hook_target_count_expected': len(HOOK_TARGET_CONTRACT),
+        'hook_target_count_located_unverified': located,
+        'known_mhs_hook_markers_found': tuple(known_markers),
+        # No supported read-only scan can certify all third-party patches.
+        'absence_of_other_school_hooks_verified': False,
+        'runtime_hook_install_authorized': False,
         # Not a real SimInfo test, calendar invocation or Bouncer proof.
         'activation_authorized_by_game': False,
         'ea_live_provenance_verified': False,
