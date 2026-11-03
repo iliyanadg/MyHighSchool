@@ -85,21 +85,21 @@ def release(out):
             if essential not in names:
                 raise RuntimeError('Missing essential M106 runtime '+essential)
     notes=(
-        'MY HIGH SCHOOL - M106 ROSTER FIRST - SOLO PILOT SPERIMENTALE\\n'
-        'NON GARANTISCE 16/16 studenti e NON corregge 8 Base EA.\\n'
-        'SOLO UNA COPIA DEL SALVATAGGIO. NON usare su quello principale.\\n'
-        'Rimuovi tutte le precedenti coppie MHS da Mods prima di provare.\\n'
-        'Copia un solo .package e un solo .ts4script M106 nella cartella Mods.\\n'
-        'Le 2 classi devono avere 8 studenti ciascuna, 3 giocabili iscritti.\\n'
-        'Con 5 ruoli MHS salvati, da casa prima del liceo: mhs106.arm\\n'
-        'Al liceo: mhs106.check; disattiva: mhs106.off\\n'
-        'Questo pilota sostituisce il filtro nativo per uno specifico ruolo\\n'
-        'Core solo con scuola/save/giorno/Bouncer verificati.\\n'
-        'Non cambia i tratti, il registro, i professori, le situazioni EA,\\n'
-        'ne il conteggio EA delle richieste Base (originalmente 6).\\n'
-        'Una richiesta vincolata NON prova uno studente presente o un ruolo.\\n'
-        'Report: Documents/Electronic Arts/The Sims 4/\\n'
-        'MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M106_PIANO_GIORNO.json\\n')
+        'MY HIGH SCHOOL - M106 ROSTER FIRST - SOLO PILOT SPERIMENTALE\n'
+        'NON GARANTISCE 16/16 studenti e NON corregge 8 Base EA.\n'
+        'SOLO UNA COPIA DEL SALVATAGGIO. NON usare su quello principale.\n'
+        'Rimuovi tutte le precedenti coppie MHS da Mods prima di provare.\n'
+        'Copia un solo .package e un solo .ts4script M106 nella cartella Mods.\n'
+        'Le 2 classi devono avere 8 studenti ciascuna, 3 giocabili iscritti.\n'
+        'Con 5 ruoli MHS salvati, da casa prima del liceo: mhs106.arm\n'
+        'Al liceo: mhs106.check; disattiva: mhs106.off\n'
+        'Questo pilota sostituisce il filtro nativo per uno specifico ruolo\n'
+        'Core solo con scuola/save/giorno/Bouncer verificati.\n'
+        'Non cambia i tratti, il registro, i professori, le situazioni EA,\n'
+        'ne il conteggio EA delle richieste Base (originalmente 6).\n'
+        'Una richiesta vincolata NON prova uno studente presente o un ruolo.\n'
+        'Report: Documents/Electronic Arts/The Sims 4/\n'
+        'MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M106_PIANO_GIORNO.json\n')
     (out/'LEGGIMI_M106_PILOT.txt').write_text(notes,encoding='utf-8')
     report={
         'status':'EXPERIMENTAL_NATIVE_CORE_BASE_PILOT_NOT_16_ATTENDANCE',

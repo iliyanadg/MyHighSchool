@@ -38,6 +38,20 @@ class M106MacPilotTests(unittest.TestCase):
         self.assertIn('return _OLD_FILTER(original,service,newargs,newkwargs,mode)',
                       control)
 
+    def test_m106_pilot_instructions_have_real_line_breaks(self):
+        # Guard against escaped-backslash lines like the old M109 README.
+        tree=ast.parse((ROOT/'tooling'/'build_mhs106_pilot.py')
+                       .read_text(encoding='utf-8'))
+        assignments=[node.value for node in ast.walk(tree)
+                     if isinstance(node,ast.Assign)
+                     and any(isinstance(target,ast.Name) and target.id=='notes'
+                             for target in node.targets)]
+        self.assertEqual(len(assignments),1)
+        self.assertIsInstance(assignments[0],ast.Str)
+        instructions=assignments[0].s
+        self.assertGreaterEqual(instructions.count('\n'),15)
+        self.assertNotIn('\\n',instructions)
+
     def test_no_direct_spawn_or_schedule_count_in_m106(self):
         folder=ROOT/'src'/'m106_roster_first'
         src='\n'.join((folder/name).read_text() for name in MODULES)
