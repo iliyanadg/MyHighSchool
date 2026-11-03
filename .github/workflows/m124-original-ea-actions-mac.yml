@@ -1,0 +1,43 @@
+name: M124 original EA lesson actions Mac beta
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m124_behavior/**'
+      - 'tests/test_m124_*.py'
+      - 'tooling/build_mhs124_beta.py'
+      - '.github/workflows/m124-original-ea-actions-mac.yml'
+  workflow_dispatch:
+jobs:
+  test_build:
+    name: M124 Original EA per student role and queue readback Python3.7
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Run action readback and 13 NPC/2 class regressions
+        run: python -m unittest tests.test_m124_lesson_action_readback tests.test_m123_live_lesson_integration tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
+      - name: Build Sims Mac M124 .ts4script
+        run: python -m tooling.build_mhs124_beta dist_m124
+      - name: Verify compiled Python3.7 modules
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs124_beta import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m124/'+NAME) as archive:
+              assert len(archive.namelist())==len(SOURCES)==10
+              assert set(archive.namelist())==set(s.stem+'.pyc' for s in SOURCES)
+              assert all(archive.read(p)[:4]==MAGIC for p in archive.namelist())
+          print('M124 Python3.7 compiled; no seat/interaction intervention yet')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M124_LESSON_ACTIONS_MAC_EXPERIMENTAL
+          path: |
+            dist_m124/MHS_M124_RUOLI_AZIONI_MAC_BETA.ts4script
+            dist_m124/M124_BUILD_REPORT.json
+            dist_m124/LEGGIMI_M124.txt
+          if-no-files-found: error
