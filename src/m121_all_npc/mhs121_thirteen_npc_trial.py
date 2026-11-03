@@ -1,7 +1,7 @@
 """M121 experimental Mac: 8 Base + 5 user-pinned Core NPCs, original EA hooks.
 
 Extends M119's actual live result: one EA Base assigned NPC observed at
-08:13 and 10:32. No manual Core promotion, no extra student generation.
+08:13 and 10:32. Five Core role holders come ONLY from M97 manual selections; no extra NPC generation.
 Native original EA Base count (3,3) may be raised to (8,8) only in
 school context, using the EA calendar classmethod owner.
 One test save only; not a complete 16-student classroom controller.
@@ -55,7 +55,7 @@ def registered_eight():
         raise ValueError('Tre teen giocabili devono essere iscritti')
     core=CoreRoleStore(FOLDER).load(slot)
     pinned=core.chosen() if core.complete else {}
-    if (set(pinned)!=CORE_JOBS or len(set(pinned.values()))!=5
+    if (set(pinned)!=set(CORE_JOBS) or len(set(pinned.values()))!=5
             or not set(pinned.values())<=set(enrolled)-set(played)):
         raise ValueError('Servono 5 ruoli Core manuali, NPC iscritti')
     base=tuple(sid for sid in enrolled
@@ -70,7 +70,7 @@ def registered_eight():
         if (info is None or getattr(info,'age',None)!=Age.TEEN
                 or getattr(info,'species',None)!=Species.HUMAN):
             raise ValueError('Sim iscritto non umano teen')
-        if sid in base and getattr(info,'is_selectable',True) is not False:
+        if (sid in base or sid in pinned.values()) and getattr(info,'is_selectable',True) is not False:
             raise ValueError('Base scelto non NPC')
     return slot,base,{int(job):str(sid) for job,sid in pinned.items()}
 
@@ -558,7 +558,7 @@ def arm_m121():
 @sims4.commands.Command('mhs121.arm',
     command_type=sims4.commands.CommandType.Live)
 def m121arm(_connection=None):
-    sims4.commands.output(arm_m120(),_connection)
+    sims4.commands.output(arm_m121(),_connection)
 
 
 @sims4.commands.Command('mhs121.status',
