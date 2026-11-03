@@ -94,8 +94,14 @@ def inspect_current_school_ea_jobs(phase):
         result['school_schedule_guid'] = schedule_guid
         result['roster_slot_verified'] = True
         result['ea_school_schedule_observed'] = True
-        # Sim instance is a live game object; this does not attest an
-        # actual Bouncer callback or the native job at both lesson times.
+        # Native EA writes this flag after its original *zone-spinup*
+        # Bouncer assignment. Read only; it is NOT a verified callback
+        # receipt for the subsequent 10:00 / 14:00 classroom assignments.
+        value = getattr(manager, '_sim_assignment_complete', None)
+        result['zone_spinup_assignment_flag_observed'] = value is True
+        result['zone_spinup_assignment_flag_known'] = type(value) is bool
+        # Sim instance is a live game object; neither this boolean nor
+        # a job snapshot attests actual late Bouncer completion.
         result['post_bouncer_barrier_verified'] = False
         result['full_school_day_verified'] = False
         return result
