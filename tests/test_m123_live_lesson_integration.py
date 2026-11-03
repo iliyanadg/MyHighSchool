@@ -41,7 +41,7 @@ def load_trial():
 
 
 class M123OriginalEAClassroomIntegrationTests(unittest.TestCase):
-    def tear_down(self):
+    def tearDown(self):
         if hasattr(self,'mod'):
             if self.mod._RUNTIME is not None and self.mod._RUNTIME.active:
                 self.assertTrue(self.mod._RUNTIME.stop())
