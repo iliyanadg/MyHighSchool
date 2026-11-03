@@ -60,6 +60,8 @@ def release(out_folder):
         'contains_school_controller_hooks': False,
         'modifies_EA_tuning_or_Sims': False,
         'verifies_16_students_in_game': False,
+        'hook_targets_verified_in_game': False,
+        'hook_target_count_expected': 6,
         'requires_live_game_proof': True,
         'script_file': NAME,
         'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
@@ -73,6 +75,9 @@ def release(out_folder):
         'Non installare altre vecchie coppie sperimentali MHS insieme.\n'
         'Mettere SOLO il file .ts4script nella cartella Mods.\n'
         'Aprire la console e scrivere: mhs109.probe\n'
+        'Il JSON mostra 15 metodi EA e sei punti di aggancio M109.\\n'
+        'Un target individuato NON prova compatibilita o presenze.\\n'
+        'La mancata rilevazione di marker NON esclude altre mod.\\n'
         'Risultato: Documents/Electronic Arts/The Sims 4/'
         'MY_HIGH_SCHOOL_M25_TEST_DATA/'
         'MHS_M109_NATIVE_METHODS_READ_ONLY.json\n'
