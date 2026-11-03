@@ -41,6 +41,8 @@ class SimManager(object):
         self.infos={int(s):Info(s,instanced) for s in CLASS1+CLASS2}
     def get(self,sid):
         return self.infos.get(sid)
+    def get_all(self):
+        return tuple(self.infos.values())
 
 
 class SituationManager(object):
@@ -121,6 +123,27 @@ class NativeTwoClassSnapshotTests(unittest.TestCase):
             (CLASS1,CLASS2),PLAY,SimManager(),
             PreparationSituationManager(),'TEEN','HUMAN','lesson')
         self.assertEqual(r2['status'],'NATIVE_CLASSROOM_JOB_MEMBERSHIPS_DIFFER')
+
+    def test_random_extra_student_in_ea_class_is_never_exact(self):
+        infos=SimManager()
+        infos.infos[999]=Info(999)
+        r=school_classroom_snapshot(
+            (CLASS1,CLASS2),PLAY,infos,
+            SituationManager(),'TEEN','HUMAN','lesson')
+        self.assertFalse(r['exact_two_class_jobs_verified'])
+        self.assertEqual(r['status'],
+                         'NATIVE_CLASSROOM_JOB_MEMBERSHIPS_DIFFER')
+        self.assertTrue(r['extra_nonregistered_native_class_memberships'])
+
+    def test_unknown_all_teen_source_cannot_claim_exact_class_sizes(self):
+        infos=SimManager()
+        infos.get_all=None
+        r=school_classroom_snapshot(
+            (CLASS1,CLASS2),PLAY,infos,
+            SituationManager(),'TEEN','HUMAN','lesson')
+        self.assertEqual(r['status'],'NATIVE_EA_CLASS_JOB_READ_INCOMPLETE')
+        self.assertTrue(r['nonregistered_teen_scan_incomplete'])
+        self.assertFalse(r['exact_two_class_jobs_verified'])
 
     def test_missing_ea_member_api_blocks(self):
         r=school_classroom_snapshot(
