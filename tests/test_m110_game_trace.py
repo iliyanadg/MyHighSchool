@@ -71,7 +71,7 @@ class GameTraceTests(unittest.TestCase):
     def test_second_stop_preserves_first_saved_report(self):
         mod, cmds, outputs = load_game_trace()
         classes, _ = native()
-        with patch.object(mod, '_classes', return_value=classes),\\
+        with patch.object(mod, '_classes', return_value=classes),\
              patch.object(mod, '_save', return_value='trace.json') as save:
             cmds['mhs110.start']()
             classes['weekly_day'].get_long_term_situation_count(None, None)
@@ -85,7 +85,7 @@ class GameTraceTests(unittest.TestCase):
     def test_actual_rollback_conflict_keeps_warning(self):
         mod, cmds, outputs = load_game_trace()
         classes, _ = native()
-        with patch.object(mod, '_classes', return_value=classes),\\
+        with patch.object(mod, '_classes', return_value=classes),\
              patch.object(mod, '_save', return_value='trace.json'):
             cmds['mhs110.start']()
             classes['weekly_data'].try_start = classmethod(
