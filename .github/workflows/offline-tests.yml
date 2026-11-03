@@ -30,7 +30,7 @@ jobs:
       - name: Verify read-only probe and no EA hooks
         run: python -m unittest tests.test_m109_readonly_ea_probe tests.test_m109_game_probe tests.test_m109_live_owner_bridge -v
       - name: Check M111 native EA classroom membership readback (Python 3.7)
-        run: python -m unittest tests.test_m111_school_job_readback -v
+        run: python -m unittest tests.test_m111_school_job_readback tests.test_m111_live_school_bridge -v
       - name: Build two-module TS4 Python 3.7 diagnostic
         run: python -m tooling.build_mhs109_readonly dist_m109_probe/
       - name: Check exact Mac archive contents, no other modules
