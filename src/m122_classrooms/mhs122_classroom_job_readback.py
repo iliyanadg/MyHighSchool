@@ -122,6 +122,34 @@ def school_classroom_snapshot(classes, playable, sim_info_manager,
                 observed[klass].add(sid)
             else:
                 wrong_jobs.append((sid,guid,job,required_job))
+    # Enumerate OTHER teens too: eight enrolled per room is not an
+    # "exact" result if EA also placed randomly generated students there.
+    all_infos=getattr(sim_info_manager,'get_all',None)
+    outside=[]
+    extras_unverifiable=False
+    if not callable(all_infos):
+        extras_unverifiable=True
+    else:
+        try:
+            for info in tuple(all_infos()):
+                sid=str(getattr(info,'sim_id',None))
+                if sid in classes[0]+classes[1]:
+                    continue
+                if (getattr(info,'age',None)!=age
+                        or getattr(info,'species',None)!=species):
+                    continue
+                sim=info.get_sim_instance()
+                if sim is None:
+                    continue
+                for situation in tuple(situations_for(sim)):
+                    guid=_guid(situation)
+                    if guid not in mapping:
+                        continue
+                    job=_guid(situation.get_current_job_for_sim(sim))
+                    if job==mapping[guid][1]:
+                        outside.append((sid,guid,job))
+        except Exception:
+            extras_unverifiable=True
     wrong_class=tuple((sid,klass) for klass in (1,2)
                       for sid in sorted(observed[klass],key=int)
                       if sid not in classes[klass-1])
@@ -148,6 +176,8 @@ def school_classroom_snapshot(classes, playable, sim_info_manager,
         wrong_class_memberships=wrong_class,
         cross_class_memberships=cross,
         wrong_native_job_guids=tuple(wrong_jobs),
+        extra_nonregistered_native_class_memberships=tuple(outside),
+        nonregistered_teen_scan_incomplete=extras_unverifiable,
         api_errors=tuple(errors),
         observed_native_lesson_rows=tuple(membership_rows),
         # Instances come from EA SimInfo, not class enrollment, but
@@ -155,9 +185,10 @@ def school_classroom_snapshot(classes, playable, sim_info_manager,
         all_playable_instances_verified=(len(available_playables)==3),
     )
     all_match=(len(instanced)==16
+               and not extras_unverifiable and not outside
                and not errors and not wrong_jobs and not wrong_class
                and not cross and not missing[1] and not missing[2])
-    if errors:
+    if errors or extras_unverifiable:
         report['status']='NATIVE_EA_CLASS_JOB_READ_INCOMPLETE'
     elif all_match:
         report['status']='TWO_NATIVE_CLASS_JOB_SETS_MATCH_OBSERVED'
