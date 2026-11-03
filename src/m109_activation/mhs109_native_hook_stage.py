@@ -112,10 +112,14 @@ class M109NativeStage(object):
                 if self._native_undo() is True:
                     # A callback could return success incorrectly.
                     if self._original_descriptors() == self._captured:
+                        if self._cleanup is not None:
+                            try:
+                                if self._cleanup() is not True:
+                                    return False
+                            except Exception:
+                                return False
                         self._captured = None
                         self._native_undo = None
-                        if self._cleanup is not None:
-                            return self._cleanup() is True
                         return True
             except Exception:
                 # Only restore still-recognizable own M108 wrappers.
