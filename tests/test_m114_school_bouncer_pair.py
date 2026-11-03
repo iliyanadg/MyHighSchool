@@ -62,7 +62,7 @@ class NativeSchoolBouncerPairTests(unittest.TestCase):
     def test_real_class_identity_and_methods_required(self):
         pair,reason,owner,prepared,context=native_pair()
         self.assertIsNotNone(pair)
-        self.assertFalse(pair.snapshot()['game_bouncer_modified'])
+        self.assertFalse(pair.snapshot()['ea_descriptors_currently_modified'])
         self.assertFalse(pair.snapshot()['native_student_role_assignment_verified'])
         fake=native_request_owner()
         fake.__module__='third_party.mod'
@@ -94,6 +94,7 @@ class NativeSchoolBouncerPairTests(unittest.TestCase):
         self.assertEqual(set(graph),{'school_filter_scope','no_show_guard'})
         self.assertTrue(graph['school_filter_scope']['install'](None,None))
         self.assertTrue(graph['no_show_guard']['install'](None,None))
+        self.assertTrue(pair.snapshot()['ea_descriptors_currently_modified'])
         try:
             base=owner(SchoolBase(),Job(BASE_JOB),5)
             uninvited=owner(SchoolBase(),Job(BASE_JOB),6)
@@ -120,6 +121,7 @@ class NativeSchoolBouncerPairTests(unittest.TestCase):
         for method in originals:
             self.assertIs(owner.__dict__[method],originals[method])
         self.assertEqual(pair.scope.snapshot()['tracked_requests'],0)
+        self.assertFalse(pair.snapshot()['ea_descriptors_currently_modified'])
 
     def test_cancelled_guest_ends_request_scope(self):
         pair,_,owner,prepared,context=native_pair()
