@@ -18,6 +18,44 @@ jobs:
       - name: Run offline roster tests
         run: python -m unittest discover -s tests -v
 
+  m109_readonly_mac_probe:
+    name: M109 native EA method probe (read-only, not classroom mod)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify read-only probe and no EA hooks
+        run: python -m unittest tests.test_m109_readonly_ea_probe tests.test_m109_game_probe -v
+      - name: Build two-module TS4 Python 3.7 diagnostic
+        run: python -m tooling.build_mhs109_readonly dist_m109_probe/
+      - name: Check exact Mac archive contents, no other modules
+        run: |
+          python - <<'PY'
+          import importlib.util
+          from zipfile import ZipFile
+          from pathlib import Path
+          from tooling.build_mhs109_readonly import NAME,EXPECTED_MAGIC
+          p=Path('dist_m109_probe')/NAME
+          with ZipFile(str(p)) as z:
+              names=set(z.namelist())
+              assert names == {
+                  'mhs109_readonly_ea_probe.pyc',
+                  'mhs109_game_probe.pyc'}
+              assert all(z.read(x)[:4] == EXPECTED_MAGIC for x in names)
+          assert importlib.util.MAGIC_NUMBER == EXPECTED_MAGIC
+          print('M109 READ-ONLY DIAGNOSTIC, PYTHON3.7 VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M109_NATIVE_METHODS_READ_ONLY_NOT_CLASSROOM_MOD
+          path: |
+            dist_m109_probe/MHS_M109_NATIVE_METHODS_READ_ONLY.ts4script
+            dist_m109_probe/MHS_M109_READONLY_BUILD_REPORT.json
+            dist_m109_probe/LEGGIMI_M109_DIAGNOSTICA.txt
+          if-no-files-found: error
+
   capacity_mac_beta:
     runs-on: ubuntu-22.04
     steps:
