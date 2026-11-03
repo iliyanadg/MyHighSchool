@@ -171,14 +171,20 @@ class EAJobObserverTests(unittest.TestCase):
 
     def test_job_id_alias_is_not_another_class_and_no_duplicate_ids(self):
         a=audit()
+        # 297774 is EA Class 2 *preparation*, not the 10:00 lesson.
+        # Student job 277919 is reused in Class 1, but situation ID
+        # and phase determine the real classroom. Preserve this gate.
+        prep_key=('11',12,'777','09:30')
         self.assertFalse(a.register_created(
-            101,297774,{277919:('10','10')},KEY))
-        self.assertFalse(a.register_created(
-            101,297774,{277919:(10,),277918:(10,)},KEY))
-        self.assertTrue(a.register_created(
             101,297774,{277919:(10,11),277918:(200,)},KEY))
         self.assertFalse(a.register_created(
-            101,297774,{277919:(12,)},KEY))
+            101,297774,{277919:('10','10'),277918:(200,)},prep_key))
+        self.assertFalse(a.register_created(
+            101,297774,{277919:(10,),277918:(10,)},prep_key))
+        self.assertTrue(a.register_created(
+            101,297774,{277919:(10,11),277918:(200,)},prep_key))
+        self.assertFalse(a.register_created(
+            101,297774,{277919:(12,),277918:(200,)},prep_key))
         self.assertEqual(a.snapshot()['native_created_awaiting_bouncer'],1)
 
     def test_incorrect_native_job_ids_cannot_be_verified(self):
