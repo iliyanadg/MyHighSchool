@@ -253,8 +253,11 @@ class FilterScopeTests(unittest.TestCase):
         class NativeRequest(Request):
             pass
         context = dict(BASE_CONTEXT)
+        invited = session()
+        self.assertEqual(invited.preview(BASE_SITUATION, EAList(), CONTEXT)[0],
+                         'base:5')
         scope = SchoolFilterScope(
-            session(), BLANK, 'TEEN', 'HUMAN',
+            invited, BLANK, 'TEEN', 'HUMAN',
             lambda sid: Info(sid), lambda: context)
         undo = install_offline_only(NativeRequest, scope, proofs())
         req = NativeRequest(SchoolBase(), Job(BASE_JOB), 5)
