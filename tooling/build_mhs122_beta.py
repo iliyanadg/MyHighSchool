@@ -57,14 +57,18 @@ def build(directory):
     (out/'M122_BUILD_REPORT.json').write_text(
         json.dumps(report,sort_keys=True,indent=2),encoding='utf-8')
     (out/'LEGGIMI_M122.txt').write_text(
-        'M122 8 BASE + 5 CORE - BETA SPERIMENTALE MAC.\n'
+        'M122 13 NPC + DUE LEZIONI EA - BETA SPERIMENTALE MAC.\n'
         'SOLO copia salvataggio. NON utilizzare il save principale.\n'
-        'Eliminare M120, M119, M111 e altre beta EA dalla Mods.\n'
+        'Rimuovere M121, M120, M119, M111 e beta EA precedenti da Mods.\n'
         'Conservare mod stabile registro MHS se gia funzionante.\n'
         'Le due classi devono contenere 8 studenti, 3 giocabili,\n'
         '5 Core scelti manualmente nel registro M97, 8 Base NPC.\n'
         'Dal lotto di casa prima della scuola: mhs122.arm\n'
         'Al liceo: mhs122.status dopo arrivo e alle 10:30.\n'
+        'Alle 10:30: mhs122.classi (due lezioni EA).\n'
+        'Facoltativo alle 09:30: mhs122.prepara (preparazione).\n'
+        'La lettura classi confronta i 16 iscritti con i veri job EA.\n'
+        'Non impone ancora le classi o i posti a sedere.\n'
         'Rilevare EA_base_present e EA_core_present separati.\n'
         'Core=5/5 dimostra job EA, NON banco, classe o 16 studenti.\n'
         'Al termine mhs122.stop, quindi chiudere il gioco.\n',
