@@ -6,9 +6,11 @@ NO provider able to prove EA runtime facts in the current game. Never ship
 this orchestrator as a playable M109 beta merely because synthetic tests pass.
 
 An independently implemented live adapter will eventually supply a verified
-plan and exactly seven named installers, each returning its own uninstall
-callback. A failure rolls back in reverse order; a failed rollback is
-reported and locks further attempts. The registry is never modified.
+plan and exactly six named hook stages. Each stage provides BOTH install
+and restore callbacks BEFORE any patch is attempted. A failure rolls back
+even a stage whose install raised after partial EA mutation.
+A failed rollback is reported and locks further attempts.
+The registry is never modified.
 Python 3.7-compatible code, no global state and no auto-hooks on import.
 """
 from mhs108_native_invitation import (
@@ -96,9 +98,11 @@ def _evidence_valid(evidence, manifest):
 class M109SchoolActivation(object):
     """Single-shot reversible installation; no automatic fallback to EA hacks.
 
-    Stage installers are callables: installer(canonical_manifest, evidence)
-    -> uninstall() callback. Hook owners are the individual M108 modules.
-    A rollback failure is a hard stop: never arm a second time.
+    A stage is a dict with 'install'(manifest, evidence) and 'restore'().
+    The restore callback MUST be safe for a partially installed hook,
+    including when 'install' raised before returning. Each live M108 adapter
+    must implement this contract explicitly. A rollback failure is a
+    hard stop: never arm a second time.
     """
 
     def __init__(self, manifest, preflight_provider, installers):
@@ -120,7 +124,10 @@ class M109SchoolActivation(object):
             return 'NO_LIVE_PREFLIGHT_PROVIDER', None
         if (not isinstance(self.installers, dict)
                 or set(self.installers) != set(INSTALL_ORDER)
-                or not all(callable(self.installers[k])
+                or not all(isinstance(self.installers[k], dict)
+                           and set(self.installers[k]) == {'install','restore'}
+                           and callable(self.installers[k]['install'])
+                           and callable(self.installers[k]['restore'])
                            for k in INSTALL_ORDER)):
             return 'INVALID_HOOK_GRAPH', None
         try:
@@ -148,14 +155,15 @@ class M109SchoolActivation(object):
             self.manifest['save_slot'], self.manifest['sim_day'],
             self.manifest['school_zone'], evidence['native_schedule_guid'])
         for name in INSTALL_ORDER:
+            stage = self.installers[name]
+            # Register restoration BEFORE install: catches partial mutation
+            # even when the stage raises without returning a callback.
+            self._undos.append((name, stage['restore']))
+            self.active_stages.append(name)
             try:
-                uninstall = self.installers[name](self.manifest, evidence)
-                if not callable(uninstall):
-                    raise ActivationError('installer returned no uninstall')
-                if any(uninstall is prior for _, prior in self._undos):
-                    raise ActivationError('duplicate uninstall callback')
-                self._undos.append((name, uninstall))
-                self.active_stages.append(name)
+                installed = stage['install'](self.manifest, evidence)
+                if installed is not True:
+                    raise ActivationError('stage did not confirm installation')
                 self.events.append((name, 'installed'))
             except Exception as exc:
                 self.error = name + ': ' + type(exc).__name__
@@ -194,11 +202,10 @@ class M109SchoolActivation(object):
             self.state = 'ROLLBACK_INCOMPLETE'
             self.error = 'HOOK_RESTORATION_INCOMPLETE'
             return False
-        self.state = 'OFF'
+        self.state = 'FINISHED'
         self.events.append(('activation', 'disarmed'))
         # Deliberately single-shot. Re-arm requires fresh M108 per-day
         # session, fresh EA facts and a NEW M109SchoolActivation instance.
-        self.state = 'FINISHED'
         return True
 
     def snapshot(self):
