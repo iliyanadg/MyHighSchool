@@ -80,7 +80,7 @@ class M126OriginalEAClassroomIntegrationTests(unittest.TestCase):
             OriginalManager().create_situation(
                 types.SimpleNamespace(guid64=304701),guest_list=second)
         self.assertIs(OriginalManager.calls[1][1],second)
-        self.assertEqual(len(self.mod._RUNTIME.lesson_created),1)
+        self.assertEqual(len(self.mod._RUNTIME.prep_created),1)
 
     def test_other_ea_situation_never_rewritten(self):
         self.prepare()
@@ -100,7 +100,7 @@ class M126OriginalEAClassroomIntegrationTests(unittest.TestCase):
                 types.SimpleNamespace(guid64=297774),guest_list=original)
         ids=[g.sim_id for g in OriginalManager.calls[-1][1].guest_info_gen()]
         self.assertEqual(ids,list(range(9,17)))
-        self.assertEqual(set(self.mod._RUNTIME.lesson_created),{2})
+        self.assertEqual(set(self.mod._RUNTIME.prep_created),{2})
 
     def test_base_and_core_proven_behaviour_still_present(self):
         self.prepare()
