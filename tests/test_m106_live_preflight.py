@@ -30,11 +30,13 @@ def compile_functions(ns):
                      str(PATH),'exec'),ns)
     return ns
 
-def fake_env(state='LOCAL_REGISTRY_VERIFIED',filter_results=FILTERS):
+def fake_env(state='LOCAL_REGISTRY_VERIFIED',filter_results=FILTERS,
+             assigned_roles=None):
     calls=[]
     local={'status':state,'classes':GROUPS,
            'playable':PLAYED,'save_slot':'11',
-           'assigned_roles':dict(ROLES)}
+           'assigned_roles':dict(ROLES if assigned_roles is None
+                                 else assigned_roles)}
     def query(ordinary):
         calls.append(tuple(ordinary))
         return filter_results,{'calls':{'original_ea_filters':6}}
@@ -50,6 +52,7 @@ class LiveRosterFirstTests(unittest.TestCase):
         env,calls=fake_env()
         result=env['prepare_live_roster_first']()
         self.assertEqual(result['status'],'ROSTER_FIRST_CANDIDATE_ONLY')
+        self.assertTrue(result['manual_roles_preserved'])
         self.assertEqual(result['plan']['all_16'],GROUPS[0]+GROUPS[1])
         self.assertEqual(result['plan']['school_only_bridge_count'],1)
         self.assertEqual(result['plan']['school_only_bridge_candidates'],
@@ -61,6 +64,21 @@ class LiveRosterFirstTests(unittest.TestCase):
                     'base_count_overridden','lot_capacity_verified',
                     'attendance_verified'):
             self.assertFalse(result[key])
+
+    def test_optimizer_cannot_silently_change_a_selected_core_sim(self):
+        # Sim 16 fails EA Base; only Core cheer accepts them. A naive
+        # optimizer moves the player's selected Sim 2 out of cheer.
+        # Experimental live M106 must block rather than change that choice.
+        selected=dict(ROLES)
+        selected[278965]='2'
+        env,calls=fake_env(assigned_roles=selected)
+        result=env['prepare_live_roster_first']()
+        self.assertEqual(result['status'],'BLOCKED')
+        self.assertIn('manual EA Core role assignments',result['reason'])
+        self.assertFalse(result['game_modified'])
+        self.assertFalse(result['attendance_verified'])
+        self.assertFalse(result['manual_roles_preserved'])
+        self.assertEqual(calls,[NPC])
 
     def test_registry_block_does_not_query_ea(self):
         env,calls=fake_env(state='BLOCKED')

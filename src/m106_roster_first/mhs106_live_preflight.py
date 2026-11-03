@@ -41,12 +41,30 @@ def prepare_live_roster_first():
             return {'status':'BLOCKED','reason':plan.get('reason','no plan'),
                     'filter_details':details,
                     'game_modified':False}
+        # The optimizer may find a valid EA partition by silently moving
+        # a user-selected Core role holder. The live pilot must NOT do this.
+        manual_roles=original.get('assigned_roles')
+        proposed_roles=plan.get('core_role_assignments')
+        if (not isinstance(manual_roles,dict)
+                or len(manual_roles)!=5
+                or not isinstance(proposed_roles,(tuple,list))
+                or len(proposed_roles)!=5
+                or any(job not in manual_roles
+                       or str(manual_roles[job])!=sid
+                       for job,sid in proposed_roles)):
+            return {'status':'BLOCKED',
+                    'reason':'manual EA Core role assignments would change',
+                    'filter_details':details,
+                    'manual_roles_preserved':False,
+                    'game_modified':False,
+                    'attendance_verified':False}
         # A successful PLAN is not a release condition or authorization
         # to replace EA Core job filters. No modified Sims or role bindings.
         return {'status':'ROSTER_FIRST_CANDIDATE_ONLY',
                 'save_slot':original['save_slot'],
                 'plan':plan,'filter_details':details,
                 'school_only_bridge_count':plan['school_only_bridge_count'],
+                'manual_roles_preserved':True,
                 'game_modified':False,
                 'ea_filters_modified':False,
                 'core_jobs_reserved':False,
