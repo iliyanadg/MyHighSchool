@@ -604,15 +604,16 @@ def _snapshot_classes(phase):
         missing1=len(result.get('missing_class1_job_ids',groups[0]))
         missing2=len(result.get('missing_class2_job_ids',groups[1]))
         wrong=len(result.get('wrong_class_memberships',()))
+        extras=len(result.get('extra_nonregistered_native_class_memberships',()))
         # The word "lezioni" indicates native EA situation job
         # membership, never physical seats or teacher identity.
         return ('M122 CLASSI phase={} EA_classe1={}/8 EA_classe2={}/8 '
                 'giocabili_istanziati={}/3 iscritti_istanziati={}/16 '
                 'mancanti_C1={} mancanti_C2={} classe_sbagliata={} '
-                'stato={} seduti=NON_VERIFICATO'.format(
+                'extra_nelle_lezioni={} stato={} seduti=NON_VERIFICATO'.format(
                     phase,count1,count2,playable_count,
                     result.get('enrolled_instanced_count',0),
-                    missing1,missing2,wrong,result['status']))
+                    missing1,missing2,wrong,extras,result['status']))
     except Exception as exc:
         return 'M122 CLASSI: LETTURA_EA_'+type(exc).__name__
 
