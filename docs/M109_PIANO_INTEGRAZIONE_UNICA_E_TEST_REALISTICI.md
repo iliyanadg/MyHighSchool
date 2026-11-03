@@ -228,3 +228,43 @@ eseguiti e i loro traceback, poi realizzare un
 e fornisca gli owner nativi. Soltanto dopo
 autorizzare l'installazione dell'intera catena
 e una beta su copia del salvataggio.
+
+## M109 — verifica sorgenti EA esistenti e sonda di metodi in sola lettura
+
+**Nuovi file:**
+`src/m109_activation/mhs109_readonly_ea_probe.py`,
+`tests/test_m109_readonly_ea_probe.py`.
+
+**Verifica reale dei sorgenti EA già condivisi (AST locale, non mock):**
+- `base_situation.py`, classe `BaseSituation`:
+  `all_jobs_gen(self)`, `all_sims_in_situation_gen(self)`,
+  `all_sims_in_job_gen(self, job_type)`,
+  `get_current_job_for_sim(self, sim)`.
+- `bouncer.py`, classe `Bouncer`:
+  `request_all_sims_during_zone_spin_up(self)`,
+  `assign_all_sims_during_zone_spin_up(self)`,
+  `_monitor_npc_soft_cap(self)`.
+- `bouncer_request.py`, classe `BouncerRequest`:
+  `clone_for_replace(self, only_if_explicit)`,
+  `get_additional_filter_terms(self)`,
+  `__init__(...)`.
+- Esistono anche classi *factory* con nomi simili: la M109 deve
+  scegliere il vero owner `BouncerRequest`, non un factory.
+
+La nuova `inspect_runtime_shapes(classes)` **non modifica EA**:
+verifica soltanto la presenza dei nomi, la corretta
+natura `classmethod` per i due metodi WeeklySchedule,
+la classe in cui ciascun metodo è dichiarato,
+e rileva marker di patch MHS/M108/M96/M105 già presenti.
+Restituisce `NATIVE_EA_METHODS_NOT_READY` su incongruenze,
+e `METHOD_SHAPES_AVAILABLE_UNVERIFIED` se i metodi esistono.
+**Non restituisce MAI autorizzazione al gioco**:
+`activation_authorized_by_game=False` per definizione.
+Un test con classi Python simulate non può provare
+che si tratti dei veri oggetti EA presenti in una partita.
+
+**Resta da eseguire** la vera lettura dei tipi EA in un gioco
+caricato, e i controlli dei SimInfo/tuning risorse, conteggi
+dinamici Bouncer, Class1 shadow e provenienza calendario.
+La sonda è quindi diagnostica preparatoria, NON un nuovo
+controller da attivare.
