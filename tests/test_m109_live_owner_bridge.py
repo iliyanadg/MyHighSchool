@@ -60,7 +60,7 @@ class M109LiveOwnerBridgeTests(unittest.TestCase):
             before, {key: dict(cls.__dict__) for key, cls in classes.items()})
 
     def test_report_owner_names_cannot_replace_actual_python_classes(self):
-        with self.assertRaisesRegex(ValueError, 'NOT_SUPPLIED'):
+        with self.assertRaisesRegex(ValueError, 'CHANGED_OR_CONFLICTING'):
             resolve_six_native_stage_owners({
                 'weekly_day': 'venues.weekly_schedule_zone_director.'
                               'WeeklyScheduleDay'})
