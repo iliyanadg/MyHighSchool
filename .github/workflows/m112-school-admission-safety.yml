@@ -1,0 +1,45 @@
+name: M112 Native EA guest takeover safety (offline only)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m108_native_roster/mhs108_native_invitation.py'
+      - 'src/m108_native_roster/mhs108_native_precreate.py'
+      - 'tests/test_m108_native_invitation.py'
+      - 'tests/test_m108_native_precreate.py'
+      - 'tests/test_m112_native_guest_takeover.py'
+      - '.github/workflows/m112-school-admission-safety.yml'
+  workflow_dispatch:
+jobs:
+  verify_school_guest_admission:
+    name: M112 Base/Core native guest admission contract (no gameplay)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Run M108 and M112 original EA guest clone and rollback tests
+        run: python -m unittest tests.test_m108_native_invitation tests.test_m108_native_precreate tests.test_m112_native_guest_takeover -v
+      - name: Check exact source bytecode compatibility (no runtime hooks)
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import py_compile
+          import tempfile
+          from pathlib import Path
+          from zipfile import ZipFile
+          expected = bytes((66, 13, 13, 10))
+          assert importlib.util.MAGIC_NUMBER == expected
+          files = [
+              Path('src/m108_native_roster/mhs108_native_invitation.py'),
+              Path('src/m108_native_roster/mhs108_native_precreate.py'),
+          ]
+          with tempfile.TemporaryDirectory() as root:
+              for source in files:
+                  compiled = Path(root) / (source.stem + '.pyc')
+                  py_compile.compile(str(source), cfile=str(compiled), doraise=True)
+                  assert compiled.read_bytes()[:4] == expected
+          print('PASS: M112 safety-only Python 3.7 files, NO installable mod')
+          PY
