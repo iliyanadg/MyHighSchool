@@ -85,5 +85,48 @@ class StaffNativeRuntimeTests(unittest.TestCase):
         request._for_persisted_sim=True
         self.assertFalse(runtime.eligible(request))
 
+
+class StaffDailyPersistenceTests(unittest.TestCase):
+    def test_staff_registry_is_snapshotted_once_per_school_day(self):
+        runtime,_,_,groups=RuntimeTests().load_controller()
+        selected={'id':'41'}
+        calls=[]
+        def staff_loader(slot,active_groups):
+            calls.append((slot,active_groups))
+            return {'jobs':{277895:selected['id']},'blocked':{}}
+        runtime.staff_plan_loader=staff_loader
+        runtime.begin_school_day(('1',1))
+        self.assertEqual(runtime.staff_plan['jobs'][277895],'41')
+        runtime.staff_created[298052]=999
+        runtime.staff_filter_hits=3
+        selected['id']='48'
+        # A player changing the menu during school does not change the
+        # active invitations while today's EA situation is in progress.
+        runtime.begin_school_day(('1',1))
+        self.assertEqual(runtime.staff_plan['jobs'][277895],'41')
+        self.assertEqual(runtime.staff_created,{298052:999})
+        self.assertEqual(len(calls),1)
+        # The next school day loads the registry again, without reusing the
+        # previous day's Bouncer receipts or stale Sim IDs.
+        runtime.begin_school_day(('1',2))
+        self.assertEqual(runtime.staff_plan['jobs'][277895],'48')
+        self.assertEqual(runtime.staff_created,{})
+        self.assertEqual(runtime.staff_filter_hits,0)
+        self.assertEqual(runtime.lesson_classes,groups)
+        self.assertEqual(len(calls),2)
+
+    def test_invalid_new_day_staff_registry_does_not_touch_enrollment(self):
+        runtime,_,_,groups=RuntimeTests().load_controller()
+        def bad_loader(slot,active_groups):
+            raise ValueError('BAD_STAFF_REGISTRY')
+        runtime.staff_plan_loader=bad_loader
+        self.assertTrue(runtime.begin_school_day(('1',4)))
+        self.assertEqual(runtime.staff_plan['jobs'],{})
+        self.assertEqual(runtime.staff_plan['blocked'],
+                         {'all':'STAFF_PLAN_ValueError'})
+        self.assertEqual(runtime.lesson_classes,groups)
+        self.assertTrue(runtime.school_ready)
+
+
 if __name__=='__main__':
     unittest.main()
