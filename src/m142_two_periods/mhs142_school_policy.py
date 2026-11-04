@@ -45,7 +45,7 @@ def can_roll_to_afternoon(clock, situation_guid, prep_guids, already_rolled):
     m = minute_of_day(clock)
     return (not already_rolled and m is not None
             and 13*60+25 <= m < 14*60
-            and situation_guid in prep_guids)
+            and (situation_guid is None or situation_guid in prep_guids))
 
 
 def class_retry_decision(clock, current_period, row, player_job,
