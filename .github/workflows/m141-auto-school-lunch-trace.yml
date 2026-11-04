@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/m141_day_trace/**'
       - 'tests/test_m141_*.py'
+      - 'tests/test_m141b_*.py'
       - 'tooling/build_mhs141_verified.py'
       - '.github/workflows/m141-auto-school-lunch-trace.yml'
   workflow_dispatch:
