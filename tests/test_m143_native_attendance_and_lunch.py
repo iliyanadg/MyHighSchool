@@ -127,7 +127,11 @@ class M143(unittest.TestCase):
            "_m143_direct_attend(runtime)","source.test(target,context)",
            "'NATIVE_EA_TEST_REFUSED'","runtime.m143_direct_attempted.add(key)",
            "classroom_activity","_m143_write_full_report(_RUNTIME)",
-           "MHS_M143_PRESENZE_DUE_AULE.json"):
+           "MHS_M143_PRESENZE_DUE_AULE.json",
+           "MHS_M143_REPORT_COMPLETO.json",
+           "native_original_ea_class_entry",
+           "npc_lunch_posture",
+           "physical_classroom_attendance"):
             # Name in tests is "subject" not "source".
             if piece=="source.test(target,context)":
                 piece="subject.test(target,context)"
