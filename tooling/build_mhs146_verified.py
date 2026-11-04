@@ -78,12 +78,14 @@ def build(folder):
         'per la lavagna usano il selettore Class1/Class2 originale EA,\n'
         'adattato dal controller MHS, per entrambe le aule.\n'
         'NPC e mensa giocabili non modificati; nessun teletrasporto.\n'
-        'Il rapporto M146 contiene ora orario esportazione, ultimo campione e stato dei ruoli.\n'\n        'Il recupero di NPC in punizione NON viene forzato.\n'\n        'La build ha test automatici, NON e stata ancora validata in gioco.\n',
+        'Il rapporto M146 contiene ora orario esportazione, ultimo campione e stato dei ruoli.\n'
+        'Il recupero di NPC in punizione NON viene forzato.\n'
+        'La build ha test automatici, NON e stata ancora validata in gioco.\n',
         encoding='utf-8')
     return details
 
 
 if __name__=='__main__':
     if len(sys.argv)!=2:
-        raise SystemExit('Usage: python -m tooling.build_mhs145_verified OUTDIR')
+        raise SystemExit('Usage: python -m tooling.build_mhs146_verified OUTDIR')
     print(json.dumps(build(sys.argv[1]),indent=2))
