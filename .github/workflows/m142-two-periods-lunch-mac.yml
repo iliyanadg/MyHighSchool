@@ -1,0 +1,49 @@
+name: M142 two school lessons and NPC lunch Mac beta
+on:
+  push:
+    branches: [feature/m142-two-lessons-npc-lunch]
+    paths:
+      - 'src/m142_two_periods/**'
+      - 'tests/test_m142_*.py'
+      - 'tooling/build_mhs142_verified.py'
+      - '.github/workflows/m142-two-periods-lunch-mac.yml'
+  workflow_dispatch:
+jobs:
+  validate_build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: M142 period, native lesson, board, and lunch tests
+        run: |
+          python -m unittest tests.test_m142_two_periods_and_lunch tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
+      - name: Build actual Python 3.7 bytecode Mac .ts4script
+        run: python -m tooling.build_mhs142_verified dist_m142
+      - name: Inspect M142 Mac archive and commands
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs142_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m142/'+NAME) as z:
+              assert len(z.namelist())==len(SOURCES)==24
+              assert all(z.read(f)[:4]==MAGIC for f in z.namelist())
+              for file in ('mhs142_day_trace.pyc','mhs142_school_policy.pyc',
+                           'mhs142_classroom_controller.pyc','mhs140_native_lesson_entry.pyc'):
+                  assert file in z.namelist(),file
+              assert 'mhs141_classroom_controller.pyc' not in z.namelist()
+              ctrl=z.read('mhs142_classroom_controller.pyc')
+              for cmd in ('mhs142.arm','mhs142.monitor','mhs142.log',
+                          'mhs142.mensa','mhs142.periodi','mhs142.stop'):
+                  assert cmd.encode() in ctrl,cmd
+          print('M142 Mac beta built; compile/tests are not in-game validation')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M142_TWO_LESSONS_NPC_LUNCH_MAC_BETA
+          path: |
+            dist_m142/MHS_M142_LEZIONI_DOPPIO_TURNO_E_MENSA_MAC_BETA.ts4script
+            dist_m142/M142_BUILD_REPORT.json
+            dist_m142/LEGGIMI_M142.txt
+          if-no-files-found: error
