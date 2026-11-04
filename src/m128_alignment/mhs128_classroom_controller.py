@@ -23,6 +23,7 @@ from mhs126_early_preparation_projection import (
     project_early_preparation_guests, PREP_JOBS)
 from mhs127_school_timing_readback import game_clock,timed_roster_snapshot
 from mhs128_ea_class_trait_alignment import (CLASS1_TRAIT_ID,planned_changes,public_rows,align_roster_trait)
+from mhs128_board_posture_audit import audit_classroom_targets
 
 FOLDER=os.path.join(os.path.expanduser('~'),'Documents',
     'Electronic Arts','The Sims 4','MY_HIGH_SCHOOL_M25_TEST_DATA')
@@ -1062,3 +1063,42 @@ def m128allinea(_connection=None):
             result['success'],result['changed'],result['reason'],
             result.get('rollback_verified','non_necessario')),
         _connection)
+
+
+@sims4.commands.Command('mhs128.aula',
+    command_type=sims4.commands.CommandType.Live)
+def m128aula(_connection=None):
+    """Read-only classroom target + posture export; no routing mutation."""
+    import json
+    if _RUNTIME is None or not _RUNTIME.active or not _RUNTIME.in_school():
+        sims4.commands.output(
+            'M128 AULA: attiva a casa e vai al liceo',_connection)
+        return
+    try:
+        slot=str(current_slot(allow_travel=True))
+        if slot!=_RUNTIME.slot:
+            raise ValueError('SAVE_SLOT_CHANGED')
+        roster=RosterStore(FOLDER).load(slot)
+        groups=tuple(tuple(str(s) for s in roster.class_members(i))
+                     for i in (1,2))
+        import sims4.resources
+        manager=services.get_instance_manager(sims4.resources.Types.TRAIT)
+        trait=manager.get(CLASS1_TRAIT_ID) if manager else None
+        report=audit_classroom_targets(
+            groups,services.sim_info_manager(),trait)
+        report['clock']=game_clock(services.time_service())
+        report['note']='posture Sit alone does not prove classroom desk'
+        os.makedirs(FOLDER,exist_ok=True)
+        filename=os.path.join(FOLDER,'MHS_M128_LAVAGNE_POSTURE_EA.json')
+        with open(filename,'w',encoding='utf-8') as stream:
+            json.dump(report,stream,indent=2,ensure_ascii=False)
+        sims4.commands.output(
+            'M128 AULA: studenti={} tratti_errati={} '
+            'lavagne_condivise={} NESSUNA_MODIFICA '
+            'file=MHS_M128_LAVAGNE_POSTURE_EA.json'.format(
+                report['count'],report['trait_mismatches'],
+                len(report['board_ids_targeted_by_both_classes'])),
+            _connection)
+    except Exception as exc:
+        sims4.commands.output(
+            'M128 AULA: errore '+type(exc).__name__,_connection)
