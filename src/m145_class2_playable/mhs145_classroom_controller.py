@@ -34,7 +34,8 @@ from mhs143_day_trace import DayJournal, observe_student
 from mhs145_subject_picker_patch import (
     install_subject_picker, SUBJECT_IDS)
 from mhs147_class_timing_policy import (
-    can_early_request, preparation_period, validate_anchors, truant_evidence)
+    can_early_request, preparation_period, validate_anchors, truant_evidence,
+    roster_rearm_required)
 from mhs143_native_attendance_policy import (
     allowed_direct_attend, find_observed_attend, job_matches_class,
     analyze_npc_dining, summarize_registered_attendance,
@@ -839,13 +840,32 @@ class ThirteenNPCController(object):
 
 def arm_m127():
     global _RUNTIME
-    if _RUNTIME is not None and _RUNTIME.active:
-        return 'M142 gia attiva: '+_RUNTIME.report()
+    # Changing class members must NEVER require changing Python code or
+    # restarting the whole game. On the next pre-school arm, re-read the
+    # current save registry and pinned Core roles and refresh the hook
+    # session only if its entire verified enrollment really changed.
+    # Never rebuild native situations during an active school day.
     try:
         zone,schedule=zone_schedule()
         if zone is None or schedule in SCHOOL_SCHEDULES:
-            return 'M142 BLOCCATA: armare da casa prima della scuola'
+            return 'M147 BLOCCATA: armare da casa prima della scuola'
         slot,targets,pinned=registered_eight()
+        roster=RosterStore(FOLDER).load(slot)
+        selected=tuple(tuple(str(s) for s in roster.class_members(i))
+                       for i in (1,2))
+        if _RUNTIME is not None and _RUNTIME.active:
+            if _RUNTIME.in_school():
+                return 'M147 GIORNATA IN CORSO: iscrizioni dal prossimo giorno'
+            if slot!=_RUNTIME.slot:
+                return 'M147 BLOCCATA: cambiare salvataggio richiede nuovo avvio'
+            required=roster_rearm_required(
+                _RUNTIME.lesson_classes,_RUNTIME.targets,_RUNTIME.pinned,
+                selected,targets,pinned,zone!=_RUNTIME.home_zone)
+            if not required:
+                return 'M147 GIA ATTIVA: registro corrente confermato'
+            if not _RUNTIME.stop():
+                return 'M147 RICARICA BLOCCATA: '+_RUNTIME.error
+            _RUNTIME=None
         from situations.situation_manager import SituationManager
         from situations.bouncer.bouncer_request import BouncerRequest
         from situations.situation_guest_list import (
@@ -869,13 +889,10 @@ def arm_m127():
         trial=ThirteenNPCController(slot,targets,pinned,zone,SituationManager,
             BouncerRequest,day,job,core_jobs,blank,SituationGuestInfo,
             SituationInvitationPurpose.INVITED)
-        roster=RosterStore(FOLDER).load(slot)
-        groups=tuple(tuple(str(s) for s in roster.class_members(i))
-                     for i in (1,2))
-        if (len(groups[0])!=8 or len(groups[1])!=8
-                or len(set(groups[0]+groups[1]))!=16):
-            return 'M142 BLOCCATA: registro classi 1 e 2 non valido'
-        trial.lesson_classes=groups
+        if (len(selected[0])!=8 or len(selected[1])!=8
+                or len(set(selected[0]+selected[1]))!=16):
+            return 'M147 BLOCCATA: registro classi 1 e 2 non valido'
+        trial.lesson_classes=selected
         job_mgr=services.get_instance_manager(Types.SITUATION_JOB)
         trial.lesson_jobs={j:job_mgr.get(j)
                            for j in set(x[1] for x in LESSON_JOBS.values())}
