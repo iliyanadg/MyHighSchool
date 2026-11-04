@@ -33,7 +33,7 @@ from mhs140_native_lesson_entry import launch_once_at_native_lesson
 from mhs143_day_trace import DayJournal, observe_student
 from mhs145_subject_picker_patch import (
     install_subject_picker, SUBJECT_IDS)
-from mhs146_class_timing_policy import (
+from mhs147_class_timing_policy import (
     can_early_request, preparation_period, validate_anchors, truant_evidence)
 from mhs143_native_attendance_policy import (
     allowed_direct_attend, find_observed_attend, job_matches_class,
@@ -151,11 +151,11 @@ class ThirteenNPCController(object):
         self.m143_direct_reports=[]
         self.m143_board_anchors=None
         self.m143_policy_log=set()
-        self.m146_anchors_status=None
-        self.m146_preclass_attempted=set()
-        self.m146_preclass_reports=[]
-        self.m146_preclass_reported=set()
-        self.m146_trace_end=None
+        self.m147_anchors_status=None
+        self.m147_preclass_attempted=set()
+        self.m147_preclass_reports=[]
+        self.m147_preclass_reported=set()
+        self.m147_trace_end=None
         self.m140_patch_checked=False
         self.m140_patch_result=None
         self.m140_patch_undo=None
@@ -914,18 +914,18 @@ def arm_m127():
                 'applied':False,'reason':'M145_SUBJECT_'+type(exc).__name__}
         _RUNTIME=trial
         _m141_start_watcher(trial)
-        return 'M146 PRONTA: 13 NPC, preparazione Class2 anticipata e monitor completo'
+        return 'M147 PRONTA: 13 NPC, preparazione anticipata Classi 1 e 2'
     except Exception as exc:
         return 'M142 NON ATTIVA: '+type(exc).__name__+': '+str(exc)[:100]
 
 
-@sims4.commands.Command('mhs146.arm',
+@sims4.commands.Command('mhs147.arm',
     command_type=sims4.commands.CommandType.Live)
 def m127arm(_connection=None):
     sims4.commands.output(arm_m127(),_connection)
 
 
-@sims4.commands.Command('mhs146.status',
+@sims4.commands.Command('mhs147.status',
     command_type=sims4.commands.CommandType.Live)
 def m127status(_connection=None):
     sims4.commands.output(
@@ -933,7 +933,7 @@ def m127status(_connection=None):
         else 'M142 non attiva',_connection)
 
 
-@sims4.commands.Command('mhs146.stop',
+@sims4.commands.Command('mhs147.stop',
     command_type=sims4.commands.CommandType.Live)
 def m127stop(_connection=None):
     sims4.commands.output(
@@ -981,13 +981,13 @@ def _snapshot_classes(phase):
         return 'M142 CLASSI: LETTURA_EA_'+type(exc).__name__
 
 
-@sims4.commands.Command('mhs146.classi',
+@sims4.commands.Command('mhs147.classi',
     command_type=sims4.commands.CommandType.Live)
 def m127classi(_connection=None):
     sims4.commands.output(_snapshot_classes('lesson'),_connection)
 
 
-@sims4.commands.Command('mhs146.prepara',
+@sims4.commands.Command('mhs147.prepara',
     command_type=sims4.commands.CommandType.Live)
 def m127prepara(_connection=None):
     sims4.commands.output(_snapshot_classes('prepare'),_connection)
@@ -1013,7 +1013,7 @@ def _capture_actions():
         return None,'M142: errore lettura '+type(exc).__name__
 
 
-@sims4.commands.Command('mhs146.azioni',
+@sims4.commands.Command('mhs147.azioni',
     command_type=sims4.commands.CommandType.Live)
 def m127actions(_connection=None):
     report,error=_capture_actions()
@@ -1029,7 +1029,7 @@ def m127actions(_connection=None):
             report['status']),_connection)
 
 
-@sims4.commands.Command('mhs146.dettagli',
+@sims4.commands.Command('mhs147.dettagli',
     command_type=sims4.commands.CommandType.Live)
 def m127details(_connection=None):
     report,error=_capture_actions()
@@ -1038,11 +1038,11 @@ def m127details(_connection=None):
         return
     import json
     os.makedirs(FOLDER,exist_ok=True)
-    filename=os.path.join(FOLDER,'MHS_M146_LEZIONI_RUOLI_AZIONI.json')
+    filename=os.path.join(FOLDER,'MHS_M147_LEZIONI_RUOLI_AZIONI.json')
     with open(filename,'w',encoding='utf-8') as file:
         json.dump(report,file,indent=2,ensure_ascii=False)
     sims4.commands.output(
-        'M142: creato MHS_M146_LEZIONI_RUOLI_AZIONI.json (16 Sim). '
+        'M142: creato MHS_M147_LEZIONI_RUOLI_AZIONI.json (16 Sim). '
         'Nessuna azione del Sim modificata.',_connection)
 
 # M142 manual opt-in recovery: a single known off-task mirror interaction.
@@ -1053,7 +1053,7 @@ _M140_ZONE_KEY=None
 def _m125_candidates(perform):
     global _M140_ZONE_KEY
     if _RUNTIME is None or not _RUNTIME.active:
-        return 'M142 RECUPERO: attiva mhs146.arm a casa'
+        return 'M142 RECUPERO: attiva mhs147.arm a casa'
     if not _RUNTIME.in_school():
         return 'M142 RECUPERO: usa al liceo durante la lezione'
     try:
@@ -1096,13 +1096,13 @@ def _m125_candidates(perform):
         return 'M142 RECUPERO LETTURA_EA_'+type(exc).__name__
 
 
-@sims4.commands.Command('mhs146.candidati',
+@sims4.commands.Command('mhs147.candidati',
     command_type=sims4.commands.CommandType.Live)
 def m127candidates(_connection=None):
     sims4.commands.output(_m125_candidates(False),_connection)
 
 
-@sims4.commands.Command('mhs146.rientro',
+@sims4.commands.Command('mhs147.rientro',
     command_type=sims4.commands.CommandType.Live)
 def m127recover(_connection=None):
     sims4.commands.output(_m125_candidates(True),_connection)
@@ -1136,7 +1136,7 @@ def _m127_capture_timing():
         return None,'M142: errore '+type(exc).__name__
 
 
-@sims4.commands.Command('mhs146.tempo',
+@sims4.commands.Command('mhs147.tempo',
     command_type=sims4.commands.CommandType.Live)
 def m127tempo(_connection=None):
     import json
@@ -1150,7 +1150,7 @@ def m127tempo(_connection=None):
         return
     _M140_TIMED_SNAPSHOTS.append(result)
     os.makedirs(FOLDER,exist_ok=True)
-    file=os.path.join(FOLDER,'MHS_M146_ORARI_PERCORSI_EA.json')
+    file=os.path.join(FOLDER,'MHS_M147_ORARI_PERCORSI_EA.json')
     with open(file,'w',encoding='utf-8') as stream:
         json.dump({'kind':'M140_MULTI_TIME_SCHOOL_ROUTE',
                    'measurements':_M140_TIMED_SNAPSHOTS,
@@ -1161,7 +1161,7 @@ def m127tempo(_connection=None):
     sims4.commands.output(
         'M142 TEMPO rilevazione={}/8 job_classe={}/16 '
         'creazioni_prep={} creazioni_lezione={} '
-        'file=MHS_M146_ORARI_PERCORSI_EA.json'.format(
+        'file=MHS_M147_ORARI_PERCORSI_EA.json'.format(
             len(_M140_TIMED_SNAPSHOTS),result['school_job_count'],
             sum(x['phase']=='preparation'
                 for x in _RUNTIME.m127_timing_events),
@@ -1171,7 +1171,7 @@ def m127tempo(_connection=None):
 
 def _m128_trait_context():
     if _RUNTIME is None or not _RUNTIME.active:
-        return None,None,'M142: eseguire mhs146.arm a casa'
+        return None,None,'M142: eseguire mhs147.arm a casa'
     if not _RUNTIME.in_school():
         return None,None,'M142: utilizzare al liceo'
     try:
@@ -1191,7 +1191,7 @@ def _m128_trait_context():
         return None,None,'M142: validazione fallita '+type(exc).__name__
 
 
-@sims4.commands.Command('mhs146.verifica',
+@sims4.commands.Command('mhs147.verifica',
     command_type=sims4.commands.CommandType.Live)
 def m128verifica(_connection=None):
     import json
@@ -1202,7 +1202,7 @@ def m128verifica(_connection=None):
     missing=[r for r in rows if r['requires_change']]
     try:
         os.makedirs(FOLDER,exist_ok=True)
-        filepath=os.path.join(FOLDER,'MHS_M146_TRATTI_EA.json')
+        filepath=os.path.join(FOLDER,'MHS_M147_TRATTI_EA.json')
         with open(filepath,'w',encoding='utf-8') as stream:
             json.dump({'kind':'M140_EA_CLASS1_TRAIT_AUDIT',
                 'ea_trait_guid':CLASS1_TRAIT_ID,
@@ -1218,14 +1218,14 @@ def m128verifica(_connection=None):
     sims4.commands.output(
         'M142 VERIFICA: iscritti=16 tratti_errati={} '
         'Classe1={} Classe2={} '
-        'file=MHS_M146_TRATTI_EA.json NESSUNA_MODIFICA'.format(
+        'file=MHS_M147_TRATTI_EA.json NESSUNA_MODIFICA'.format(
             len(missing),
             sum(1 for r in missing if r['registered_class']==1),
             sum(1 for r in missing if r['registered_class']==2)),
         _connection)
 
 
-@sims4.commands.Command('mhs146.allinea',
+@sims4.commands.Command('mhs147.allinea',
     command_type=sims4.commands.CommandType.Live)
 def m128allinea(_connection=None):
     rows,trait,error=_m128_trait_context()
@@ -1241,7 +1241,7 @@ def m128allinea(_connection=None):
         _connection)
 
 
-@sims4.commands.Command('mhs146.aula',
+@sims4.commands.Command('mhs147.aula',
     command_type=sims4.commands.CommandType.Live)
 def m128aula(_connection=None):
     """Read-only classroom target + posture export; no routing mutation."""
@@ -1265,13 +1265,13 @@ def m128aula(_connection=None):
         report['clock']=game_clock(services.time_service())
         report['note']='posture Sit alone does not prove classroom desk'
         os.makedirs(FOLDER,exist_ok=True)
-        filename=os.path.join(FOLDER,'MHS_M146_LAVAGNE_POSTURE_EA.json')
+        filename=os.path.join(FOLDER,'MHS_M147_LAVAGNE_POSTURE_EA.json')
         with open(filename,'w',encoding='utf-8') as stream:
             json.dump(report,stream,indent=2,ensure_ascii=False)
         sims4.commands.output(
             'M142 AULA: studenti={} tratti_errati={} '
             'lavagne_condivise={} NESSUNA_MODIFICA '
-            'file=MHS_M146_LAVAGNE_POSTURE_EA.json'.format(
+            'file=MHS_M147_LAVAGNE_POSTURE_EA.json'.format(
                 report['count'],report['trait_mismatches'],
                 len(report['board_ids_targeted_by_both_classes'])),
             _connection)
@@ -1283,7 +1283,7 @@ _M140_ANCHORS=None
 _M140_READBACKS=[]
 
 
-@sims4.commands.Command('mhs146.posti',
+@sims4.commands.Command('mhs147.posti',
     command_type=sims4.commands.CommandType.Live)
 def m130posti(_connection=None):
     """Read only. Compare current 16 real seats and live whiteboards."""
@@ -1322,7 +1322,7 @@ def m130posti(_connection=None):
         _M140_READBACKS.append(result)
         os.makedirs(FOLDER,exist_ok=True)
         with open(os.path.join(
-                FOLDER,'MHS_M146_POSTI_AULE_EA.json'),
+                FOLDER,'MHS_M147_POSTI_AULE_EA.json'),
                 'w',encoding='utf-8') as stream:
             json.dump({'kind':'M140_MULTI_TIME_PHYSICAL_SEAT_AUDIT',
                        'samples':_M140_READBACKS,
@@ -1359,7 +1359,7 @@ def _m131_state_evidence():
         objects,'object_HighSchool_Active_Whiteboard',state1,state2)
 
 
-@sims4.commands.Command('mhs146.giocabili',
+@sims4.commands.Command('mhs147.giocabili',
     command_type=sims4.commands.CommandType.Live)
 def m131giocabili(_connection=None):
     """Explicit experimental EA player lesson push; never teleport."""
@@ -1408,7 +1408,7 @@ def m131giocabili(_connection=None):
             'M142 GIOCABILI: errore '+type(exc).__name__,_connection)
 
 
-@sims4.commands.Command('mhs146.sync',
+@sims4.commands.Command('mhs147.sync',
     command_type=sims4.commands.CommandType.Live)
 def m131sync(_connection=None):
     """Read status of automatic class trait alignment on first EA prep."""
@@ -1423,7 +1423,7 @@ def m131sync(_connection=None):
             data if data else 'NON_ESEGUITO'),_connection)
 
 
-@sims4.commands.Command('mhs146.causa',
+@sims4.commands.Command('mhs147.causa',
     command_type=sims4.commands.CommandType.Live)
 def m132causa(_connection=None):
     """Read-only diagnostic of EA player-class test and role buff."""
@@ -1461,7 +1461,7 @@ def m132causa(_connection=None):
         report['save_slot']=_RUNTIME.slot
         os.makedirs(FOLDER,exist_ok=True)
         with open(os.path.join(
-                FOLDER,'MHS_M146_CAUSA_RIFIUTO_EA.json'),
+                FOLDER,'MHS_M147_CAUSA_RIFIUTO_EA.json'),
                 'w',encoding='utf-8') as stream:
             json.dump(report,stream,indent=2,ensure_ascii=False)
         for row in report['students']:
@@ -1473,14 +1473,14 @@ def m132causa(_connection=None):
                 row.get('reason',row.get('test_error','n/d'))[:90]),
                 _connection)
         sims4.commands.output(
-            'M142 CAUSA: file=MHS_M146_CAUSA_RIFIUTO_EA.json '
+            'M142 CAUSA: file=MHS_M147_CAUSA_RIFIUTO_EA.json '
             'NESSUNA MODIFICA AL GIOCO',_connection)
     except Exception as exc:
         sims4.commands.output(
             'M142 CAUSA: errore '+type(exc).__name__,_connection)
 
 
-@sims4.commands.Command('mhs146.ruoli',
+@sims4.commands.Command('mhs147.ruoli',
     command_type=sims4.commands.CommandType.Live)
 def m134ruoli(_connection=None):
     """Read-only native EA job membership for each playable class."""
@@ -1506,7 +1506,7 @@ def m134ruoli(_connection=None):
         report['clock']=game_clock(services.time_service())
         report['save_slot']=slot
         os.makedirs(FOLDER,exist_ok=True)
-        filename='MHS_M146_RUOLI_EA_GIOCABILI.json'
+        filename='MHS_M147_RUOLI_EA_GIOCABILI.json'
         with open(os.path.join(FOLDER,filename),'w',
                   encoding='utf-8') as stream:
             json.dump(report,stream,indent=2,ensure_ascii=False)
@@ -1525,7 +1525,7 @@ def m134ruoli(_connection=None):
             'M142 RUOLI: errore '+type(exc).__name__,_connection)
 
 
-@sims4.commands.Command('mhs146.testgiocabili',
+@sims4.commands.Command('mhs147.testgiocabili',
     command_type=sims4.commands.CommandType.Live)
 def m136testgiocabili(_connection=None):
     """Inspect only EA tests applied to the three enrolled PLAYABLE teens."""
@@ -1554,7 +1554,7 @@ def m136testgiocabili(_connection=None):
         report=inspect_test_hierarchy(affordance,played,boards)
         report['clock']=game_clock(services.time_service())
         report['save_slot']=slot
-        filename='MHS_M146_TEST_EA_GIOCABILI.json'
+        filename='MHS_M147_TEST_EA_GIOCABILI.json'
         os.makedirs(FOLDER,exist_ok=True)
         with open(os.path.join(FOLDER,filename),'w',
                   encoding='utf-8') as stream:
@@ -1569,7 +1569,7 @@ def m136testgiocabili(_connection=None):
             'M142 TEST: errore '+type(exc).__name__,_connection)
 
 
-@sims4.commands.Command('mhs146.compat',
+@sims4.commands.Command('mhs147.compat',
     command_type=sims4.commands.CommandType.Live)
 def m137compat(_connection=None):
     """Read-only report on the scoped Zerbu test branch replacement."""
@@ -1583,7 +1583,7 @@ def m137compat(_connection=None):
             _RUNTIME.m140_patch_result,
             _RUNTIME.in_school()),_connection)
 
-@sims4.commands.Command('mhs146.auto',
+@sims4.commands.Command('mhs147.auto',
     command_type=sims4.commands.CommandType.Live)
 def m140_auto_status(_connection=None):
     """Read-only observations; auto-entry never needs a console command."""
@@ -1605,28 +1605,27 @@ def _m146_capture_board_anchors(runtime):
         return True
     try:
         boards,status=_m131_state_evidence()
-        runtime.m146_anchors_status=status
+        runtime.m147_anchors_status=status
         if status!='TWO_VALIDATED_EA_CLASS_BOARDS':
             return False
         anchors,why=validate_anchors(boards)
-        runtime.m146_anchors_status=why
+        runtime.m147_anchors_status=why
         if anchors is None:
             return False
         runtime.m143_board_anchors=anchors
         return True
     except Exception as exc:
-        runtime.m146_anchors_status='BOARD_'+type(exc).__name__
+        runtime.m147_anchors_status='BOARD_'+type(exc).__name__
         return False
 
 
-def _m146_early_class2_preparation(runtime):
-    """Use EA's *current* Class2 preparation role before the class bell.
+def _m147_early_playable_preparation(runtime):
+    """Request native EA whiteboard START on both verified preparation jobs.
 
-    Only Class2 playables whose current live EA prep situation is
-    297774/job277919 are considered. Require exact saved registry,
-    actual EA class2 board state, both reversible M139/M145 adapters and
-    game's own affordance.test. All existing class actions, NPCs, school
-    punishment and attendance processes remain EA-owned.
+    EA Class1: 293815/304701 job277919 (Rosario).
+    EA Class2: 297774 job277919 (Sandro, Sofia).
+    No direct student teleport, NPC action or discipline changes.
+    Actual native 276774 interaction tests are required to pass.
     """
     if not runtime.active or not runtime.in_school():
         return False
@@ -1646,7 +1645,7 @@ def _m146_early_class2_preparation(runtime):
         groups=tuple(tuple(str(s) for s in roster.class_members(k))
                      for k in (1,2))
         if groups!=runtime.lesson_classes:
-            runtime.m141_last_tick_error='M146_PREP_REGISTRY_CHANGED'
+            runtime.m141_last_tick_error='M147_PREP_REGISTRY_CHANGED'
             return False
         played=find_playable_entry(groups,services.sim_info_manager(),
                                    services.active_household())
@@ -1658,7 +1657,8 @@ def _m146_early_class2_preparation(runtime):
         candidates=[]
         for row in played:
             sid=str(row['sim_id'])
-            if row['registered_class']!=2:
+            klass=row['registered_class']
+            if klass not in (1,2):
                 continue
             sim=row['sim_info'].get_sim_instance()
             if sim is None:
@@ -1667,17 +1667,17 @@ def _m146_early_class2_preparation(runtime):
             action=type(running).__name__ if running else ''
             permitted,reason=can_early_request(
                 row['registered_class'],jobs.get(sid,{}).get('situation_jobs'),
-                stamp,action,(period,sid) in runtime.m146_preclass_attempted)
+                stamp,action,(period,sid) in runtime.m147_preclass_attempted)
             if not permitted:
                 if reason not in ('EXISTING_OR_PROTECTED_ACTION',
                                   'PRECLASS_ALREADY_REQUESTED'):
                     marker=(period,sid,reason)
-                    if marker not in runtime.m146_preclass_reported:
-                        runtime.m146_preclass_reported.add(marker)
-                        if len(runtime.m146_preclass_reports)<64:
-                            runtime.m146_preclass_reports.append({
+                    if marker not in runtime.m147_preclass_reported:
+                        runtime.m147_preclass_reported.add(marker)
+                        if len(runtime.m147_preclass_reports)<64:
+                            runtime.m147_preclass_reports.append({
                                 'period':period,'clock':stamp,
-                                'sim_id':sid,'class':2,'queued':False,
+                                'sim_id':sid,'class':klass,'queued':False,
                                 'reason':reason,'native_game_test_passed':False})
                 continue
             candidates.append((row,sim))
@@ -1685,7 +1685,7 @@ def _m146_early_class2_preparation(runtime):
             return False
         boards,status=_m131_state_evidence()
         if status!='TWO_VALIDATED_EA_CLASS_BOARDS':
-            runtime.m146_anchors_status=status
+            runtime.m147_anchors_status=status
             return False
         from sims4.resources import Types
         affordance=services.get_instance_manager(Types.INTERACTION).get(
@@ -1698,11 +1698,12 @@ def _m146_early_class2_preparation(runtime):
         for row,sim in candidates:
             sid=str(row['sim_id'])
             result={'period':period,'clock':stamp,'sim_id':sid,
-                'class':2,'queued':False,'native_game_test_passed':False,
+                'class':row['registered_class'],
+                'queued':False,'native_game_test_passed':False,
                 'uses_original_ea_class_start_276774':True,
-                'native_prep_role_297774_277919_verified':True}
+                'native_ea_prep_role_for_registered_class_verified':True}
             try:
-                target=boards[2][0]
+                target=boards[row['registered_class']][0]
                 context=InteractionContext(
                     sim,InteractionContext.SOURCE_SCRIPT_WITH_USER_INTENT,
                     Priority.High)
@@ -1714,7 +1715,7 @@ def _m146_early_class2_preparation(runtime):
                 else:
                     # One early request per player per period. A successful
                     # push only means EA accepted the queue, NOT seated.
-                    runtime.m146_preclass_attempted.add((period,sid))
+                    runtime.m147_preclass_attempted.add((period,sid))
                     outcome=queue_playable_class(
                         (row,),boards,affordance,
                         lambda _:context)
@@ -1726,13 +1727,13 @@ def _m146_early_class2_preparation(runtime):
                     accepted_any=accepted_any or result['queued']
             except Exception as exc:
                 result['reason']='EA_EARLY_'+type(exc).__name__
-            if len(runtime.m146_preclass_reports)<64:
-                runtime.m146_preclass_reports.append(result)
+            if len(runtime.m147_preclass_reports)<64:
+                runtime.m147_preclass_reports.append(result)
         if accepted_any:
-            _m141_capture(runtime,'m146_early_class2_prep_requested')
+            _m141_capture(runtime,'m147_early_playable_prep_requested')
         return accepted_any
     except Exception as exc:
-        runtime.m141_last_tick_error='M146_PREP_'+type(exc).__name__
+        runtime.m141_last_tick_error='M147_PREP_'+type(exc).__name__
         return False
 
 
@@ -1838,14 +1839,14 @@ def _m141_start_trace(runtime,origin='ea_event'):
         import clock
         def sample(handle):
             if not runtime.active or not runtime.in_school():
-                if runtime.m146_trace_end is None:
+                if runtime.m147_trace_end is None:
                     try:
-                        runtime.m146_trace_end={
+                        runtime.m147_trace_end={
                             'reason':'SCHOOL_ZONE_OR_SCHEDULE_ENDED',
                             'clock':game_clock(services.time_service()),
                             'in_school':runtime.in_school()}
                     except Exception as exc:
-                        runtime.m146_trace_end={
+                        runtime.m147_trace_end={
                             'reason':'SCHOOL_ZONE_OR_SCHEDULE_ENDED',
                             'clock_error':type(exc).__name__}
                 _m141_stop_trace(runtime)
@@ -1853,7 +1854,7 @@ def _m141_start_trace(runtime,origin='ea_event'):
             _m142_roll_period_if_due(runtime,
                                      game_clock(services.time_service()))
             _m141_capture(runtime,'interval')
-            _m146_early_class2_preparation(runtime)
+            _m147_early_playable_preparation(runtime)
             _m142_retry_playables(runtime)
             _m143_direct_attend(runtime)
         handle=alarms.add_alarm(
@@ -1876,7 +1877,7 @@ def _m141_start_trace(runtime,origin='ea_event'):
         return False
 
 
-@sims4.commands.Command('mhs146.log',
+@sims4.commands.Command('mhs147.log',
     command_type=sims4.commands.CommandType.Live)
 def m141_log(_connection=None):
     if _RUNTIME is None or not _RUNTIME.active:
@@ -1898,20 +1899,20 @@ def m141_log(_connection=None):
         len(_RUNTIME.m141_journal.samples),ok,
         _RUNTIME.m141_last_tick_error or
         _RUNTIME.m141_journal.write_error or 'nessuno',
-        'MHS_M146_GIORNATA_LEZIONI_MENSA.json'),_connection)
+        'MHS_M147_GIORNATA_LEZIONI_MENSA.json'),_connection)
 
 
-@sims4.commands.Command('mhs146.monitor',
+@sims4.commands.Command('mhs147.monitor',
     command_type=sims4.commands.CommandType.Live)
 def m141_monitor(_connection=None):
     if _RUNTIME is None:
-        sims4.commands.output('M146 MONITOR: non attiva',_connection)
+        sims4.commands.output('M147 MONITOR: non attiva',_connection)
         return
     if _RUNTIME.active and _RUNTIME.in_school() and _RUNTIME.m141_timer is None:
         _m141_start_trace(_RUNTIME,'monitor_fallback')
     j=_RUNTIME.m141_journal
     sims4.commands.output(
-        'M146 MONITOR: scuola={} timer={} campioni={} periodo={} riprese={} origine={} errore={}'.format(
+        'M147 MONITOR: scuola={} timer={} campioni={} periodo={} riprese={} origine={} errore={}'.format(
         _RUNTIME.in_school(),_RUNTIME.m141_timer is not None,
         len(j.samples) if j else 0,
         _RUNTIME.m142_period,
@@ -2047,7 +2048,7 @@ def _m142_write_lunch_summary(runtime):
         ids=tuple(sid for group in groups for sid in group)
         summary=summarize_npc_lunch(
             runtime.m141_journal.samples,ids,sample_minutes=3)
-        path=os.path.join(FOLDER,'MHS_M146_MENSA_NPC_ATTESE.json')
+        path=os.path.join(FOLDER,'MHS_M147_MENSA_NPC_ATTESE.json')
         with open(path,'w',encoding='utf-8') as output:
             json.dump(summary,output,indent=2,ensure_ascii=False)
         return True
@@ -2056,7 +2057,7 @@ def _m142_write_lunch_summary(runtime):
         return False
 
 
-@sims4.commands.Command('mhs146.mensa',
+@sims4.commands.Command('mhs147.mensa',
     command_type=sims4.commands.CommandType.Live)
 def m142_mensa(_connection=None):
     if _RUNTIME is None or _RUNTIME.m141_journal is None:
@@ -2065,11 +2066,11 @@ def m142_mensa(_connection=None):
         return
     success=_m142_write_lunch_summary(_RUNTIME)
     sims4.commands.output(
-        'M145 MENSA: salvato={} file=MHS_M146_MENSA_NPC_ATTESE.json '
+        'M145 MENSA: salvato={} file=MHS_M147_MENSA_NPC_ATTESE.json '
         'NESSUNA AZIONE MODIFICATA'.format(success),_connection)
 
 
-@sims4.commands.Command('mhs146.periodi',
+@sims4.commands.Command('mhs147.periodi',
     command_type=sims4.commands.CommandType.Live)
 def m142_periods(_connection=None):
     if _RUNTIME is None:
@@ -2249,7 +2250,7 @@ def _m143_write_full_report(runtime):
         import json
         if not os.path.isdir(FOLDER):
             os.makedirs(FOLDER)
-        path=os.path.join(FOLDER,'MHS_M146_INTERAZIONI_GIOCABILI_EA.json')
+        path=os.path.join(FOLDER,'MHS_M147_INTERAZIONI_GIOCABILI_EA.json')
         payload={
             'kind':'M143_REAL_EA_ATTEND_TEST_AND_QUEUE_LIFECYCLE',
             'direct_attempts':runtime.m143_direct_reports,
@@ -2260,8 +2261,8 @@ def _m143_write_full_report(runtime):
             'does_not_prove_seated_or_completed':True,
             'native_ea_test_never_bypassed':True,
             'M145_subject_picker_result':runtime.m145_patch_result,
-            'M146_early_class2_preparation':runtime.m146_preclass_reports,
-            'M146_board_anchor_status':runtime.m146_anchors_status,
+            'M146_early_class2_preparation':runtime.m147_preclass_reports,
+            'M146_board_anchor_status':runtime.m147_anchors_status,
             'no_nonclass_player_actions_automated':True}
         with open(path,'w',encoding='utf-8') as output:
             json.dump(payload,output,indent=2,ensure_ascii=False)
@@ -2276,12 +2277,12 @@ def _m143_write_full_report(runtime):
                     npc_ids.append(str(sid))
         dining=analyze_npc_dining(runtime.m141_journal.samples,npc_ids)
         with open(os.path.join(FOLDER,
-             'MHS_M146_MENSA_NPC_SEDUTI.json'),'w',encoding='utf-8') as output:
+             'MHS_M147_MENSA_NPC_SEDUTI.json'),'w',encoding='utf-8') as output:
             json.dump(dining,output,indent=2,ensure_ascii=False)
         attendance=summarize_registered_attendance(
             runtime.m141_journal.samples,groups,runtime.m143_board_anchors)
         with open(os.path.join(FOLDER,
-             'MHS_M146_PRESENZE_DUE_AULE.json'),'w',
+             'MHS_M147_PRESENZE_DUE_AULE.json'),'w',
              encoding='utf-8') as output:
             json.dump(attendance,output,indent=2,ensure_ascii=False)
         # One comprehensive report: the user uploads ONE file, not four.
@@ -2295,13 +2296,13 @@ def _m143_write_full_report(runtime):
             'school_day_journal':runtime.m141_journal.samples,
             'school_observation_errors':runtime.m141_journal.errors,
             'native_original_ea_class_entry':payload,
-            'm146_integration':{
-                'early_class2_attempts':runtime.m146_preclass_reports,
-                'early_class2_accepted_count':sum(
-                    1 for item in runtime.m146_preclass_reports
+            'm147_integration':{
+                'early_playable_attempts':runtime.m147_preclass_reports,
+                'early_playable_accepted_count':sum(
+                    1 for item in runtime.m147_preclass_reports
                     if item.get('queued') is True),
-                'board_anchor_status':runtime.m146_anchors_status,
-                'monitor_terminal_reason':runtime.m146_trace_end,
+                'board_anchor_status':runtime.m147_anchors_status,
+                'monitor_terminal_reason':runtime.m147_trace_end,
                 'report_generated_at_clock':game_clock(services.time_service()),
                 'in_school_at_report':runtime.in_school(),
                 'last_sample_clock':(
@@ -2318,7 +2319,7 @@ def _m143_write_full_report(runtime):
             'no_manual_teens_lunch_automation':True,
             'not_verified_in_game_until_trial':True,
         }
-        destination=os.path.join(FOLDER,'MHS_M146_REPORT_COMPLETO.json')
+        destination=os.path.join(FOLDER,'MHS_M147_REPORT_COMPLETO.json')
         temporary=destination+'.tmp'
         with open(temporary,'w',encoding='utf-8') as output:
             json.dump(complete,output,indent=2,ensure_ascii=False)
@@ -2329,42 +2330,42 @@ def _m143_write_full_report(runtime):
         return False
 
 
-@sims4.commands.Command('mhs146.report',
+@sims4.commands.Command('mhs147.report',
     command_type=sims4.commands.CommandType.Live)
 def m143_report(_connection=None):
     if _RUNTIME is None or not _RUNTIME.active:
         sims4.commands.output(
-            'M146 REPORT: attivare da casa con mhs146.arm',_connection)
+            'M147 REPORT: attivare da casa con mhs147.arm',_connection)
         return
     journal=_RUNTIME.m141_journal
     if journal is None:
-        sims4.commands.output('M146 REPORT: monitor non avviato',_connection)
+        sims4.commands.output('M147 REPORT: monitor non avviato',_connection)
         return
     _m141_capture(_RUNTIME,'end_of_day_report')
     ok_day=journal.flush()
     ok_lunch=_m142_write_lunch_summary(_RUNTIME)
     ok_full=_m143_write_full_report(_RUNTIME)
     sims4.commands.output(
-        'M146 REPORT: diario={} mensa={} test_ea={} campioni={} '
+        'M147 REPORT: diario={} mensa={} test_ea={} campioni={} '
         'tentativi_diretti={} errore={}'.format(
          ok_day,ok_lunch,ok_full,len(journal.samples),
          len(_RUNTIME.m143_direct_attempted),
          _RUNTIME.m141_last_tick_error or 'nessuno'),_connection)
     if ok_day and ok_full:
         sims4.commands.output(
-            'M146 REPORT UNICO: MHS_M146_REPORT_COMPLETO.json',
+            'M147 REPORT UNICO: MHS_M147_REPORT_COMPLETO.json',
             _connection)
 
 
-@sims4.commands.Command('mhs146.compat',
+@sims4.commands.Command('mhs147.compat',
     command_type=sims4.commands.CommandType.Live)
 def m145_compat(_connection=None):
     if _RUNTIME is None or not _RUNTIME.active:
         sims4.commands.output(
-            'M146 COMPAT: non attiva, mhs146.arm da casa',_connection)
+            'M147 COMPAT: non attiva, mhs147.arm da casa',_connection)
         return
     sims4.commands.output(
-        'M146 COMPAT: selezione={} lezioni={} scuola={} '
+        'M147 COMPAT: selezione={} lezioni={} scuola={} '
         'nessun test EA bypassato'.format(
            _RUNTIME.m140_patch_result,
            _RUNTIME.m145_patch_result,
