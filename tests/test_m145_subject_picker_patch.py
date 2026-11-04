@@ -27,6 +27,17 @@ class TestSetReference:
     def __init__(self,guid):self.test_set_reference=Tuning(guid)
 class CompoundTestList(tuple):
     pass
+
+# EA's actual post-load tuning class metaclass shown by M145c screenshot.
+class HashedTunedInstanceMetaclass(type):
+    pass
+
+class IsNotInSexTest:
+    pass
+
+def native_subject_day_tuning(label='testSet_HighSchool_Active_MathDay'):
+    return HashedTunedInstanceMetaclass(label,(),{'guid64':909111})
+
 class Picker:
     def __init__(self,variant='ZERBU',branch_count=None):
         self.guid64=PICKER_ID
@@ -86,6 +97,49 @@ class Cases(unittest.TestCase):
         d,undo=install_subject_picker(start,subs,True)
         self.assertFalse(d['applied'])
         self.assertEqual(d['reason'],'M139_PICKER_BRANCHES_NOT_PATCHED')
+        self.assertIsNone(undo)
+    def test_actual_m145c_screenshot_math_runtime_tuning_class(self):
+        # Screenshot M145c guid293193:
+        # 0 IsNotInSexTest, 1 SimInfoTest, 2 Class1_True StateTest,
+        # 3 HashedTunedInstanceMetaclass testSet_HighSchool_Active_*.
+        start,subjects=fixture()
+        math=subjects[293193]
+        original=math.test_globals
+        tuned=native_subject_day_tuning()
+        math.test_globals=TestList((IsNotInSexTest(),original[0],
+                                   original[1],tuned))
+        old=math.test_globals
+        result,undo=install_subject_picker(start,subjects,True)
+        self.assertTrue(result['applied'],result)
+        after=math.test_globals
+        self.assertEqual(len(after),4)
+        self.assertIs(after[0],old[0])
+        self.assertIs(after[1],old[1])
+        self.assertIs(after[2],start.test_globals[1])
+        self.assertIs(after[3],tuned)
+        self.assertTrue(undo())
+        self.assertIs(math.test_globals,old)
+    def test_reject_unrelated_tuned_class_without_day_test(self):
+        start,subjects=fixture()
+        math=subjects[293193]
+        math.test_globals=TestList((
+            IsNotInSexTest(),SimInfoTest(),StateTest(CLASS1_STATE_ID),
+            native_subject_day_tuning('testSet_Unrelated_Object')))
+        result,undo=install_subject_picker(start,subjects,True)
+        self.assertFalse(result['applied'])
+        self.assertEqual(result['reason'],'SUBJECT_DAY_TEST_MISSING')
+        self.assertEqual(result['subject_guid'],293193)
+        self.assertIsNone(undo)
+    def test_reject_whiteboard_picker_as_subject_day_test(self):
+        start,subjects=fixture()
+        math=subjects[293193]
+        math.test_globals=TestList((
+            SimInfoTest(),StateTest(CLASS1_STATE_ID),
+            native_subject_day_tuning(
+                'testSet_HighSchool_Active_PickWhiteboard_Student')))
+        result,undo=install_subject_picker(start,subjects,True)
+        self.assertFalse(result['applied'])
+        self.assertEqual(result['reason'],'SUBJECT_DAY_TEST_MISSING')
         self.assertIsNone(undo)
     def test_extra_runtime_tests_and_reordered_state_are_preserved(self):
         start,subs=fixture()
