@@ -1,4 +1,4 @@
-name: M141 automatic school and lunch timeline Mac beta
+name: M141b fixed school and lunch monitor Mac beta
 on:
   push:
     branches: [feature/m141-playable-auto-trace]
@@ -18,7 +18,7 @@ jobs:
           python-version: '3.7'
       - name: Pure M141 journal and original M140 regression tests
         run: |
-          python -m unittest tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
+          python -m unittest tests.test_m141_day_trace tests.test_m141b_monitor_bootstrap tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
       - name: Build Python 3.7 script archive
         run: python -m tooling.build_mhs141_verified dist_m141
       - name: Verify the standalone Mac artifact
@@ -36,13 +36,13 @@ jobs:
               bytecode=z.read('mhs141_classroom_controller.pyc')
               for cmd in ('mhs141.arm','mhs141.log','mhs141.monitor','mhs141.stop'):
                   assert cmd.encode() in bytecode, cmd
-          print('M141 standalone Mac diagnostic beta packaged. NO in-game validation.')
+          print('M141b missed-preparation fallback Mac beta packaged. NO in-game validation.')
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: MHS_M141_AUTO_DAY_AND_LUNCH_MAC_BETA
+          name: MHS_M141B_FIXED_MONITOR_MAC_BETA
           path: |
-            dist_m141/MHS_M141_DIAGNOSTICA_AUTOMATICA_LICEO_MENSA_MAC.ts4script
-            dist_m141/M141_BUILD_REPORT.json
-            dist_m141/LEGGIMI_M141.txt
+            dist_m141/MHS_M141B_MONITOR_ATTIVO_LICEO_MENSA_MAC.ts4script
+            dist_m141/M141B_BUILD_REPORT.json
+            dist_m141/LEGGIMI_M141B.txt
           if-no-files-found: error
