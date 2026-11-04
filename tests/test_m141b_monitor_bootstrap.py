@@ -30,7 +30,12 @@ class TestM141bBootstrap(unittest.TestCase):
         functions={node.name:node for node in ast.walk(tree)
                    if isinstance(node,ast.FunctionDef)}
         for name in ('_m141_start_watcher','_m141_start_trace','m141_monitor'):
-            source=ast.get_source_segment(SOURCE,functions[name])
+            lines=SOURCE.splitlines()
+            first=functions[name].lineno-1
+            last=next((i for i in range(first+1,len(lines))
+                       if lines[i].startswith('def ')
+                       or lines[i].startswith('@sims4.commands.Command(')),len(lines))
+            source='\n'.join(lines[first:last])
             for action in ('push_super_affordance(', 'cancel_interaction(',
                            'set_position(', 'teleport('):
                 self.assertNotIn(action,source)
