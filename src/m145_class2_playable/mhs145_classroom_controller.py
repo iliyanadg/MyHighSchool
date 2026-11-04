@@ -817,7 +817,9 @@ class ThirteenNPCController(object):
                         prepared=with_staff
                         staff_projected=True
                 self.core_pending=True
-                self.staff_pending=CORE_SITUATION
+                # Never loosen a staff Bouncer filter unless the exact
+                # selected employee was actually added to the guest list.
+                self.staff_pending=(CORE_SITUATION if staff_projected else None)
                 self.bound_zone=zone_schedule()[0]
                 try:
                     if 'guest_list' in kwargs:
@@ -2086,11 +2088,14 @@ def _observe_school_staff(runtime,stamp):
     # A saved menu entry is not proof that EA staffed the selected Sim:
     # show both the attempted exact guests and the actual observed native job.
     report['clock']=stamp
+    report['selection_bridge_implemented']='EXPERIMENTAL_NATIVE_EXACT_GUESTS'
+    report['registry_is_not_native_assignment']=True
     report['native_guest_projection_applied']=any(
         item.get('applied') for item in runtime.staff_projection_reports)
     report['native_guest_projection_failures']=[
         item.get('reason') for item in runtime.staff_projection_reports
         if item.get('applied') is False][-8:]
+    report['native_situation_creation_acknowledged']=bool(runtime.staff_created)
     report['staff_native_job_matches_only_when_observed']=True
     if len(runtime.school_staff_samples)<64:
         runtime.school_staff_samples.append(report)
@@ -2730,7 +2735,10 @@ def _m143_write_full_report(runtime):
             'lesson_entry_observations':runtime.lesson_entry_samples,
             'school_staff':{
                 'samples':runtime.school_staff_samples,
-                'selection_bridge_implemented':bool(runtime.staff_created),
+                'selection_bridge_implemented':'EXPERIMENTAL_NATIVE_EXACT_GUESTS',
+                'native_guest_projection_applied':any(
+                    item.get('applied') for item in runtime.staff_projection_reports),
+                'registry_is_not_native_assignment':True,
                 'native_staff_appointments':dict(runtime.staff_plan.get('jobs',{})),
                 'native_staff_blocked_roles':dict(runtime.staff_plan.get('blocked',{})),
                 'native_staff_projection_attempts':runtime.staff_projection_reports,
