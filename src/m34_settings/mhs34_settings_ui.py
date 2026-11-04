@@ -73,6 +73,19 @@ def _apply(operation, actor=None):
             raise SettingsError('Operazione non valida')
         _event('SAVED slot {} | {} | {} classi'.format(
             slot,'Attiva' if state.active else 'Disattiva',state.class_count))
+        try:
+            import mhs_classroom_bootstrap
+        except ImportError:
+            pass
+        else:
+            status=mhs_classroom_bootstrap.refresh()
+            # Preserve the established silent success path, especially Disable.
+            # Only a failed activation or hook restoration needs a notice.
+            if (str(status).startswith('RESTORE_BLOCKED') or
+                    (operation=='enable' and any(word in str(status) for word in (
+                        'BLOCKED','NON ATTIVA','BLOCCATA','REQUIRES_HOME')))):
+                _settings_notice('MY HIGH SCHOOL',
+                    mhs_classroom_bootstrap.settings_message(status))
         return True
     except Exception as exc:
         _event('BLOCKED | {}: {}'.format(type(exc).__name__,str(exc)[:120]))

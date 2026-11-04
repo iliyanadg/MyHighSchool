@@ -92,7 +92,10 @@ def queue_playable_class(played,boards,affordance,context_factory):
                     or 'HighSchool_Active_CreateBook_Class' in running_name
                     or 'HighSchool_Active_WriteOnBook' in running_name
                     or 'HighSchool_Active_Listen_' in running_name
-                    or 'Toilet' in running_name or 'toilet' in running_name)):
+                    or any(token in running_name.lower() for token in (
+                        'toilet','detention','catchtruant','trytoavoiddetention',
+                        'social_highschool_active','sleep','shower',
+                        'food_eat','generic_consume_food','orderfood')))):
                 results.append({'sim_id':row['sim_id'],
                     'queued':False,'reason':'EXISTING_PROTECTED_ACTION'})
                 continue

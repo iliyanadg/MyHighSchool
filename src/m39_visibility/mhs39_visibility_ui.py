@@ -98,3 +98,13 @@ for _token,_role,_mode,_klass in STAFF_ACTIONS:
         {'__module__':__name__,
          '_mhs39_action':'class',
          '_mhs39_class':_klass})
+
+
+# Only the unified build supplies the lifecycle owner. Historical M54 packages
+# keep working without it; this imports no second attendance controller.
+try:
+    import mhs_classroom_bootstrap
+except ImportError:
+    pass
+else:
+    mhs_classroom_bootstrap.install()

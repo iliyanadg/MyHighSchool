@@ -1,0 +1,45 @@
+name: Classroom Control unified package
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tooling/**'
+      - 'tests/**'
+      - '.github/workflows/classroom-control.yml'
+  push:
+    branches: [feature/classroom-control-unified]
+    paths:
+      - 'src/**'
+      - 'tooling/**'
+      - 'tests/**'
+      - '.github/workflows/classroom-control.yml'
+permissions:
+  contents: read
+concurrency:
+  group: classroom-control-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Menu, registry, source closure and school regressions
+        run: |
+          python -m unittest tests.test_school_session tests.test_classroom_attendance_policy tests.test_classroom_runtime tests.test_mod_inventory -v
+          python -m unittest tests.test_classroom_control_build tests.test_m54_human_staff_species tests.test_m53_staff_management tests.test_m147_roster_independence tests.test_m148_clocks_and_sampling tests.test_m147_native_roles tests.test_m146_class_timing_policy tests.test_m145_subject_picker_patch tests.test_m143_native_attendance_and_lunch tests.test_m142_two_periods_and_lunch tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
+      - name: Compile one deterministic pair for The Sims 4
+        run: python -m tooling.build_classroom_control dist_classroom_control
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_CLASSROOM_CONTROL_OFFLINE_VERIFIED
+          path: |
+            dist_classroom_control/MHS_CLASSROOM_CONTROL.package
+            dist_classroom_control/MHS_CLASSROOM_CONTROL.ts4script
+            dist_classroom_control/CLASSROOM_CONTROL_BUILD_REPORT.json
+            dist_classroom_control/SHA256SUMS.txt
+            dist_classroom_control/LEGGIMI_CLASSROOM_CONTROL.txt
+          if-no-files-found: error

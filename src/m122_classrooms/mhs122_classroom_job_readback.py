@@ -57,7 +57,7 @@ def school_classroom_snapshot(classes, playable, sim_info_manager,
         'status':'BLOCKED',
         'phase':phase,
         'selected_students':16,
-        'playables_from_register_not_proof':3,
+        'playables_from_register_not_proof':len(playable) if isinstance(playable,(tuple,list)) else None,
         'original_ea_lessons_modified':False,
         'all_playable_instances_verified':False,
         'exact_two_class_jobs_verified':False,
@@ -66,7 +66,7 @@ def school_classroom_snapshot(classes, playable, sim_info_manager,
     }
     classes=_ids(classes)
     pids=tuple(str(x) for x in playable) if isinstance(playable,(tuple,list)) else ()
-    if (classes is None or len(pids)!=3 or len(set(pids))!=3
+    if (classes is None or len(set(pids))!=len(pids)
             or not set(pids)<=set(classes[0]+classes[1])
             or phase not in ('lesson','prepare')):
         report['status']='ROSTER_OR_PHASE_INVALID'
@@ -182,7 +182,7 @@ def school_classroom_snapshot(classes, playable, sim_info_manager,
         observed_native_lesson_rows=tuple(membership_rows),
         # Instances come from EA SimInfo, not class enrollment, but
         # an instance alone does not certify exact lot coordinates.
-        all_playable_instances_verified=(len(available_playables)==3),
+        all_playable_instances_verified=(len(available_playables)==len(pids)),
     )
     all_match=(len(instanced)==16
                and not extras_unverifiable and not outside

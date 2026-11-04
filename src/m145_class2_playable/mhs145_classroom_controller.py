@@ -1,10 +1,9 @@
-"""M142 experimental Mac: 8 Base + 5 user-pinned Core NPCs, original EA hooks.
+"""Single school controller derived from M148 and its native EA hooks.
 
-Extends M119's actual live result: one EA Base assigned NPC observed at
-08:13 and 10:32. Five Core role holders come ONLY from M97 manual selections; no extra NPC generation.
-Native original EA Base count (3,3) may be raised to (8,8) only in
-school context, using the EA calendar classmethod owner.
-One test save only; not a complete 16-student classroom controller.
+Two saved classes of eight; playable membership is read from the save.
+Five manual Core appointments are retained; Base NPC capacity is derived
+from the remaining enrollment. EA owns situations, schedule and completion.
+Offline validation does not establish physical attendance in the game.
 """
 import os
 import services
@@ -38,6 +37,8 @@ from mhs145_subject_picker_patch import (
 from mhs147_class_timing_policy import (
     can_early_request, preparation_period, validate_anchors, truant_evidence,
     roster_rearm_required)
+from mhs_school_session import plan_roster, school_day_key
+from mhs_attendance_policy import LessonRequestLedger, protected_gameplay
 from mhs143_native_attendance_policy import (
     allowed_direct_attend, find_observed_attend, job_matches_class,
     analyze_npc_dining, summarize_registered_attendance,
@@ -68,44 +69,72 @@ def zone_schedule():
             getattr(getattr(director,'_schedule',None),'guid64',None))
 
 
-def registered_eight():
-    slot=str(current_slot(allow_travel=False))
+def registered_eight(allow_travel=False):
+    slot=str(current_slot(allow_travel=allow_travel))
     setting=SettingsStore(FOLDER).load(slot)
     if not setting.active or setting.class_count!=2:
         raise ValueError('Attiva due classi MHS')
     roster=RosterStore(FOLDER).load(slot)
-    enrolled=tuple(str(i) for klass in (1,2)
-                   for i in roster.class_members(klass))
-    if len(enrolled)!=16 or len(set(enrolled))!=16:
-        raise ValueError('Registro deve contenere due classi da 8')
+    groups=tuple(tuple(str(i) for i in roster.class_members(klass))
+                 for klass in (1,2))
     household=services.active_household()
     if household is None:
         raise ValueError('Nessuna famiglia attiva')
     played=tuple(str(info.sim_id) for info in household.sim_info_gen()
                  if getattr(info,'age',None)==Age.TEEN
                  and getattr(info,'species',None)==Species.HUMAN)
-    if len(played)!=3 or not set(played)<=set(enrolled):
-        raise ValueError('Tre teen giocabili devono essere iscritti')
     core=CoreRoleStore(FOLDER).load(slot)
     pinned=core.chosen() if core.complete else {}
-    if (set(pinned)!=set(CORE_JOBS) or len(set(pinned.values()))!=5
-            or not set(pinned.values())<=set(enrolled)-set(played)):
-        raise ValueError('Servono 5 ruoli Core manuali, NPC iscritti')
-    base=tuple(sid for sid in enrolled
-               if sid not in played and sid not in pinned.values())
-    if len(base)!=8 or len(set(base))!=8:
-        raise ValueError('Base deve contenere 8 NPC esatti')
-    mgr=services.sim_info_manager()
-    if mgr is None:
-        raise ValueError('SimInfoManager assente')
-    for sid in enrolled:
-        info=mgr.get(int(sid))
-        if (info is None or getattr(info,'age',None)!=Age.TEEN
-                or getattr(info,'species',None)!=Species.HUMAN):
-            raise ValueError('Sim iscritto non umano teen')
-        if (sid in base or sid in pinned.values()) and getattr(info,'is_selectable',True) is not False:
-            raise ValueError('Base scelto non NPC')
-    return slot,base,{int(job):str(sid) for job,sid in pinned.items()}
+    plan=plan_roster(groups,played,pinned,services.sim_info_manager(),
+                     Age.TEEN,Species.HUMAN)
+    return slot,plan['base'],plan['pinned']
+
+
+def registered_for_school_travel(expected_slot):
+    result=registered_eight(allow_travel=True)
+    if result[0]!=str(expected_slot):
+        raise ValueError('SAVE_SLOT_CHANGED')
+    return result
+
+
+def current_school_day(slot):
+    now=services.time_service().sim_now
+    ticks=getattr(now,'absolute_ticks',None)
+    ticks=ticks() if callable(ticks) else ticks
+    return school_day_key(str(slot),ticks)
+
+
+def _install_school_adapters(runtime):
+    if not runtime.active or not runtime.in_school():
+        return False
+    if runtime.m140_patch_checked:
+        return bool((runtime.m140_patch_result or {}).get('applied') and
+                    (runtime.m145_patch_result or {}).get('applied'))
+    runtime.m140_patch_checked=True
+    try:
+        from sims4.resources import Types
+        manager=services.get_instance_manager(Types.INTERACTION)
+        source=manager.get(PLAYER_CLASS_START) if manager else None
+        runtime.m140_patch_result,runtime.m140_patch_undo=(
+            install_known_whiteboard_adapter(source))
+        runtime.m145_patch_result,runtime.m145_patch_undo=(
+            install_subject_picker(source,
+                {guid:manager.get(guid) for guid in SUBJECT_IDS},
+                picker_patch_applied=bool(
+                    (runtime.m140_patch_result or {}).get('applied'))))
+        if not (runtime.m145_patch_result or {}).get('applied'):
+            if runtime.m140_patch_undo is not None:
+                if runtime.m140_patch_undo():
+                    runtime.m140_patch_undo=None
+                    runtime.m140_patch_result=dict(runtime.m140_patch_result,
+                        applied=False,reason='SUBJECT_ADAPTER_ROLLED_BACK')
+            return False
+        return True
+    except Exception as exc:
+        runtime.error='CLASS_ADAPTER_'+type(exc).__name__
+        if runtime.m140_patch_undo is not None and runtime.m140_patch_undo():
+            runtime.m140_patch_undo=None
+        return False
 
 
 class ThirteenNPCController(object):
@@ -189,6 +218,61 @@ class ThirteenNPCController(object):
         self.error=''
         self.active=False
         self.bound_zone=None
+        self.school_day=None
+        self.school_ready=False
+        self.lesson_requests=LessonRequestLedger()
+
+    def begin_school_day(self, key):
+        """Reset our bookkeeping before EA's first create on a new day.
+
+        Do not destroy situations, alter their schedule or replay invitations.
+        A changed/invalid roster refuses interception and leaves EA in charge.
+        """
+        if self.school_day == key:
+            return True
+        slot,targets,pinned=registered_for_school_travel(self.slot)
+        roster=RosterStore(FOLDER).load(slot)
+        groups=tuple(tuple(str(s) for s in roster.class_members(k))
+                     for k in (1,2))
+        _m141_stop_trace(self)
+        for req,prior in tuple(self._tracked.items()):
+            if getattr(req,'_sim_filter',None) is self.blank:
+                req._sim_filter=prior
+        self._tracked.clear()
+        self.targets=tuple(targets)
+        self.pinned=dict(pinned)
+        self.lesson_classes=groups
+        for name in ('created','lesson_created','prep_created'):
+            getattr(self,name).clear()
+        for name in ('lesson_attempted','prep_attempted','m140_auto_attempted',
+                     'm142_auto_accepted','m142_retry_attempted',
+                     'm143_direct_attempted','m143_policy_log',
+                     'm147_preclass_attempted','m147_preclass_reported'):
+            getattr(self,name).clear()
+        for name in ('m140_auto_reports','m142_retry_reports',
+                     'm143_direct_reports','m147_preclass_reports',
+                     'm127_timing_events','m142_afternoon_roll_events'):
+            getattr(self,name)[:]=[]
+        self.current=self.pending=self.core_created=None
+        self.lesson_pending=self.prep_pending=None
+        self.core_pending=False
+        self.m131_sync_attempted=False
+        self.m131_sync_result=None
+        self.m141_journal=None
+        self.m147_trace_end=None
+        self.m148_last_sample_ticks=None
+        self.m148_skipped_samples=0
+        self.m142_afternoon_rearmed=False
+        self.m142_period='morning'
+        self.m143_board_anchors=None
+        self.m147_anchors_status=None
+        self.bound_zone=None
+        self.error=''
+        self.school_day=key
+        self.school_ready=True
+        # The request ledger is shared by the normal entry and bounded retries.
+        self.lesson_requests=LessonRequestLedger()
+        return True
 
     def in_school(self):
         try:
@@ -282,7 +366,7 @@ class ThirteenNPCController(object):
             return None
 
     def eligible(self,request):
-        if not self.active or not self.in_school():
+        if not self.active or not self.school_ready or not self.in_school():
             return False
         sid=str(getattr(request,'_requested_sim_id',None))
         situation=getattr(getattr(request,'_situation',None),'guid64',None)
@@ -335,7 +419,7 @@ class ThirteenNPCController(object):
                  (request,'get_additional_filter_terms'),
                  (request,'clone_for_replace'),
                  (day,'get_long_term_situation_count'))
-        if (len(self.targets)!=8 or len(set(self.targets))!=8
+        if (not 0<=len(self.targets)<=11 or len(set(self.targets))!=len(self.targets)
                 or set(self.pinned)!=set(CORE_JOBS)
                 or len(set(self.pinned.values()))!=5
                 or set(self.targets)&set(self.pinned.values())
@@ -369,16 +453,37 @@ class ThirteenNPCController(object):
                     or getattr(getattr(data,'situation',None),'guid64',None)
                        !=BASE_SITUATION):
                 return result
+            try:
+                self.begin_school_day(current_school_day(self.slot))
+                if not _install_school_adapters(self):
+                    self.school_ready=False
+                    self.error='UNSUPPORTED_CLASSROOM_ADAPTER'
+                    return result
+            except Exception as exc:
+                self.school_ready=False
+                self.error='DAY_PREFLIGHT_'+type(exc).__name__+':'+str(exc)[:100]
+                return result
             self.base_count_calls+=1
             self.base_count_last=result
             if (result==(3,3) and not self.created
                     and self.pending is None):
                 self.base_count_overrides+=1
-                return (8,8)
+                return (len(self.targets),len(self.targets))
             return result
 
         def create(obj,kind,*args,**kwargs):
             guid=getattr(kind,'guid64',None)
+            if self.active and self.in_school():
+                try:
+                    self.begin_school_day(current_school_day(self.slot))
+                    if not _install_school_adapters(self):
+                        self.school_ready=False
+                        self.error='UNSUPPORTED_CLASSROOM_ADAPTER'
+                        return original_create(obj,kind,*args,**kwargs)
+                except Exception as exc:
+                    self.school_ready=False
+                    self.error='DAY_PREFLIGHT_'+type(exc).__name__+':'+str(exc)[:100]
+                    return original_create(obj,kind,*args,**kwargs)
             # EA reuses the same classroom situations in the afternoon.
             # Re-arm our already-used class/prepare gates only once per day.
             if self.active and self.in_school():
@@ -528,6 +633,8 @@ class ThirteenNPCController(object):
                                             queue_playable_class)
                                         self.m140_auto_reports.append(report)
                                         for outcome in report.get('results',()):
+                                            _record_native_entry(self,outcome,
+                                                game_clock(services.time_service()))
                                             if outcome.get('queued'):
                                                 self.m142_auto_accepted.add(
                                                     str(outcome.get('sim_id')))
@@ -580,7 +687,7 @@ class ThirteenNPCController(object):
                     self.core_pending=False
             if (not self.active or not self.in_school()
                     or getattr(kind,'guid64',None)!=BASE_SITUATION
-                    or len(self.created)>=8
+                    or len(self.created)>=len(self.targets)
                     or self.pending is not None):
                 return original_create(obj,kind,*args,**kwargs)
             if 'guest_list' in kwargs and args:
@@ -907,32 +1014,10 @@ def arm_m127():
             return 'M142 BLOCCATA: originali job lezione EA assenti'
         if not trial.install():
             return 'M142 BLOCCATA: owner EA modificato o non disponibile'
-        # Apply the board compatibility while still home, *before* entering
-        # the school: this removes the M137 09:30 timing race entirely.
-        # If the EA/Zerbu test differs, original rules stay untouched.
-        trial.m140_patch_checked=True
-        try:
-            manager=services.get_instance_manager(Types.INTERACTION)
-            affordance=manager.get(PLAYER_CLASS_START) if manager else None
-            trial.m140_patch_result,trial.m140_patch_undo=(
-                install_known_whiteboard_adapter(affordance))
-        except Exception as exc:
-            trial.m140_patch_result={
-                'applied':False,'reason':'COMPAT_'+type(exc).__name__}
-        # Both class1 and class2 subject actions use the same original EA
-        # PickWhiteboard selector patched by M139. Subject/day tests remain.
-        try:
-            manager=services.get_instance_manager(Types.INTERACTION)
-            source=manager.get(PLAYER_CLASS_START) if manager else None
-            subjects={guid:manager.get(guid) for guid in SUBJECT_IDS}
-            trial.m145_patch_result,trial.m145_patch_undo=(
-                install_subject_picker(
-                    source,subjects,
-                    picker_patch_applied=bool(
-                      (trial.m140_patch_result or {}).get('applied'))))
-        except Exception as exc:
-            trial.m145_patch_result={
-                'applied':False,'reason':'M145_SUBJECT_'+type(exc).__name__}
+        # Global EA/Zerbu tuning must remain untouched outside high school.
+        # Install transactionally at verified school entry, before preparation.
+        trial.m140_patch_result={'applied':False,'reason':'WAITING_FOR_SCHOOL_ZONE'}
+        trial.m145_patch_result={'applied':False,'reason':'WAITING_FOR_SCHOOL_ZONE'}
         _RUNTIME=trial
         _m141_start_watcher(trial)
         return 'M148 PRONTA: entrambe aule e monitor leggero doppio orologio'
@@ -1563,7 +1648,7 @@ def m136testgiocabili(_connection=None):
                      for i in (1,2))
         played=find_playable_entry(groups,services.sim_info_manager(),
                                    services.active_household())
-        if len(played)!=3:raise ValueError('EXPECTED_THREE_PLAYABLE_TEENS')
+        if not played:raise ValueError('NO_REGISTERED_PLAYABLE_TEENS')
         boards,status=_m131_state_evidence()
         if status!='TWO_VALIDATED_EA_CLASS_BOARDS':
             sims4.commands.output('M142 TEST: BLOCCATO '+status,_connection)
@@ -1590,8 +1675,6 @@ def m136testgiocabili(_connection=None):
             'M142 TEST: errore '+type(exc).__name__,_connection)
 
 
-@sims4.commands.Command('mhs148.compat',
-    command_type=sims4.commands.CommandType.Live)
 def m137compat(_connection=None):
     """Read-only report on the scoped Zerbu test branch replacement."""
     if _RUNTIME is None or not _RUNTIME.active:
@@ -1643,8 +1726,8 @@ def _m146_capture_board_anchors(runtime):
 def _m147_early_playable_preparation(runtime):
     """Request native EA whiteboard START on both verified preparation jobs.
 
-    EA Class1: 293815/304701 job277919 (Rosario).
-    EA Class2: 297774 job277919 (Sandro, Sofia).
+    EA Class1: 293815/304701 job277919.
+    EA Class2: 297774 job277919.
     No direct student teleport, NPC action or discipline changes.
     Actual native 276774 interaction tests are required to pass.
     """
@@ -1718,6 +1801,17 @@ def _m147_early_playable_preparation(runtime):
         accepted_any=False
         for row,sim in candidates:
             sid=str(row['sim_id'])
+            klass=row['registered_class']
+            running=getattr(getattr(sim,'queue',None),'running',None)
+            allowed,policy_reason=runtime.lesson_requests.decision(
+                period,sid,klass,stamp,has_native_job=True,
+                correct_board=len(boards.get(klass,()))==1,instanced=True,
+                running_action=type(running).__name__ if running else '',
+                queued_actions=_queued_action_names(sim),
+                native_phase_created=klass in runtime.prep_created,
+                phase='preparation',context_verified=True)
+            if not allowed:
+                continue
             result={'period':period,'clock':stamp,'sim_id':sid,
                 'class':row['registered_class'],
                 'queued':False,'native_game_test_passed':False,
@@ -1736,16 +1830,21 @@ def _m147_early_playable_preparation(runtime):
                 else:
                     # One early request per player per period. A successful
                     # push only means EA accepted the queue, NOT seated.
-                    runtime.m147_preclass_attempted.add((period,sid))
                     outcome=queue_playable_class(
                         (row,),boards,affordance,
                         lambda _:context)
                     items=outcome.get('results',())
                     actual=items[0] if items else {}
                     result['queued']=actual.get('queued') is True
+                    if result['queued']:
+                        runtime.m147_preclass_attempted.add((period,sid))
+                        runtime.m142_auto_accepted.add(sid)
                     result['reason']='EA_EARLY_'+str(
                         actual.get('reason','NO_QUEUE_RESULT'))
                     accepted_any=accepted_any or result['queued']
+                runtime.lesson_requests.record_result(period,sid,stamp,
+                    result['queued'],result['reason'],
+                    native_test_passed=result['native_game_test_passed'])
             except Exception as exc:
                 result['reason']='EA_EARLY_'+type(exc).__name__
             if len(runtime.m147_preclass_reports)<64:
@@ -1779,12 +1878,19 @@ def _m141_capture(runtime,event='interval'):
         if runtime.m143_board_anchors is None:
             _m146_capture_board_anchors(runtime)
         rows=[]
+        native=inspect_sixteen_lesson_actions(runtime.lesson_classes,manager,
+            services.get_zone_situation_manager(),Age.TEEN,Species.HUMAN)
+        native_by_id={str(item['sim_id']):item for item in native.get('rows',())}
         for klass,group in enumerate(runtime.lesson_classes,1):
             for sid in group:
                 info=manager.get(int(sid))
                 row=observe_student(info,klass)
                 if row.get('sim_id') is None:
                     row['sim_id']=str(sid)
+                # Read native jobs for ALL registered students, including NPCs.
+                # Created situation IDs alone do not establish admission.
+                row['native_lesson_evidence']=native_by_id.get(str(sid),{
+                    'state':'NATIVE_JOB_OBSERVATION_UNAVAILABLE'})
                 rows.append(row)
         try:
             from mhs134_native_player_job_audit import inspect_player_jobs
@@ -1861,6 +1967,10 @@ def _m141_start_trace(runtime,origin='ea_event'):
     if runtime.m141_timer is not None:
         return True
     try:
+        runtime.begin_school_day(current_school_day(runtime.slot))
+        if not _install_school_adapters(runtime):
+            runtime.m141_start_error='UNSUPPORTED_CLASSROOM_ADAPTER'
+            return False
         if runtime.lesson_classes is None:
             raise ValueError('ROSTER_UNAVAILABLE')
         if runtime.m141_journal is None:
@@ -1978,91 +2088,109 @@ def _m142_roll_period_if_due(runtime,clock):
     return True
 
 
-def _m142_retry_playables(runtime):
-    """Push once more only when exact player class EA role is active.
+def _record_native_entry(runtime, result, stamp):
+    if result.get('reason') not in ('EA_ACCEPTED','EA_REJECTED'):
+        return
+    try:
+        runtime.lesson_requests.record_result(
+            runtime.m142_period,str(result['sim_id']),stamp,
+            bool(result.get('queued')),result['reason'],
+            native_test_passed=bool(result.get('queued')))
+    except ValueError:
+        # A phase callback can observe the same request twice; never expand
+        # its budget or convert an observation into another request.
+        pass
 
-    NEVER interact with NPCs, never run in lunch, and never forcibly cancel
-    a running action. A successful request still does not prove classroom entry.
+
+def _queued_action_names(sim):
+    queue=getattr(sim,'queue',None)
+    elements=getattr(queue,'_queue',None)
+    if type(elements) not in (tuple,list):
+        return None
+    return tuple(type(action).__name__ for action in elements)
+
+
+def _m142_retry_playables(runtime):
+    """Bounded native requests also cover initially refused/missing Sims.
+
+    Situation IDs and accepted requests are not proof of admission or seating.
+    Unknown queue APIs refuse a retry instead of interrupting unseen actions.
     """
     if not runtime.active or not runtime.in_school():
         return False
     try:
-        clock_value=game_clock(services.time_service())
-        minute=minute_of_day(clock_value)
-        if minute is None or not (
-                10*60+4<=minute<=10*60+15 or
-                14*60+4<=minute<=14*60+15):
+        stamp=game_clock(services.time_service())
+        minute=minute_of_day(stamp)
+        if minute is None or not (600<=minute<=624 or 840<=minute<=864):
             return False
         slot=str(current_slot(allow_travel=True))
         if slot!=runtime.slot:
             return False
-        roster=RosterStore(FOLDER).load(slot)
-        groups=tuple(tuple(str(s) for s in roster.class_members(k))
+        groups=tuple(tuple(str(s) for s in RosterStore(FOLDER).load(slot).class_members(k))
                      for k in (1,2))
         if groups!=runtime.lesson_classes:
             return False
         played=find_playable_entry(groups,services.sim_info_manager(),
                                    services.active_household())
-        if not played:
-            return False
-        from mhs134_native_player_job_audit import inspect_player_jobs
-        detail=inspect_player_jobs(
-            played,services.get_zone_situation_manager(),None)
-        jobs={str(j['sim_id']):j for j in detail.get('students',())}
-        ready=[]
-        for row in played:
-            sid=str(row['sim_id'])
-            try:
-                sim=row['sim_info'].get_sim_instance()
-                running=getattr(getattr(sim,'queue',None),'running',None)
-                name=(type(running).__name__ if running else None)
-            except Exception:
-                name=None
-            allow,reason=class_retry_decision(
-                clock_value,runtime.m142_period,row,jobs.get(sid),
-                sid in runtime.m142_auto_accepted,
-                (runtime.m142_period,sid) in runtime.m142_retry_attempted,
-                name)
-            if allow:
-                ready.append(row)
-        if not ready:
-            return False
+        detail=inspect_player_jobs(played,services.get_zone_situation_manager(),None)
+        jobs={str(row['sim_id']):row for row in detail.get('students',())}
         boards,status=_m131_state_evidence()
         if status!='TWO_VALIDATED_EA_CLASS_BOARDS':
-            runtime.m142_retry_reports.append({
-                'period':runtime.m142_period,'reason':status,
-                'attempted':False})
             return False
         from sims4.resources import Types
-        affordance=services.get_instance_manager(Types.INTERACTION).get(
-            PLAYER_CLASS_START)
+        affordance=services.get_instance_manager(Types.INTERACTION).get(PLAYER_CLASS_START)
         if affordance is None:
-            runtime.m142_retry_reports.append({
-                'period':runtime.m142_period,
-                'reason':'EA_AFFORDANCE_MISSING','attempted':False})
             return False
         from interactions.context import InteractionContext
         from interactions.priority import Priority
-        def context(sim):
-            return InteractionContext(
-                sim,InteractionContext.SOURCE_SCRIPT_WITH_USER_INTENT,
-                Priority.High)
-        for row in ready:
+        attempted=False
+        for row in played:
             sid=str(row['sim_id'])
-            runtime.m142_retry_attempted.add((runtime.m142_period,sid))
-            result=queue_playable_class((row,),boards,affordance,context)
+            klass=row['registered_class']
+            sim=row['sim_info'].get_sim_instance()
+            running=getattr(getattr(sim,'queue',None),'running',None) if sim else None
+            name=type(running).__name__ if running else ''
+            allow,reason=runtime.lesson_requests.decision(
+                runtime.m142_period,sid,klass,stamp,
+                has_native_job=job_matches_class(klass,jobs.get(sid,{}).get('situation_jobs')),
+                correct_board=len(boards.get(klass,()))==1,
+                instanced=sim is not None,running_action=name,
+                queued_actions=_queued_action_names(sim) if sim else None,
+                native_phase_created=klass in runtime.lesson_created,
+                context_verified=True)
+            if not allow:
+                marker=(runtime.m142_period,sid,reason)
+                if marker not in runtime.m143_policy_log:
+                    runtime.m143_policy_log.add(marker)
+                    runtime.m142_retry_reports.append({
+                        'period':runtime.m142_period,'clock':stamp,
+                        'sim_id':sid,'registered_class':klass,
+                        'reason':reason,'attempted':False})
+                continue
+            context=InteractionContext(sim,InteractionContext.SOURCE_SCRIPT_WITH_USER_INTENT,
+                                       Priority.High)
+            target=boards[klass][0]
+            tested=affordance.test(target,context)
+            result={'sim_id':sid,'queued':False,'reason':'EA_REJECTED'}
+            if tested:
+                report=queue_playable_class((row,),boards,affordance,lambda _:context)
+                rows=report.get('results',())
+                if rows:
+                    result=rows[0]
+            runtime.lesson_requests.record_result(
+                runtime.m142_period,sid,stamp,bool(result.get('queued')),
+                result.get('reason','EA_REJECTED'),native_test_passed=bool(tested))
+            if result.get('queued'):
+                runtime.m142_auto_accepted.add(sid)
             runtime.m142_retry_reports.append({
-                'period':runtime.m142_period,
-                'clock':clock_value,
-                'sim_id':sid,
-                'registered_class':row['registered_class'],
-                'reason':result.get('reason'),
-                'results':result.get('results',()),
-                'attempted':True,
-                'native_job_required':True,
+                'period':runtime.m142_period,'clock':stamp,'sim_id':sid,
+                'registered_class':klass,'results':[result],
+                'attempted':True,'native_job_required':True,
                 'does_not_prove_action_completed':True})
-        _m141_capture(runtime,'m142_bounded_playable_retry')
-        return True
+            attempted=True
+        if attempted:
+            _m141_capture(runtime,'bounded_registered_playable_retry')
+        return attempted
     except Exception as exc:
         runtime.m141_last_tick_error='RETRY_'+type(exc).__name__
         return False
@@ -2156,6 +2284,18 @@ def _m143_direct_attend(runtime):
             sim=row['sim_info'].get_sim_instance()
             running=getattr(getattr(sim,'queue',None),'running',None) if sim else None
             name=type(running).__name__ if running else ''
+            if protected_gameplay(name):
+                continue
+            queued=_queued_action_names(sim) if sim else None
+            if queued is None or any(protected_gameplay(action) for action in queued):
+                continue
+            state=runtime.lesson_requests.state(period,sid)
+            now=minute_of_day(stamp)
+            if state['attempts']>=runtime.lesson_requests.max_attempts:
+                continue
+            if state['last_minute'] is not None and (
+                    now-state['last_minute']<runtime.lesson_requests.min_gap_minutes):
+                continue
             valid=job_matches_class(klass,by_id.get(sid,{}).get('situation_jobs'))
             allowed,reason=allowed_direct_attend(
                 stamp,klass,sid,valid,
@@ -2250,6 +2390,10 @@ def _m143_direct_attend(runtime):
             # Only one direct test/push per player per class period. Does not
             # repeatedly push on every three-minute monitor sample.
             runtime.m143_direct_attempted.add(key)
+            if 'native_test_result' in result:
+                runtime.lesson_requests.record_result(period,sid,stamp,
+                    bool(result.get('queued')),result.get('reason'),
+                    native_test_passed=bool(result.get('game_native_test_passed')))
             runtime.m143_direct_reports.append(result)
         _m141_capture(runtime,'m143_direct_native_attend')
         return True
