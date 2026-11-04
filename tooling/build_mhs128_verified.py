@@ -25,6 +25,7 @@ SOURCES=tuple(ROOT/path for path in (
 'src/m126_early/mhs126_early_preparation_projection.py',
 'src/m127_timing/mhs127_school_timing_readback.py',
 'src/m128_alignment/mhs128_ea_class_trait_alignment.py',
+'src/m128_alignment/mhs128_board_posture_audit.py',
 'src/m128_alignment/mhs128_classroom_controller.py',
 ))
 
@@ -54,7 +55,7 @@ def build(folder):
         'Al liceo PRIMA delle 09:30: mhs128.verifica poi mhs128.allinea SOLO SU COPIA SALVATAGGIO\n'
         'Inviare MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M128_TRATTI_EA.json\n'
         'La M128 verifica tratti EA e opzionalmente allinea 16 iscritti; NON forza la seduta.\n'
-        'Fine prova: mhs128.stop.\n',encoding='utf-8')
+        'Al liceo alle 09:40 e alle 09:55: mhs128.aula (esporta lavagne e posture).\\nFine prova: mhs128.stop.\n',encoding='utf-8')
     return details
 
 
