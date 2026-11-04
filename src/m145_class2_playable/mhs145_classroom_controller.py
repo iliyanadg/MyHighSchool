@@ -2083,7 +2083,15 @@ def _observe_school_staff(runtime,stamp):
     except Exception as exc:
         report={'complete':False,'errors':['STAFF_READ_'+type(exc).__name__],
                 'selection_bridge_implemented':False,'world_mutations':0}
+    # A saved menu entry is not proof that EA staffed the selected Sim:
+    # show both the attempted exact guests and the actual observed native job.
     report['clock']=stamp
+    report['native_guest_projection_applied']=any(
+        item.get('applied') for item in runtime.staff_projection_reports)
+    report['native_guest_projection_failures']=[
+        item.get('reason') for item in runtime.staff_projection_reports
+        if item.get('applied') is False][-8:]
+    report['staff_native_job_matches_only_when_observed']=True
     if len(runtime.school_staff_samples)<64:
         runtime.school_staff_samples.append(report)
     return report
