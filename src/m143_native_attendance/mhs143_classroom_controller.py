@@ -33,7 +33,8 @@ from mhs140_native_lesson_entry import launch_once_at_native_lesson
 from mhs143_day_trace import DayJournal, observe_student
 from mhs143_native_attendance_policy import (
     allowed_direct_attend, find_observed_attend, job_matches_class,
-    analyze_npc_dining, classroom_activity)
+    analyze_npc_dining, summarize_registered_attendance,
+    classroom_activity)
 from mhs142_school_policy import (
     minute_of_day, can_roll_to_afternoon, class_retry_decision,
     summarize_npc_lunch)
@@ -144,6 +145,7 @@ class ThirteenNPCController(object):
         self.m142_afternoon_roll_events=[]
         self.m143_direct_attempted=set()
         self.m143_direct_reports=[]
+        self.m143_board_anchors=None
         self.m143_policy_log=set()
         self.m140_patch_checked=False
         self.m140_patch_result=None
@@ -1959,6 +1961,21 @@ def _m143_direct_attend(runtime):
         if board_status!='TWO_VALIDATED_EA_CLASS_BOARDS':
             _m143_refuse_targets(runtime,targets,stamp,'BOARD_'+board_status)
             return False
+        if runtime.m143_board_anchors is None:
+            try:
+                anchors={}
+                for klass in (1,2):
+                    board=boards[klass][0]
+                    position=getattr(board,'position',None)
+                    anchors[klass]={
+                        'id':str(getattr(board,'id',None)),
+                        'position':{axis:float(getattr(position,axis))
+                                    for axis in ('x','y','z')}}
+                if (anchors[1]['id']!=anchors[2]['id'] and
+                        all(anchors[k]['id'] not in ('None','') for k in (1,2))):
+                    runtime.m143_board_anchors=anchors
+            except Exception:
+                pass
         # Important: do not fabricate the tuning ID for a subject. Learn
         # it from an ACTIVE original EA classroom action already running.
         subject,reason=find_observed_attend(played)
@@ -2053,6 +2070,7 @@ def _m143_write_full_report(runtime):
             'direct_attempts':runtime.m143_direct_reports,
             'initial_native_accepted':runtime.m140_auto_reports,
             'afternoon_roll_events':runtime.m142_afternoon_roll_events,
+            'observed_exclusive_board_anchors':runtime.m143_board_anchors,
             'class_membership_fixed':True,
             'does_not_prove_seated_or_completed':True,
             'native_ea_test_never_bypassed':True,
@@ -2072,6 +2090,12 @@ def _m143_write_full_report(runtime):
         with open(os.path.join(FOLDER,
              'MHS_M143_MENSA_NPC_SEDUTI.json'),'w',encoding='utf-8') as output:
             json.dump(dining,output,indent=2,ensure_ascii=False)
+        attendance=summarize_registered_attendance(
+            runtime.m141_journal.samples,groups,runtime.m143_board_anchors)
+        with open(os.path.join(FOLDER,
+             'MHS_M143_PRESENZE_DUE_AULE.json'),'w',
+             encoding='utf-8') as output:
+            json.dump(attendance,output,indent=2,ensure_ascii=False)
         return True
     except Exception as exc:
         runtime.m141_last_tick_error='FULL_REPORT_'+type(exc).__name__
