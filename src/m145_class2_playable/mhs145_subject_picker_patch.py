@@ -14,7 +14,9 @@ Patch subject interaction 'test_globals' by replacing ONLY their standalone
 Class1-only StateTest with the very same PickWhiteboard TestSetReference object
 used by the original Class_Start. The original subject/day tests stay intact.
 All 8 known EA subjects require exactly one recognized SimInfoTest, a
-unique Class1-only StateTest, and at least one subject TestSetReference.
+unique Class1-only StateTest, and at least one subject day test. The latter
+may be the exported XML's TestSetReference or the game's expanded
+HashedTunedInstanceMetaclass testSet_HighSchool_Active_* tuning instance.
 Every other existing test is preserved in its original order. All eight are
 patched together or NONE are patched; unknown post-update tuning refuses the
 install with a compact runtime shape diagnostic. A restore callback restores
@@ -114,6 +116,22 @@ def _validate_source(source):
         return None,'M139_PICKER_BRANCHES_NOT_PATCHED'
     return picker,'VERIFIED_M139_EA_ZERBU_PICKER_INSTANCE'
 
+def _is_subject_day_test(item):
+    """Accept only known forms of EA subject/day TestSet tuning.
+
+    XML references are often resolved by Sims4 runtime into an actual tuned
+    class object, whose metaclass is HashedTunedInstanceMetaclass. Do not
+    accidentally accept the Class1/2 PickWhiteboard selector as the day test.
+    """
+    if _typename(item)=='TestSetReference':
+        return not _is_picker_reference(item)
+    if _typename(item)=='HashedTunedInstanceMetaclass':
+        name=str(getattr(item,'__name__',''))
+        return (name.startswith('testSet_HighSchool_Active_')
+                and 'PickWhiteboard' not in name)
+    return False
+
+
 def _test_shape(tests):
     """Return compact JSON-friendly read-only shape for game diagnostics."""
     result=[]
@@ -123,7 +141,9 @@ def _test_shape(tests):
         except Exception:
             label='<unprintable>'
         result.append({'index':index,'type':_typename(item),
-                       'ref_guid':_ref_guid(item),
+                       'ref_guid':_ref_guid(item) or
+                       getattr(item,'guid64',None),
+                       'name':str(getattr(item,'__name__',''))[:90],
                        'label':label[:120]})
     return tuple(result)
 
@@ -156,10 +176,13 @@ def _validate_subject(affordance,expected_guid):
     if len(candidates)!=1:
         return None,'SUBJECT_CLASS1_STATE_NOT_UNIQUE',shape
     references=[x for x in tests if _typename(x)=='TestSetReference']
-    if not references:
-        return None,'SUBJECT_DAY_TEST_MISSING',shape
     if any(_is_picker_reference(x) for x in references):
         return None,'SUBJECT_ALREADY_PATCHED_OR_WRONG_REFERENCE',shape
+    # M145c incorrectly rejected the live, unpacked EA tuning class.
+    # E.g. the player's game represents the subject test as
+    # <class 'sims4.tuning.instances.testSet_HighSchool_Active_...'>.
+    if not any(_is_subject_day_test(x) for x in tests):
+        return None,'SUBJECT_DAY_TEST_MISSING',shape
     return (old,tests,candidates[0]),'SUBJECT_CLASS1_STATE_UNIQUE',shape
 
 def install_subject_picker(source,subject_map,picker_patch_applied=False):
