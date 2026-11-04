@@ -2096,6 +2096,28 @@ def _m143_write_full_report(runtime):
              'MHS_M143_PRESENZE_DUE_AULE.json'),'w',
              encoding='utf-8') as output:
             json.dump(attendance,output,indent=2,ensure_ascii=False)
+        # One comprehensive report: the user uploads ONE file, not four.
+        all_sids=tuple(str(sid) for group in groups for sid in group)
+        waiting=summarize_npc_lunch(
+            runtime.m141_journal.samples,all_sids,sample_minutes=3)
+        complete={
+            'kind':'M143_ONE_FILE_FULL_SCHOOL_REPORT',
+            'save_slot':runtime.slot,
+            'classes':groups,
+            'school_day_journal':runtime.m141_journal.samples,
+            'school_observation_errors':runtime.m141_journal.errors,
+            'native_original_ea_class_entry':payload,
+            'physical_classroom_attendance':attendance,
+            'npc_lunch_posture':dining,
+            'npc_lunch_ordering':waiting,
+            'no_manual_teens_lunch_automation':True,
+            'not_verified_in_game_until_trial':True,
+        }
+        destination=os.path.join(FOLDER,'MHS_M143_REPORT_COMPLETO.json')
+        temporary=destination+'.tmp'
+        with open(temporary,'w',encoding='utf-8') as output:
+            json.dump(complete,output,indent=2,ensure_ascii=False)
+        os.replace(temporary,destination)
         return True
     except Exception as exc:
         runtime.m141_last_tick_error='FULL_REPORT_'+type(exc).__name__
