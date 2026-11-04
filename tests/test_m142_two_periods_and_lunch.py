@@ -75,7 +75,7 @@ class PolicyTests(unittest.TestCase):
                 "runtime.m140_auto_attempted.clear()",
                 "_m142_retry_playables(runtime)",
                 "runtime.m142_retry_attempted.add((runtime.m142_period,sid))",
-                "runtime.m142_auto_accepted.add(",
+                "self.m142_auto_accepted.add(",
                 "class_retry_decision(",
                 "mhs142.mensa",
                 "mhs142.periodi"):
