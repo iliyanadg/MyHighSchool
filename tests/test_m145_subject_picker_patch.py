@@ -25,10 +25,22 @@ class StateTest:
         self.value=Tuning(guid)
 class TestSetReference:
     def __init__(self,guid):self.test_set_reference=Tuning(guid)
-def fixture():
+class CompoundTestList(tuple):
+    pass
+class Picker:
+    def __init__(self,variant='ZERBU',branch_count=None):
+        self.guid64=PICKER_ID
+        self.__name__=('Zerbu_GTS5_WhiteboardStudentTestSnippet'
+                       if variant=='ZERBU' else
+                       'testSet_HighSchool_Active_PickWhiteboard_Student')
+        self.test=CompoundTestList((
+            tuple([object()]),)*(
+            branch_count if branch_count is not None else
+            (5 if variant=='ZERBU' else 4)))
+def fixture(variant='ZERBU',branch_count=None):
     class ClassStart:
         guid64=CLASS_START_ID
-        test_globals=TestList((SimInfoTest(),TestSetReference(PICKER_ID)))
+        test_globals=TestList((SimInfoTest(),Picker(variant,branch_count)))
     subject={}
     for n,guid in enumerate(SUBJECT_IDS):
         cls=type('super_HighSchool_Active_Whiteboard_Attend_S{}'.format(n),(),{
@@ -53,6 +65,28 @@ class Cases(unittest.TestCase):
         self.assertTrue(undo())
         for g,sub in subs.items():
             self.assertIs(sub.test_globals,before[g])
+    def test_real_game_snippet_guid_not_strict_source_shape(self):
+        start,subs=fixture()
+        # Runtime may expand or reorder class-start test_globals.
+        snippet=start.test_globals[1]
+        start.test_globals=TestList(
+            (TestSetReference(333),snippet,SimInfoTest(),
+             TestSetReference(444)))
+        d,undo=install_subject_picker(start,subs,True)
+        self.assertTrue(d['applied'],d)
+        self.assertTrue(all(x.test_globals[1] is snippet
+                            for x in subs.values()))
+        self.assertTrue(undo())
+    def test_real_ea_variant_and_unpatched_snippet_refused(self):
+        start,subs=fixture(variant='EA_ORIGINAL')
+        d,undo=install_subject_picker(start,subs,True)
+        self.assertTrue(d['applied'],d)
+        self.assertTrue(undo())
+        start,subs=fixture(variant='ZERBU',branch_count=4)
+        d,undo=install_subject_picker(start,subs,True)
+        self.assertFalse(d['applied'])
+        self.assertEqual(d['reason'],'M139_PICKER_BRANCHES_NOT_PATCHED')
+        self.assertIsNone(undo)
     def test_does_not_patch_without_m139_adapter(self):
         start,subs=fixture()
         prior={g:x.test_globals for g,x in subs.items()}
