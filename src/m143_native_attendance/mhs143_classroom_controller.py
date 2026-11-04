@@ -2145,3 +2145,7 @@ def m143_report(_connection=None):
          ok_day,ok_lunch,ok_full,len(journal.samples),
          len(_RUNTIME.m143_direct_attempted),
          _RUNTIME.m141_last_tick_error or 'nessuno'),_connection)
+    if ok_day and ok_full:
+        sims4.commands.output(
+            'M143 REPORT UNICO: MHS_M143_REPORT_COMPLETO.json',
+            _connection)
