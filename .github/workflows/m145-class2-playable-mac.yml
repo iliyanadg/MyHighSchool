@@ -1,7 +1,7 @@
-name: M145b corrected native EA two-class playable lessons Mac beta
+name: M145c runtime-safe subject classes Mac beta
 on:
   push:
-    branches: [feature/m145-class2-playable-followthrough]
+    branches: [feature/m145c-subject-runtime-shapes]
     paths:
       - 'src/m145_class2_playable/**'
       - 'tests/test_m145_*.py'
@@ -45,9 +45,9 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: MHS_M145B_FIXED_PICKER_RUNTIME_MAC_BETA
+          name: MHS_M145C_EXPANDED_EA_SUBJECT_SHAPES_MAC_BETA
           path: |
-            dist_m145/MHS_M145B_CORREZIONE_SELETTORE_LEZIONI_MAC_BETA.ts4script
-            dist_m145/M145B_BUILD_REPORT.json
-            dist_m145/LEGGIMI_M145B.txt
+            dist_m145/MHS_M145C_TEST_MATERIE_ESPANSO_MAC_BETA.ts4script
+            dist_m145/M145C_BUILD_REPORT.json
+            dist_m145/LEGGIMI_M145C.txt
           if-no-files-found: error
