@@ -31,6 +31,25 @@ def minute_of_day(clock):
     return h * 60 + m
 
 
+def roster_rearm_required(current_groups,current_targets,current_pinned,
+                          new_groups,new_targets,new_pinned,zone_changed=False):
+    """Detect changed saved SimIDs or Core roles, independent of Sims names.
+
+    Only for pre-school home rearm. Never live-swap the roster while students
+    are already attending the currently running EA school-day situations.
+    """
+    if (not isinstance(new_groups,(tuple,list)) or len(new_groups)!=2
+            or any(len(g)!=8 for g in new_groups)
+            or len(set(str(s) for g in new_groups for s in g))!=16):
+        raise ValueError('TWO_COMPLETE_CLASSES_REQUIRED')
+    old=tuple(tuple(str(s) for s in g) for g in (current_groups or ()))
+    new=tuple(tuple(str(s) for s in g) for g in new_groups)
+    return (bool(zone_changed) or old!=new
+            or tuple(str(s) for s in current_targets)!=
+               tuple(str(s) for s in new_targets)
+            or dict(current_pinned)!=dict(new_pinned))
+
+
 def preparation_period(clock):
     """Native GetReady for Class starts at 09:30 and 13:30.
 
