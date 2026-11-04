@@ -761,6 +761,11 @@ class ThirteenNPCController(object):
             if (self.active and self.school_ready and self.in_school()
                     and guid in (VENUE_STAFF_SITUATION,
                                  CAFETERIA_STAFF_SITUATION)
+                    # Do not reuse the same Sim in a second naturally
+                    # scheduled vendor/venue situation on this school day.
+                    # We have verified just one native job per role.
+                    and guid not in self.staff_created
+                    and self.staff_pending is None
                     and self.staff_plan.get('jobs')):
                 if not ('guest_list' in kwargs and args):
                     old=kwargs.get('guest_list',args[0] if args else None)
