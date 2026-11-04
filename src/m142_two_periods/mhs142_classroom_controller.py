@@ -1732,7 +1732,7 @@ def _m142_roll_period_if_due(runtime,clock):
     if not runtime.active or not runtime.in_school():
         return False
     if not can_roll_to_afternoon(
-            clock, next(iter(PREP_JOBS)), PREP_JOBS,
+            clock, None, PREP_JOBS,
             runtime.m142_afternoon_rearmed):
         return False
     runtime.m142_afternoon_rearmed=True
