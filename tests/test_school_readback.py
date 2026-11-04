@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for folder in ('classroom_control', 'm148_clock', 'm53_staff', 'm2_registry'):
     sys.path.insert(0, str(ROOT / 'src' / folder))
 from mhs53_staff_store import StaffRoster
-from mhs_school_readback import entry_window, entry_snapshot, staff_snapshot, school_memberships
+from mhs_school_readback import entry_window, entry_snapshot, staff_snapshot, school_memberships, staff_sample_period
 
 
 class Queue:
@@ -50,6 +50,24 @@ class ReadbackTests(unittest.TestCase):
                 (10,30,'morning'),(10,31,None),(13,30,'afternoon'),
                 (14,30,'afternoon'),(14,31,None),(True,30,None)):
             self.assertEqual(entry_window({'hour':hour,'minute':minute}),expected)
+
+    def test_staff_reads_are_limited_to_five_original_school_phases(self):
+        samples=((7,59,None),(8,0,'arrival'),(9,29,'arrival'),
+                 (9,30,'morning_lesson'),(10,59,'morning_lesson'),
+                 (11,0,'lunch_and_preparation'),
+                 (13,59,'lunch_and_preparation'),
+                 (14,0,'afternoon_lesson'),
+                 (14,59,'afternoon_lesson'),
+                 (15,0,'school_end'),(16,0,'school_end'),
+                 (16,1,None),(24,0,None),(True,30,None))
+        for hour,minute,expected in samples:
+            self.assertEqual(
+                staff_sample_period({'hour':hour,'minute':minute}),expected)
+
+    def test_staff_read_period_refuses_unknown_clock_without_fabricating_result(self):
+        for clock in (None,0,{},[],{'hour':'9','minute':30},
+                      {'hour':9,'minute':60}):
+            self.assertIsNone(staff_sample_period(clock))
 
     def test_preparation_job_277919_is_retained_for_class_two_without_guessing(self):
         info = Info(1)
