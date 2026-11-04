@@ -1,0 +1,58 @@
+name: M147 native preparation for both playable classrooms Mac
+on:
+  push:
+    branches: [feature/m147-both-playable-classes-preparation]
+    paths:
+      - 'src/m145_class2_playable/**'
+      - 'src/m147_integrated/**'
+      - 'src/m131_playable/**'
+      - 'tests/test_m145_*.py'
+      - 'tests/test_m147_*.py'
+      - 'tests/test_m131_native_playable_class.py'
+      - 'tooling/build_mhs147_verified.py'
+      - '.github/workflows/m147-both-playable-preparation-mac.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test original EA subject selector patch and all school regressions
+        run: |
+          python -m unittest tests.test_m147_native_roles tests.test_m146_class_timing_policy tests.test_m145_subject_picker_patch tests.test_m143_native_attendance_and_lunch tests.test_m142_two_periods_and_lunch tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
+      - name: Build standalone Python 3.7 Mac .ts4script
+        run: python -m tooling.build_mhs147_verified dist_m147
+      - name: Check archive contents and M147 menu
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs147_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m147/'+NAME) as z:
+              names=z.namelist()
+              assert len(names)==len(SOURCES)==27,(len(names),len(SOURCES))
+              assert len(set(names))==27
+              assert all(z.read(f)[:4]==MAGIC for f in names)
+              for f in ('mhs145_classroom_controller.pyc',
+                         'mhs147_class_timing_policy.pyc',
+                         'mhs145_subject_picker_patch.pyc',
+                         'mhs143_native_attendance_policy.pyc',
+                         'mhs140_native_lesson_entry.pyc'):
+                  assert f in names,f
+              assert 'mhs143_classroom_controller.pyc' not in names
+              code=z.read('mhs145_classroom_controller.pyc')
+              for cmd in ('mhs147.arm','mhs147.monitor','mhs147.report',
+                          'mhs147.compat','mhs147.stop'):
+                  assert cmd.encode() in code,cmd
+          print('M147 two-class Mac beta offline validated. In-game still required.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M147_BOTH_PLAYABLE_CLASSROOMS_MAC_BETA
+          path: |
+            dist_m147/MHS_M147_DUE_AULE_ANTICIPATE_MAC_BETA.ts4script
+            dist_m147/M147_BUILD_REPORT.json
+            dist_m147/LEGGIMI_M147.txt
+          if-no-files-found: error
