@@ -1,5 +1,12 @@
 # Audit e integrazione Classroom Control
 
+**Seguito dell'audit:** ricevuti i quattro file EA e l'inventario richiesti.
+La revisione corrente aggiunge il filtro per NPC basato sul registro, il
+dispatch dei test limitato agli iscritti nel liceo e la lettura reale delle
+code. Vedere [contratti EA verificati](EA_CONTRATTI_CLASSROOM_CONTROL.md) e
+[primo collaudo](PRIMO_COLLAUDO_CLASSROOM_CONTROL.md). I quattro file non
+devono essere richiesti nuovamente né distribuiti.
+
 Data: 4 novembre 2026. Base analizzata: branch
 `feature/m148-dual-clock-low-impact`, commit
 `06076c816dea23df8f86e9e875f00f5eda2aefe3`.
@@ -66,7 +73,7 @@ che una richiesta iniziale sia già stata accettata. Le richieste anticipate
 accettate non alimentavano quel registro. La nuova gestione non esclude
 permanentemente uno studente dopo il primo rifiuto.
 
-## Correzioni implementate
+## Correzioni della prima integrazione (58db915)
 
 - Una sola coppia di file, 47 moduli Python unici e un solo controller.
   Il package conserva tutte le azioni M54, aggiungendo il menu M98 dei cinque
@@ -95,7 +102,7 @@ permanentemente uno studente dopo il primo rifiuto.
 - Inventario Mods in sola lettura: collisioni di moduli, hash, file sconosciuti
   e dati da conservare; nessuna cancellazione o spostamento automatico.
 
-## Limiti ancora aperti
+## Limiti osservati nella prima integrazione
 
 Non è una dichiarazione di release stabile o di 8/8 puntuali. Restano da
 verificare nel gioco almeno due giornate, il target NPC errato, le continuazioni
@@ -105,25 +112,27 @@ L'adapter attuale richiede cinque NPC iscritti assegnati manualmente ai cinque
 ruoli Core nativi. Oltre undici giocabili iscritti rifiuta l'attivazione:
 è un limite di questo adapter, non un limite provato di The Sims 4.
 
-Lo snippet lavagne è globale nella zona: pur preservando il ramo Elementary
+La prima integrazione modificava lo snippet lavagne globalmente nella zona: pur preservando il ramo Elementary
 riconosciuto e ripristinandolo fuori scuola, non abbiamo ancora un contratto
-EA verificato per limitarne ogni predicato al singolo Sim iscritto. Per questo
-la compatibilità Zerbu Go to School/Sonozaki Elementary **non è certificata**.
+EA verificato per limitarne ogni predicato al singolo Sim iscritto. Il nuovo
+dispatch usa ora tale contratto, verificato sui file ricevuti, e conserva le
+liste originali fuori ambito. La compatibilità completa nel gioco con
+Zerbu Go to School/Sonozaki Elementary **non è ancora certificata**.
 Il registro personale M54 è conservato; non è stato inventato un nuovo sistema
 di assegnazione dei professori o del preside EA.
 
-## Dati precisi necessari per chiudere le parti bloccate
+## Prerequisiti ricevuti e conservati privatamente
 
-1. L'inventario reale delle Mods tramite `tooling/mod_inventory.py` e le
+1. Ricevuto l'inventario reale delle Mods tramite `tooling/mod_inventory.py` e le
    istruzioni di `INSTALLAZIONE_PULITA_MAC.md`. Serve a identificare i file
    effettivi e le collisioni; i nomi installati non sono visibili dal cloud.
-2. Dall'installazione Mac corrente, le copie originali di
+2. Ricevute dall'installazione Mac corrente le copie originali di
    `event_testing/tests.pyc`, `event_testing/resolver.pyc`,
    `event_testing/test_base.pyc` e `interactions/interaction_queue.pyc`, se
    presenti in `simulation.zip`. Servono per il contratto dei predicati per Sim
    e per leggere la coda senza inventare API. Sono file da analizzare
    privatamente, **non da aggiungere al repository o alla build**.
-3. Se già conservato, il precedente archivio con il tuning NPC
+3. Riutilizzata la documentazione del precedente archivio con il tuning NPC
    `super_HighSchool_Active_AttendClass_NPC` **297779** e il test set
    `testSet_HighSchool_Active_PickWhiteboard_Student` **279071**. Sono già stati
    studiati nei documenti: riutilizzare l'esportazione esistente, non riesportare

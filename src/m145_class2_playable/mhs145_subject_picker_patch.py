@@ -104,6 +104,8 @@ def _validate_source(source):
     # and appended precisely one playable Class2 branch, retaining EA NPC
     # and Zerbu Elementary branches. Confirm that applied shape remains.
     tests=getattr(picker,'test',None)
+    if getattr(tests,'_mhs_scoped',False):
+        tests=tests.amended
     if type(tests).__name__!='CompoundTestList':
         return None,'PICKER_IS_NOT_COMPOUND'
     try:
@@ -185,7 +187,8 @@ def _validate_subject(affordance,expected_guid):
         return None,'SUBJECT_DAY_TEST_MISSING',shape
     return (old,tests,candidates[0]),'SUBJECT_CLASS1_STATE_UNIQUE',shape
 
-def install_subject_picker(source,subject_map,picker_patch_applied=False):
+def install_subject_picker(source,subject_map,picker_patch_applied=False,
+                           scope=None,failure=None):
     """Return (result, rollback) with fail-closed behavior.
 
     A fully successful M139 patch is a strict prerequisite. Building the
@@ -218,6 +221,13 @@ def install_subject_picker(source,subject_map,picker_patch_applied=False):
         except Exception as exc:
             return {'applied':False,'reason':'TESTLIST_BUILD_'+type(exc).__name__,
                     'subject_guid':guid,'runtime_test_shape':shape},None
+        if scope is not None:
+            try:
+                from mhs_scoped_classroom import ScopedTestList
+                new=ScopedTestList(old,new,scope,failure)
+            except (TypeError,ValueError):
+                return {'applied':False,'reason':'SCOPED_TESTLIST_API_NOT_SUPPORTED',
+                        'subject_guid':guid},None
         checked.append((affordance,old,new))
     changed=[]
     try:
@@ -252,6 +262,8 @@ def install_subject_picker(source,subject_map,picker_patch_applied=False):
                        for obj,old,new in checked)
         except Exception:
             return False
+    undo.can_restore=lambda:all(getattr(obj,'test_globals',None) is new
+                                for obj,old,new in checked)
 
     return {
         'applied':True,
@@ -261,5 +273,6 @@ def install_subject_picker(source,subject_map,picker_patch_applied=False):
         'player_class_selector_aligned_with_M139':True,
         'subject_ids':SUBJECT_IDS,
         'native_ea_test_bypass':False,
+        'enrollment_scoped':scope is not None,
         'gameplay_seating_not_yet_verified':True,
     },undo

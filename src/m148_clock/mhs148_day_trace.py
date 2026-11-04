@@ -88,9 +88,14 @@ def observe_student(info, klass):
 
 
 class DayJournal(object):
-    def __init__(self, folder, slot, groups):
+    def __init__(self, folder, slot, groups, output=None):
         self.folder = folder
         self.slot = str(slot)
+        self.output=OUTPUT if output is None else output
+        if (not isinstance(self.output,str) or not self.output.startswith('MHS_')
+                or os.path.basename(self.output)!=self.output
+                or not self.output.endswith('.json')):
+            raise ValueError('INVALID_JOURNAL_FILENAME')
         self.groups = tuple(tuple(str(i) for i in group)
                             for group in groups)
         if len(self.groups) != 2 or any(len(g) != 8 for g in self.groups):
@@ -123,7 +128,7 @@ class DayJournal(object):
         try:
             if not os.path.isdir(self.folder):
                 os.makedirs(self.folder)
-            target = os.path.join(self.folder, OUTPUT)
+            target = os.path.join(self.folder, self.output)
             temp = target + '.tmp'
             data = {
                 'kind': 'M143_READ_ONLY_SCHOOL_DAY_JOURNAL',

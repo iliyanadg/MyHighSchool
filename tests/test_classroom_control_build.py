@@ -120,7 +120,9 @@ class Python37ArchiveTests(unittest.TestCase):
         code = '''import sys
 sys.path.insert(0, sys.argv[1])
 import mhs_school_session, mhs_attendance_policy, mhs_classroom_bootstrap
-for module in (mhs_school_session, mhs_attendance_policy, mhs_classroom_bootstrap):
+import mhs_scoped_classroom, mhs_queue_readback
+for module in (mhs_school_session, mhs_attendance_policy, mhs_classroom_bootstrap,
+               mhs_scoped_classroom, mhs_queue_readback):
     assert '.ts4script/' in module.__file__, module.__file__
 assert mhs_school_session.school_day_key('11',2160000)==('11',1)
 '''
@@ -143,9 +145,20 @@ assert mhs_school_session.school_day_key('11',2160000)==('11',1)
     def test_two_builds_are_byte_reproducible(self):
         with tempfile.TemporaryDirectory() as second:
             builder.build(second)
-            for name in (builder.PACKAGE, builder.SCRIPT):
+            for name in (builder.PACKAGE, builder.SCRIPT,builder.BUNDLE):
                 self.assertEqual((self.folder / name).read_bytes(),
                                  (Path(second) / name).read_bytes())
+
+    def test_download_bundle_has_instructions_and_no_ea_or_private_inputs(self):
+        with zipfile.ZipFile(str(self.folder/builder.BUNDLE)) as archive:
+            names=set(archive.namelist())
+            self.assertIn(builder.PACKAGE,names)
+            self.assertIn(builder.SCRIPT,names)
+            self.assertIn('PRIMO_COLLAUDO_CLASSROOM_CONTROL.md',names)
+            self.assertIn('INSTALLAZIONE_PULITA_MAC.md',names)
+            self.assertNotIn('MHS-inventario.json',names)
+            self.assertFalse(any(name.endswith('.pyc') for name in names))
+            self.assertIsNone(archive.testzip())
 
     def test_changed_archive_module_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

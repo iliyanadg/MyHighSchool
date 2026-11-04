@@ -39,6 +39,7 @@ from mhs147_class_timing_policy import (
     roster_rearm_required)
 from mhs_school_session import plan_roster, school_day_key
 from mhs_attendance_policy import LessonRequestLedger, protected_gameplay
+from mhs_queue_readback import queue_snapshot
 from mhs143_native_attendance_policy import (
     allowed_direct_attend, find_observed_attend, job_matches_class,
     analyze_npc_dining, summarize_registered_attendance,
@@ -113,15 +114,37 @@ def _install_school_adapters(runtime):
     runtime.m140_patch_checked=True
     try:
         from sims4.resources import Types
+        from interactions import ParticipantType
+        from event_testing.results import TestResult
+        from mhs_scoped_classroom import registered_board_context, install_native_board_guard
         manager=services.get_instance_manager(Types.INTERACTION)
+        states=services.get_instance_manager(Types.OBJECT_STATE)
+        state1=states.get(CLASS1_WHITEBOARD_TRUE) if states else None
+        state2=states.get(CLASS2_WHITEBOARD_TRUE) if states else None
+        if state1 is None or state2 is None:
+            runtime.error='CLASSROOM_STATE_TUNING_UNAVAILABLE'
+            return False
+        def scope(resolver):
+            if not runtime.active or not runtime.school_ready or not runtime.in_school():
+                return None
+            context=registered_board_context(resolver,ParticipantType.Actor,
+                ParticipantType.Object,runtime.classroom_membership,state1,state2)
+            if context is not None:
+                runtime.classroom_scope_checks+=1
+                if context['registered_class']!=context['board_class']:
+                    runtime.classroom_scope_blocked+=1
+                    runtime.classroom_scope_last[context['sim_id']]=context
+            return context
+        failure=lambda reason:TestResult(False,reason)
         source=manager.get(PLAYER_CLASS_START) if manager else None
         runtime.m140_patch_result,runtime.m140_patch_undo=(
-            install_known_whiteboard_adapter(source))
+            install_known_whiteboard_adapter(source,scope=scope,failure=failure))
         runtime.m145_patch_result,runtime.m145_patch_undo=(
             install_subject_picker(source,
                 {guid:manager.get(guid) for guid in SUBJECT_IDS},
                 picker_patch_applied=bool(
-                    (runtime.m140_patch_result or {}).get('applied'))))
+                    (runtime.m140_patch_result or {}).get('applied')),
+                scope=scope,failure=failure))
         if not (runtime.m145_patch_result or {}).get('applied'):
             if runtime.m140_patch_undo is not None:
                 if runtime.m140_patch_undo():
@@ -129,11 +152,31 @@ def _install_school_adapters(runtime):
                     runtime.m140_patch_result=dict(runtime.m140_patch_result,
                         applied=False,reason='SUBJECT_ADAPTER_ROLLED_BACK')
             return False
+        runtime.classroom_guard_result,runtime.classroom_guard_undo=(
+            install_native_board_guard(manager.get(297779),scope,failure))
+        if not runtime.classroom_guard_result.get('applied'):
+            if runtime.m145_patch_undo is not None and runtime.m145_patch_undo():
+                runtime.m145_patch_undo=None
+                runtime.m145_patch_result=dict(runtime.m145_patch_result,
+                    applied=False,reason='NPC_GUARD_ROLLBACK')
+            if runtime.m140_patch_undo is not None and runtime.m140_patch_undo():
+                runtime.m140_patch_undo=None
+                runtime.m140_patch_result=dict(runtime.m140_patch_result,
+                    applied=False,reason='NPC_GUARD_ROLLBACK')
+            return False
         return True
     except Exception as exc:
         runtime.error='CLASS_ADAPTER_'+type(exc).__name__
-        if runtime.m140_patch_undo is not None and runtime.m140_patch_undo():
-            runtime.m140_patch_undo=None
+        for field in ('classroom_guard_undo','m145_patch_undo','m140_patch_undo'):
+            callback=getattr(runtime,field,None)
+            if callback is not None:
+                try:
+                    if callback():setattr(runtime,field,None)
+                    else:runtime.error+=':RESTORE_CONFLICT'
+                except Exception:
+                    runtime.error+=':RESTORE_FAILED'
+        runtime.m140_patch_result={'applied':False,'reason':runtime.error}
+        runtime.m145_patch_result={'applied':False,'reason':runtime.error}
         return False
 
 
@@ -221,6 +264,12 @@ class ThirteenNPCController(object):
         self.school_day=None
         self.school_ready=False
         self.lesson_requests=LessonRequestLedger()
+        self.classroom_membership={}
+        self.classroom_guard_result=None
+        self.classroom_guard_undo=None
+        self.classroom_scope_checks=0
+        self.classroom_scope_blocked=0
+        self.classroom_scope_last={}
 
     def begin_school_day(self, key):
         """Reset our bookkeeping before EA's first create on a new day.
@@ -242,6 +291,11 @@ class ThirteenNPCController(object):
         self.targets=tuple(targets)
         self.pinned=dict(pinned)
         self.lesson_classes=groups
+        self.classroom_membership={sid:klass for klass,group in enumerate(groups,1)
+                                   for sid in group}
+        self.classroom_scope_checks=0
+        self.classroom_scope_blocked=0
+        self.classroom_scope_last.clear()
         for name in ('created','lesson_created','prep_created'):
             getattr(self,name).clear()
         for name in ('lesson_attempted','prep_attempted','m140_auto_attempted',
@@ -465,7 +519,13 @@ class ThirteenNPCController(object):
                 return result
             self.base_count_calls+=1
             self.base_count_last=result
-            if (result==(3,3) and not self.created
+            # Both verified EA school schedules start with six Base slots,
+            # reduced by household career participants. Three was one test
+            # household's result, not a fixed native prerequisite.
+            known_native=(type(result) is tuple and len(result)==2 and
+                          type(result[0]) is int and type(result[1]) is int and
+                          result[0]==result[1] and 0<=result[0]<=6)
+            if (known_native and not self.created
                     and self.pending is None):
                 self.base_count_overrides+=1
                 return (len(self.targets),len(self.targets))
@@ -786,6 +846,12 @@ class ThirteenNPCController(object):
         _m141_stop_trace(self)
         if not self.active:
             return False
+        callbacks=(self.classroom_guard_undo,self.m145_patch_undo,self.m140_patch_undo)
+        if any(callable(getattr(fn,'can_restore',None)) and not fn.can_restore()
+               for fn in callbacks if fn is not None):
+            self.school_ready=False
+            self.error='CLASSROOM_ADAPTER_RESTORE_CONFLICT'
+            return False
         if any(owner.__dict__.get(name) is not fn
                for (owner,name),fn in self.wrappers.items()):
             self.error='THIRD_PARTY_RESTORE_CONFLICT'
@@ -794,6 +860,11 @@ class ThirteenNPCController(object):
             if getattr(req,'_sim_filter',None) is self.blank:
                 req._sim_filter=prior
         self._tracked.clear()
+        if self.classroom_guard_undo is not None:
+            if not self.classroom_guard_undo():
+                self.error='NPC_BOARD_GUARD_RESTORE_CONFLICT'
+                return False
+            self.classroom_guard_undo=None
         # Undo M145 subject changes before M139 restores the snippet.
         if self.m145_patch_undo is not None:
             try:
@@ -1144,11 +1215,11 @@ def m127details(_connection=None):
         return
     import json
     os.makedirs(FOLDER,exist_ok=True)
-    filename=os.path.join(FOLDER,'MHS_M148_LEZIONI_RUOLI_AZIONI.json')
+    filename=os.path.join(FOLDER,'MHS_CLASSROOM_CONTROL_LEZIONI_RUOLI_AZIONI.json')
     with open(filename,'w',encoding='utf-8') as file:
         json.dump(report,file,indent=2,ensure_ascii=False)
     sims4.commands.output(
-        'M142: creato MHS_M148_LEZIONI_RUOLI_AZIONI.json (16 Sim). '
+        'M142: creato MHS_CLASSROOM_CONTROL_LEZIONI_RUOLI_AZIONI.json (16 Sim). '
         'Nessuna azione del Sim modificata.',_connection)
 
 # M142 manual opt-in recovery: a single known off-task mirror interaction.
@@ -1256,7 +1327,7 @@ def m127tempo(_connection=None):
         return
     _M140_TIMED_SNAPSHOTS.append(result)
     os.makedirs(FOLDER,exist_ok=True)
-    file=os.path.join(FOLDER,'MHS_M148_ORARI_PERCORSI_EA.json')
+    file=os.path.join(FOLDER,'MHS_CLASSROOM_CONTROL_ORARI_PERCORSI_EA.json')
     with open(file,'w',encoding='utf-8') as stream:
         json.dump({'kind':'M140_MULTI_TIME_SCHOOL_ROUTE',
                    'measurements':_M140_TIMED_SNAPSHOTS,
@@ -1267,7 +1338,7 @@ def m127tempo(_connection=None):
     sims4.commands.output(
         'M142 TEMPO rilevazione={}/8 job_classe={}/16 '
         'creazioni_prep={} creazioni_lezione={} '
-        'file=MHS_M148_ORARI_PERCORSI_EA.json'.format(
+        'file=MHS_CLASSROOM_CONTROL_ORARI_PERCORSI_EA.json'.format(
             len(_M140_TIMED_SNAPSHOTS),result['school_job_count'],
             sum(x['phase']=='preparation'
                 for x in _RUNTIME.m127_timing_events),
@@ -1308,7 +1379,7 @@ def m128verifica(_connection=None):
     missing=[r for r in rows if r['requires_change']]
     try:
         os.makedirs(FOLDER,exist_ok=True)
-        filepath=os.path.join(FOLDER,'MHS_M148_TRATTI_EA.json')
+        filepath=os.path.join(FOLDER,'MHS_CLASSROOM_CONTROL_TRATTI_EA.json')
         with open(filepath,'w',encoding='utf-8') as stream:
             json.dump({'kind':'M140_EA_CLASS1_TRAIT_AUDIT',
                 'ea_trait_guid':CLASS1_TRAIT_ID,
@@ -1324,7 +1395,7 @@ def m128verifica(_connection=None):
     sims4.commands.output(
         'M142 VERIFICA: iscritti=16 tratti_errati={} '
         'Classe1={} Classe2={} '
-        'file=MHS_M148_TRATTI_EA.json NESSUNA_MODIFICA'.format(
+        'file=MHS_CLASSROOM_CONTROL_TRATTI_EA.json NESSUNA_MODIFICA'.format(
             len(missing),
             sum(1 for r in missing if r['registered_class']==1),
             sum(1 for r in missing if r['registered_class']==2)),
@@ -1371,13 +1442,13 @@ def m128aula(_connection=None):
         report['clock']=game_clock(services.time_service())
         report['note']='posture Sit alone does not prove classroom desk'
         os.makedirs(FOLDER,exist_ok=True)
-        filename=os.path.join(FOLDER,'MHS_M148_LAVAGNE_POSTURE_EA.json')
+        filename=os.path.join(FOLDER,'MHS_CLASSROOM_CONTROL_LAVAGNE_POSTURE_EA.json')
         with open(filename,'w',encoding='utf-8') as stream:
             json.dump(report,stream,indent=2,ensure_ascii=False)
         sims4.commands.output(
             'M142 AULA: studenti={} tratti_errati={} '
             'lavagne_condivise={} NESSUNA_MODIFICA '
-            'file=MHS_M148_LAVAGNE_POSTURE_EA.json'.format(
+            'file=MHS_CLASSROOM_CONTROL_LAVAGNE_POSTURE_EA.json'.format(
                 report['count'],report['trait_mismatches'],
                 len(report['board_ids_targeted_by_both_classes'])),
             _connection)
@@ -1428,7 +1499,7 @@ def m130posti(_connection=None):
         _M140_READBACKS.append(result)
         os.makedirs(FOLDER,exist_ok=True)
         with open(os.path.join(
-                FOLDER,'MHS_M148_POSTI_AULE_EA.json'),
+                FOLDER,'MHS_CLASSROOM_CONTROL_POSTI_AULE_EA.json'),
                 'w',encoding='utf-8') as stream:
             json.dump({'kind':'M140_MULTI_TIME_PHYSICAL_SEAT_AUDIT',
                        'samples':_M140_READBACKS,
@@ -1567,7 +1638,7 @@ def m132causa(_connection=None):
         report['save_slot']=_RUNTIME.slot
         os.makedirs(FOLDER,exist_ok=True)
         with open(os.path.join(
-                FOLDER,'MHS_M148_CAUSA_RIFIUTO_EA.json'),
+                FOLDER,'MHS_CLASSROOM_CONTROL_CAUSA_RIFIUTO_EA.json'),
                 'w',encoding='utf-8') as stream:
             json.dump(report,stream,indent=2,ensure_ascii=False)
         for row in report['students']:
@@ -1579,7 +1650,7 @@ def m132causa(_connection=None):
                 row.get('reason',row.get('test_error','n/d'))[:90]),
                 _connection)
         sims4.commands.output(
-            'M142 CAUSA: file=MHS_M148_CAUSA_RIFIUTO_EA.json '
+            'M142 CAUSA: file=MHS_CLASSROOM_CONTROL_CAUSA_RIFIUTO_EA.json '
             'NESSUNA MODIFICA AL GIOCO',_connection)
     except Exception as exc:
         sims4.commands.output(
@@ -1612,7 +1683,7 @@ def m134ruoli(_connection=None):
         report['clock']=game_clock(services.time_service())
         report['save_slot']=slot
         os.makedirs(FOLDER,exist_ok=True)
-        filename='MHS_M148_RUOLI_EA_GIOCABILI.json'
+        filename='MHS_CLASSROOM_CONTROL_RUOLI_EA_GIOCABILI.json'
         with open(os.path.join(FOLDER,filename),'w',
                   encoding='utf-8') as stream:
             json.dump(report,stream,indent=2,ensure_ascii=False)
@@ -1660,7 +1731,7 @@ def m136testgiocabili(_connection=None):
         report=inspect_test_hierarchy(affordance,played,boards)
         report['clock']=game_clock(services.time_service())
         report['save_slot']=slot
-        filename='MHS_M148_TEST_EA_GIOCABILI.json'
+        filename='MHS_CLASSROOM_CONTROL_TEST_EA_GIOCABILI.json'
         os.makedirs(FOLDER,exist_ok=True)
         with open(os.path.join(FOLDER,filename),'w',
                   encoding='utf-8') as stream:
@@ -1878,6 +1949,9 @@ def _m141_capture(runtime,event='interval'):
         if runtime.m143_board_anchors is None:
             _m146_capture_board_anchors(runtime)
         rows=[]
+        from sims4.resources import Types
+        traits=services.get_instance_manager(Types.TRAIT)
+        class_trait=traits.get(CLASS1_TRAIT_ID) if traits else None
         native=inspect_sixteen_lesson_actions(runtime.lesson_classes,manager,
             services.get_zone_situation_manager(),Age.TEEN,Species.HUMAN)
         native_by_id={str(item['sim_id']):item for item in native.get('rows',())}
@@ -1891,6 +1965,17 @@ def _m141_capture(runtime,event='interval'):
                 # Created situation IDs alone do not establish admission.
                 row['native_lesson_evidence']=native_by_id.get(str(sid),{
                     'state':'NATIVE_JOB_OBSERVATION_UNAVAILABLE'})
+                try:
+                    row['ea_class1_trait_present']=(
+                        bool(info.trait_tracker.has_trait(class_trait))
+                        if info is not None and class_trait is not None else None)
+                    snapshot=queue_snapshot(info.get_sim_instance()) if info is not None else {}
+                    row['queue_details_available']=snapshot.get('available',False)
+                    row['queue_read_reason']=snapshot.get('reason','SIM_INFO_MISSING')
+                    row['queued_actions']=snapshot.get('queued_names')
+                    row['running_parent_actions']=snapshot.get('active_parent_names')
+                except Exception as exc:
+                    row['queue_read_reason']='READ_'+type(exc).__name__
                 rows.append(row)
         try:
             from mhs134_native_player_job_audit import inspect_player_jobs
@@ -1975,7 +2060,8 @@ def _m141_start_trace(runtime,origin='ea_event'):
             raise ValueError('ROSTER_UNAVAILABLE')
         if runtime.m141_journal is None:
             runtime.m141_journal=DayJournal(
-                FOLDER,runtime.slot,runtime.lesson_classes)
+                FOLDER,runtime.slot,runtime.lesson_classes,
+                output='MHS_CLASSROOM_CONTROL_GIORNATA_LEZIONI_MENSA.json')
         import alarms
         import clock
         def sample(handle):
@@ -2040,7 +2126,7 @@ def m141_log(_connection=None):
         len(_RUNTIME.m141_journal.samples),ok,
         _RUNTIME.m141_last_tick_error or
         _RUNTIME.m141_journal.write_error or 'nessuno',
-        'MHS_M148_GIORNATA_LEZIONI_MENSA.json'),_connection)
+        'MHS_CLASSROOM_CONTROL_GIORNATA_LEZIONI_MENSA.json'),_connection)
 
 
 @sims4.commands.Command('mhs148.monitor',
@@ -2103,11 +2189,12 @@ def _record_native_entry(runtime, result, stamp):
 
 
 def _queued_action_names(sim):
-    queue=getattr(sim,'queue',None)
-    elements=getattr(queue,'_queue',None)
-    if type(elements) not in (tuple,list):
-        return None
-    return tuple(type(action).__name__ for action in elements)
+    snapshot=queue_snapshot(sim)
+    # A phone/listening mixer can be part of an already running EA lesson.
+    # Include its active parent in duplicate/protection decisions, not in the
+    # journal's separate list of genuinely pending actions.
+    return (snapshot['queued_names']+snapshot['active_parent_names']
+            if snapshot['available'] else None)
 
 
 def _m142_retry_playables(runtime):
@@ -2207,7 +2294,7 @@ def _m142_write_lunch_summary(runtime):
         ids=tuple(sid for group in groups for sid in group)
         summary=summarize_npc_lunch(
             runtime.m141_journal.samples,ids,sample_minutes=3)
-        path=os.path.join(FOLDER,'MHS_M148_MENSA_NPC_ATTESE.json')
+        path=os.path.join(FOLDER,'MHS_CLASSROOM_CONTROL_MENSA_NPC_ATTESE.json')
         with open(path,'w',encoding='utf-8') as output:
             json.dump(summary,output,indent=2,ensure_ascii=False)
         return True
@@ -2225,7 +2312,7 @@ def m142_mensa(_connection=None):
         return
     success=_m142_write_lunch_summary(_RUNTIME)
     sims4.commands.output(
-        'M145 MENSA: salvato={} file=MHS_M148_MENSA_NPC_ATTESE.json '
+        'M145 MENSA: salvato={} file=MHS_CLASSROOM_CONTROL_MENSA_NPC_ATTESE.json '
         'NESSUNA AZIONE MODIFICATA'.format(success),_connection)
 
 
@@ -2425,7 +2512,7 @@ def _m143_write_full_report(runtime):
         import json
         if not os.path.isdir(FOLDER):
             os.makedirs(FOLDER)
-        path=os.path.join(FOLDER,'MHS_M148_INTERAZIONI_GIOCABILI_EA.json')
+        path=os.path.join(FOLDER,'MHS_CLASSROOM_CONTROL_INTERAZIONI_GIOCABILI_EA.json')
         payload={
             'kind':'M143_REAL_EA_ATTEND_TEST_AND_QUEUE_LIFECYCLE',
             'direct_attempts':runtime.m143_direct_reports,
@@ -2452,12 +2539,12 @@ def _m143_write_full_report(runtime):
                     npc_ids.append(str(sid))
         dining=analyze_npc_dining(runtime.m141_journal.samples,npc_ids)
         with open(os.path.join(FOLDER,
-             'MHS_M148_MENSA_NPC_SEDUTI.json'),'w',encoding='utf-8') as output:
+             'MHS_CLASSROOM_CONTROL_MENSA_NPC_SEDUTI.json'),'w',encoding='utf-8') as output:
             json.dump(dining,output,indent=2,ensure_ascii=False)
         attendance=summarize_registered_attendance(
             runtime.m141_journal.samples,groups,runtime.m143_board_anchors)
         with open(os.path.join(FOLDER,
-             'MHS_M148_PRESENZE_DUE_AULE.json'),'w',
+             'MHS_CLASSROOM_CONTROL_PRESENZE_DUE_AULE.json'),'w',
              encoding='utf-8') as output:
             json.dump(attendance,output,indent=2,ensure_ascii=False)
         # One comprehensive report: the user uploads ONE file, not four.
@@ -2465,6 +2552,13 @@ def _m143_write_full_report(runtime):
         waiting=summarize_npc_lunch(
             runtime.m141_journal.samples,all_sids,sample_minutes=3)
         complete={
+            'classroom_control':{
+                'npc_board_guard':runtime.classroom_guard_result,
+                'scoped_test_checks':runtime.classroom_scope_checks,
+                'wrong_or_ambiguous_board_blocks':runtime.classroom_scope_blocked,
+                'last_block_per_registered_student':runtime.classroom_scope_last,
+                'outside_scope_original_rules':True,
+                'no_forced_seating_or_completion':True},
             'kind':'M143_ONE_FILE_FULL_SCHOOL_REPORT',
             'save_slot':runtime.slot,
             'classes':groups,
@@ -2500,7 +2594,7 @@ def _m143_write_full_report(runtime):
             'no_manual_teens_lunch_automation':True,
             'not_verified_in_game_until_trial':True,
         }
-        destination=os.path.join(FOLDER,'MHS_M148_REPORT_COMPLETO.json')
+        destination=os.path.join(FOLDER,'MHS_CLASSROOM_CONTROL_REPORT_COMPLETO.json')
         temporary=destination+'.tmp'
         with open(temporary,'w',encoding='utf-8') as output:
             json.dump(complete,output,indent=2,ensure_ascii=False)
@@ -2553,7 +2647,7 @@ def m143_report(_connection=None):
          _RUNTIME.m141_last_tick_error or 'nessuno'),_connection)
     if ok_day and ok_full:
         sims4.commands.output(
-            'M148 REPORT UNICO: MHS_M148_REPORT_COMPLETO.json',
+            'M148 REPORT UNICO: MHS_CLASSROOM_CONTROL_REPORT_COMPLETO.json',
             _connection)
 
 

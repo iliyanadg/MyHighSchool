@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = 'MHS_CLASSROOM_CONTROL.package'
 SCRIPT = 'MHS_CLASSROOM_CONTROL.ts4script'
 REPORT = 'CLASSROOM_CONTROL_BUILD_REPORT.json'
+BUNDLE = 'MHS_CLASSROOM_CONTROL.zip'
 MAGIC = bytes((66, 13, 13, 10))
 # New integrated modules belong here; old controllers do not.
 EXTRA_SOURCES = tuple(ROOT / path for path in (
@@ -41,6 +42,8 @@ EXTRA_SOURCES = tuple(ROOT / path for path in (
     'src/classroom_control/mhs_school_session.py',
     'src/classroom_control/mhs_attendance_policy.py',
     'src/classroom_control/mhs_classroom_bootstrap.py',
+    'src/classroom_control/mhs_scoped_classroom.py',
+    'src/classroom_control/mhs_queue_readback.py',
 ))
 SOURCES = tuple(MENU_SOURCES) + tuple(ATTENDANCE_SOURCES) + EXTRA_SOURCES
 EA_MODULES = frozenset((
@@ -288,6 +291,32 @@ def verify_archive(path, inventory):
                 raise BuildError('Bytecode/source code mismatch: ' + name)
 
 
+def installation_bundle(folder):
+    """Distribute our build and public instructions; never user/EA attachments."""
+    folder=Path(folder)
+    payload={name:(folder/name).read_bytes() for name in (
+        PACKAGE,SCRIPT,REPORT,'SHA256SUMS.txt','LEGGIMI_CLASSROOM_CONTROL.txt')}
+    for source in ('docs/INSTALLAZIONE_PULITA_MAC.md','docs/PRIMO_COLLAUDO_CLASSROOM_CONTROL.md',
+                   'docs/EA_CONTRATTI_CLASSROOM_CONTROL.md',
+                   'docs/VERIFICHE_CLASSROOM_CONTROL.md','tooling/mod_inventory.py'):
+        path=ROOT/source
+        payload[path.name]=path.read_bytes()
+    target=folder/BUNDLE
+    temporary=folder/(BUNDLE+'.tmp')
+    with zipfile.ZipFile(str(temporary),'w') as archive:
+        for name,body in sorted(payload.items()):
+            info=zipfile.ZipInfo(name,date_time=(1980,1,1,0,0,0))
+            info.create_system=3
+            info.external_attr=0o100644<<16
+            info.compress_type=zipfile.ZIP_DEFLATED
+            archive.writestr(info,body,compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)
+    with zipfile.ZipFile(str(temporary)) as archive:
+        if archive.testzip() is not None or set(archive.namelist())!=set(payload):
+            raise BuildError('Invalid installation bundle')
+    os.replace(str(temporary),str(target))
+    return target
+
+
 def build(folder, sources=SOURCES):
     if sys.version_info[:2] != (3, 7) or importlib.util.MAGIC_NUMBER != MAGIC:
         raise BuildError('The Sims 4 build requires CPython 3.7 (420d0d0a)')
@@ -375,6 +404,7 @@ for source, destination, filename in json.loads(sys.stdin.read()):
         'completamento delle lezioni o compatibilita con mod terze.\n'
         'Consultare la documentazione di installazione e il rapporto di audit.\n',
         encoding='utf-8')
+    installation_bundle(out)
     return report
 
 

@@ -23,7 +23,7 @@ def _check_trait_test(test,attribute):
         return False
     return 'trait_HighSchool_Active_Class1Student' in repr(tuple(value)[0])
 
-def install_known_whiteboard_adapter(affordance):
+def install_known_whiteboard_adapter(affordance, scope=None, failure=None):
     """Return status and undo callback; refuse unknown tuning structures."""
     if affordance is None:
         return {'applied':False,'reason':'PLAYER_AFFORDANCE_MISSING'},None
@@ -74,6 +74,9 @@ def install_known_whiteboard_adapter(affordance):
     )+groups[3:]
     try:
         new=type(old)(amended)
+        if scope is not None:
+            from mhs_scoped_classroom import ScopedTestList
+            new=ScopedTestList(old,new,scope,failure)
         snippet.test=new
         if getattr(snippet,'test',None) is not new:
             raise RuntimeError('WRITE_NOT_CONFIRMED')
@@ -88,6 +91,7 @@ def install_known_whiteboard_adapter(affordance):
             snippet.test=old
             return True
         return False
+    restore.can_restore=lambda:getattr(snippet,'test',None) is new
 
     return {
         'applied':True,
@@ -98,5 +102,6 @@ def install_known_whiteboard_adapter(affordance):
         'elementary_branch_unchanged':(
             name!=ZERBU_NAME or new[-1] is groups[-1]),
         'class1_trait_synced_separately':True,
+        'enrollment_scoped':scope is not None,
         'seat_arrival_at_10_not_yet_proven':True
     },restore

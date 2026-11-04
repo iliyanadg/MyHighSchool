@@ -1,5 +1,34 @@
 # Verifiche della revisione unificata
 
+## Seguito con i file EA e inventario Mods
+
+- Suite generale: **1.356 casi, 1.351 passati e 5 saltati** perché i test
+  dell'archivio richiedono CPython 3.7; nessun errore o assertion fallita.
+- Primo sottogruppo CPython 3.7 della correzione: **46 casi, 45 passati,
+  1 saltato** (rifiuto compilatore errato, non applicabile con 3.7).
+- Verifica finale CPython 3.7, con ZIP installabile e diario: **50 casi,
+  49 passati e 1 saltato** per la stessa ragione. Include sei controlli reali
+  dell'archivio, import dei moduli, CRC, contenuto e riproducibilità del bundle.
+- Preservazione del diario e nuovi test mirati: **18 passati**; i rapporti
+  M148 e il registro sentinella restano invariati.
+- Verifica finale delle politiche, del runtime e del diario: **32 passati**;
+  include conteggi EA diversi da tre e conservazione dei conteggi sconosciuti.
+- Prova privata con i metodi puri EA ricevuti: TestSetInstance,
+  CompoundTestList, Resolver.get_participant e lettura InteractionQueue
+  eseguiti con oggetti inerti. Rifiuto della lavagna sbagliata, identità dei
+  risultati originali fuori ambito e coda invariata verificati.
+- Inventario completo: 2.794 file Mods e 60 dati persistenti; l'unico archivio
+  MHS identificato è il vecchio M148. Tre collisioni di moduli estranee a MHS
+  restano segnalazioni, non prove di incompatibilità.
+
+La nuova build ha **49 moduli unici** e conserva le stesse 75 risorse e
+11 coppie categoria/SimData. I test finali del compilatore includono l'import
+reale dei cinque moduli puri dal `.ts4script`, il bundle ZIP e la sua
+riproducibilità. Gli originali EA e l'inventario personale non sono distribuiti.
+Il comportamento nel gioco rimane da collaudare come descritto nelle istruzioni.
+
+## Verifiche della prima integrazione
+
 4 novembre 2026, ambiente cloud Linux. Nessuna prova The Sims 4 eseguita qui.
 
 | Controllo | Esito osservato |

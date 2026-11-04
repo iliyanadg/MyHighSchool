@@ -12,7 +12,7 @@ import mhs_classroom_bootstrap as bootstrap
 
 
 class RuntimeTests(unittest.TestCase):
-    def load_controller(self,base_count=8):
+    def load_controller(self,base_count=8,native_count=(3,3)):
         source=ROOT/'src/m145_class2_playable/mhs145_classroom_controller.py'
         tree=ast.parse(source.read_text())
         node=next(n for n in tree.body if isinstance(n,ast.ClassDef)
@@ -34,7 +34,7 @@ class RuntimeTests(unittest.TestCase):
         class Day(object):
             guid64=277657
             @classmethod
-            def get_long_term_situation_count(cls,data,resolver):return (3,3)
+            def get_long_term_situation_count(cls,data,resolver):return native_count
         day=[('1',1)]
         ns={'LessonRequestLedger':LessonRequestLedger,'FOLDER':'unused',
             'RosterStore':Store,'CORE_JOBS':jobs,'BASE_SITUATION':277733,
@@ -77,6 +77,17 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse(runtime.m142_afternoon_rearmed)
         self.assertEqual(runtime.lesson_requests.state('morning','1')['attempts'],0)
         self.assertEqual(runtime.lesson_classes,groups)
+
+    def test_native_household_count_can_differ_from_three(self):
+        data=SimpleNamespace(situation=SimpleNamespace(guid64=277733))
+        for base,native in ((11,6),(10,5),(8,3),(5,0),(3,0)):
+            runtime,day,_,_=self.load_controller(base,(native,native))
+            self.assertTrue(runtime.install())
+            self.assertEqual(day.get_long_term_situation_count(data,None),(base,base))
+        for unexpected in ((9,9),(2,5),('3','3'),(True,True)):
+            runtime,day,_,_=self.load_controller(8,unexpected)
+            self.assertTrue(runtime.install())
+            self.assertEqual(day.get_long_term_situation_count(data,None),unexpected)
 
     def test_zone_hook_preserves_result_installs_once_and_calls_owner(self):
         events=[]

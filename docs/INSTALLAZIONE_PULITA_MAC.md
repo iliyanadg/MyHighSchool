@@ -2,6 +2,10 @@
 
 La nuova coppia prevista è `MHS_CLASSROOM_CONTROL.package` e `MHS_CLASSROOM_CONTROL.ts4script`, generata dalla stessa compilazione con relativo manifest SHA-256. Questa revisione integra il progetto e richiede ancora verifiche nel gioco: non è una dichiarazione di release stabile o di compatibilità universale.
 
+La revisione con i contratti EA ricevuti contiene **49 moduli**. Per il primo
+collaudo seguire anche `PRIMO_COLLAUDO_CLASSROOM_CONTROL.md`. Il precedente
+ZIP a 47 moduli, se già scaricato, resta un backup: installare la nuova coppia.
+
 ## Dati da conservare
 
 Chiudere The Sims 4 e fare una copia dell'intera cartella:
@@ -63,6 +67,12 @@ Dopo il backup, usare il report per preparare una cartella di quarantena **fuori
 - Per i `.package` vecchi, usare l'hash noto dell'artefatto originale o una provenienza verificabile. Un file sconosciuto resta da identificare; non eliminarlo soltanto per il nome.
 - Non spostare mod di terzi per una corrispondenza generica con “scuola” o “Sonozaki”. **Conservare Zerbu Go to School e Sonozaki Elementary**: la loro compatibilità va valutata separatamente e non richiede una rimozione indiscriminata.
 - Conservare tutti i dati e salvataggi elencati sopra. Spostare un vecchio `.ts4script` o `.package` non richiede spostare il registro.
+
+Nell'inventario ricevuto è identificato un solo archivio MHS:
+`MY HIGH SCHOOL MOD/MHS_M148.ts4script`. È il file preciso da spostare fuori
+da Mods. La cartella contiene anche `.DS_Store`, metadato Finder innocuo.
+Nessun vecchio package MHS è identificabile dai nomi del report: non spostare
+package sconosciuti presumendo che siano una versione M54.
 
 Installare la sola nuova coppia direttamente in Mods o in una sola sottocartella, ad esempio `Mods/MY_HIGH_SCHOOL/`. Non tenere copie duplicate in altre cartelle. Ricontrollare l'inventario: nessun modulo MHS deve essere fornito da due archivi e i due SHA-256 devono corrispondere al manifest della stessa build.
 
