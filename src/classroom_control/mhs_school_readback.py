@@ -73,6 +73,33 @@ def entry_window(clock):
     return None
 
 
+def staff_sample_period(clock):
+    """At most five expensive all-Sim staff reads per school day.
+
+    Match actual phase *observations*, not scheduled staff arrivals.
+    The monitor reads the full school journal separately every 15 minutes;
+    this function avoids repeating a world-wide scan on every sample.
+    """
+    if not isinstance(clock,dict):
+        return None
+    hour,minute=clock.get('hour'),clock.get('minute')
+    if (type(hour) is not int or type(minute) is not int
+            or not 0<=hour<=23 or not 0<=minute<60):
+        return None
+    total=hour*60+minute
+    if 480<=total<570:
+        return 'arrival'
+    if 570<=total<660:
+        return 'morning_lesson'
+    if 660<=total<840:
+        return 'lunch_and_preparation'
+    if 840<=total<900:
+        return 'afternoon_lesson'
+    if 900<=total<=960:
+        return 'school_end'
+    return None
+
+
 def entry_snapshot(clock, groups, info_manager, situation_manager, class_trait):
     rows = []
     for klass, group in enumerate(groups, 1):
