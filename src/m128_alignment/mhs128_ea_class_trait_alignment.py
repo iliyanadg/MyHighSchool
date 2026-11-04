@@ -84,8 +84,9 @@ def align_roster_trait(rows,trait):
             owner=owners[row['sim_id']]
             restore=row['ea_class1_trait_present']
             try:
-                method=owner.add_trait if restore else owner.remove_trait
-                method(trait)
+                if bool(row['trait_tracker'].has_trait(trait))!=restore:
+                    method=owner.add_trait if restore else owner.remove_trait
+                    method(trait)
                 if bool(row['trait_tracker'].has_trait(trait))!=restore:
                     rollback_ok=False
             except Exception:
