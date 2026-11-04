@@ -8,7 +8,7 @@ on:
       - 'tests/**'
       - '.github/workflows/classroom-control.yml'
   push:
-    branches: [feature/classroom-control-unified]
+    branches: [feature/classroom-control-unified, feature/staff-native-appointments-v1]
     paths:
       - 'src/**'
       - 'tooling/**'
