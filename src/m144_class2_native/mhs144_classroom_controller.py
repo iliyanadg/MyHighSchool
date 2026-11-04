@@ -1758,6 +1758,7 @@ def _m142_roll_period_if_due(runtime,clock):
     runtime.lesson_attempted.clear()
     runtime.m140_auto_attempted.clear()
     runtime.m142_auto_accepted.clear()
+    runtime.m144_prep_queued.clear()
     runtime.prep_created.clear()
     runtime.lesson_created.clear()
     runtime.m142_afternoon_roll_events.append({
