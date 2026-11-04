@@ -8,6 +8,7 @@ on:
       - 'src/m131_playable/**'
       - 'tests/test_m145_*.py'
       - 'tests/test_m146_*.py'
+      - 'tests/test_m131_native_playable_class.py'
       - 'tooling/build_mhs146_verified.py'
       - '.github/workflows/m146-integrated-school-mac.yml'
   workflow_dispatch:
