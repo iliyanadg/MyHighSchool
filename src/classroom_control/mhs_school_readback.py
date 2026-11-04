@@ -10,9 +10,18 @@ from mhs_queue_readback import queue_snapshot
 
 SCHOOL_SITUATIONS = frozenset((277733, 298052, 298096, 278011,
                               293815, 304701, 297774, 304565, 304703, 304567))
-STAFF_JOBS = {277895: 'teacher1', 278963: 'teacher2',
-              277918: 'teacher1', 297170: 'teacher2',
-              278223: 'principal', 290196: 'custodians', 278010: 'cafeteria'}
+# Only the long-lived EA Core/Venue/Vendor situation jobs establish
+# the stable personnel roles that the M53 register can appoint.
+# A lesson-phase "Teacher1" job is not proof of the MHS Classe 1 teacher:
+# EA may reuse both base teachers in an unrelated phase.
+STAFF_JOBS = {
+    (298052,277895): 'teacher1',
+    (298052,278963): 'teacher2',
+    (298096,278223): 'principal',
+    (298096,290196): 'custodians',
+    (278011,278010): 'cafeteria',
+}
+PHASE_TEACHER_JOBS = frozenset((277918,297170,278224))
 KNOWN_STAFF_TRAITS = {'teacher1': 300380, 'principal': 300487,
                       'custodians': 300488, 'cafeteria': 300519}
 
@@ -53,7 +62,11 @@ def school_memberships(sim, manager):
             job = _guid(job_reader(sim))
             role = _guid(role_reader(sim)) if callable(role_reader) else None
             rows.append({'situation_guid': sid, 'job_guid': job,
-                         'role_guid': role, 'staff_role': STAFF_JOBS.get(job)})
+                         'role_guid': role,
+                         'staff_role': STAFF_JOBS.get((sid,job)),
+                         'phase_teacher_job': (
+                             job if sid not in (298052,298096,278011)
+                             and job in PHASE_TEACHER_JOBS else None)})
             if job is None:
                 raise ValueError('NATIVE_JOB_NOT_EXPOSED')
         return {'available': True, 'reason': 'EA_SCHOOL_MEMBERSHIPS_READ', 'jobs': rows}
