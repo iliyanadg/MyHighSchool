@@ -97,5 +97,5 @@ class Cases(unittest.TestCase):
         self.assertNotIn('push_super_affordance(',source)
         self.assertNotIn('set_state(',source)
         self.assertNotIn('.trait_tracker.add_trait(',source)
-        self.assertIn('getattr(obj,\\'test_globals\\',None) is new',source)
+        self.assertIn("getattr(obj,'test_globals',None) is new",source)
 if __name__=='__main__':unittest.main()
