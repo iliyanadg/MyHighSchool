@@ -1,0 +1,53 @@
+name: M145 native EA two-class playable lessons Mac beta
+on:
+  push:
+    branches: [feature/m145-class2-playable-followthrough]
+    paths:
+      - 'src/m145_class2_playable/**'
+      - 'tests/test_m145_*.py'
+      - 'tooling/build_mhs145_verified.py'
+      - '.github/workflows/m145-class2-playable-mac.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test original EA subject selector patch and all school regressions
+        run: |
+          python -m unittest tests.test_m145_subject_picker_patch tests.test_m143_native_attendance_and_lunch tests.test_m142_two_periods_and_lunch tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
+      - name: Build standalone Python 3.7 Mac .ts4script
+        run: python -m tooling.build_mhs145_verified dist_m145
+      - name: Check archive contents and M145 menu
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs145_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m145/'+NAME) as z:
+              names=z.namelist()
+              assert len(names)==len(SOURCES)==26,(len(names),len(SOURCES))
+              assert len(set(names))==26
+              assert all(z.read(f)[:4]==MAGIC for f in names)
+              for f in ('mhs145_classroom_controller.pyc',
+                         'mhs145_subject_picker_patch.pyc',
+                         'mhs143_native_attendance_policy.pyc',
+                         'mhs140_native_lesson_entry.pyc'):
+                  assert f in names,f
+              assert 'mhs143_classroom_controller.pyc' not in names
+              code=z.read('mhs145_classroom_controller.pyc')
+              for cmd in ('mhs145.arm','mhs145.monitor','mhs145.report',
+                          'mhs145.compat','mhs145.stop'):
+                  assert cmd.encode() in code,cmd
+          print('M145 Mac beta offline validated. In-game still required.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M145_TWO_CLASS_PLAYABLE_MAC_BETA
+          path: |
+            dist_m145/MHS_M145_DUE_CLASSI_LEZIONI_EA_MAC_BETA.ts4script
+            dist_m145/M145_BUILD_REPORT.json
+            dist_m145/LEGGIMI_M145.txt
+          if-no-files-found: error
