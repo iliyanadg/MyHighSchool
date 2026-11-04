@@ -107,6 +107,8 @@ class StaffNativeCreationTests(unittest.TestCase):
         env.update({
             'VENUE_STAFF_SITUATION':298096,
             'CAFETERIA_STAFF_SITUATION':278011,
+            'CORE_SITUATION':298052,
+            'PREP_JOBS':{},'LESSON_JOBS':{},
             'project_native_staff_guests':project_native_staff_guests,
             'zone_schedule':lambda:(20,277657),
             'game_clock':lambda _: {'hour':8,'minute':0},
