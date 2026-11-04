@@ -145,3 +145,88 @@ def analyze_npc_dining(samples, student_ids):
       'npc_interactions_modified':0,
       'does_not_prove_completed_order_or_consumption':True,
     }
+
+
+def _distance_same_floor(pos,anchor):
+    if not isinstance(pos,dict) or not isinstance(anchor,dict):
+        return None
+    try:
+        from math import sqrt
+        dy=abs(float(pos['y'])-float(anchor['y']))
+        if dy>2:
+            return None
+        return round(sqrt((float(pos['x'])-float(anchor['x']))**2+
+                          (float(pos['z'])-float(anchor['z']))**2),2)
+    except (KeyError,TypeError,ValueError,OverflowError):
+        return None
+
+
+def summarize_registered_attendance(samples,groups,board_anchors):
+    """Physical attendance evidence from ACTUAL observed positions & actions.
+
+    Not a classroom-visit guarantee. Requires two distinct trusted board anchors
+    collected while their native mutually exclusive states were verified.
+    """
+    lookup={}
+    for klass,ids in enumerate(groups,1):
+        for sid in ids:
+            lookup[str(sid)]=klass
+    out={}
+    for sid,klass in lookup.items():
+        out[sid]={'class':klass,'morning':_new_period(),
+                  'afternoon':_new_period()}
+    if not isinstance(board_anchors,dict) or set(board_anchors)!={1,2}:
+        return {'students':out,'anchors_validated':False,
+                'no_invented_classroom_certification':True}
+    if board_anchors[1]['id']==board_anchors[2]['id']:
+        return {'students':out,'anchors_validated':False,
+                'no_invented_classroom_certification':True}
+    for snap in samples:
+        time=snap.get('clock') or {}
+        h=time.get('hour')
+        key='morning' if h==10 else ('afternoon' if h==14 else None)
+        if key is None:
+            continue
+        for row in snap.get('students') or ():
+            sid=str(row.get('sim_id'))
+            if sid not in out:
+                continue
+            record=out[sid][key]
+            record['snapshots']+=1
+            a=str(row.get('running_action') or '')
+            if classroom_activity(a):
+                record['actual_class_action_samples']+=1
+                if record['first_class_action_clock'] is None:
+                    record['first_class_action_clock']=time.get('repr')
+            if 'posture_Sit' not in str(row.get('posture') or ''):
+                continue
+            klass=lookup[sid]
+            expected=board_anchors[klass].get('position')
+            other=board_anchors[3-klass].get('position')
+            pos=row.get('position')
+            d1=_distance_same_floor(pos,expected)
+            d2=_distance_same_floor(pos,other)
+            if d1 is None or d2 is None:
+                continue
+            if d1<=16.0 and d2-d1>=8.0:
+                record['observed_seated_near_registered_board']+=1
+                if record['first_seat_clock'] is None:
+                    record['first_seat_clock']=time.get('repr')
+            elif d2<=16.0 and d1-d2>=8.0:
+                record['observed_seated_near_wrong_board']+=1
+    return {
+        'kind':'M143_SCHOOL_CLASS_AND_SEAT_OBSERVATIONS',
+        'students':out,
+        'anchors_validated':True,
+        'board_anchor_ids':{str(k):v['id'] for k,v in board_anchors.items()},
+        'first_class_action_does_not_prove_lesson_completed':True,
+        'seating_proximity_does_not_prove_actual_lesson_participation':True,
+        'no_force_move_or_teleport':True,
+    }
+
+
+def _new_period():
+    return {'snapshots':0,'actual_class_action_samples':0,
+            'observed_seated_near_registered_board':0,
+            'observed_seated_near_wrong_board':0,
+            'first_class_action_clock':None,'first_seat_clock':None}
