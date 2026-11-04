@@ -4,6 +4,8 @@ on:
     branches: [feature/m146-integrazione-lettura-richiami-e-orari]
     paths:
       - 'src/m145_class2_playable/**'
+      - 'src/m146_integrated/**'
+      - 'src/m131_playable/**'
       - 'tests/test_m145_*.py'
       - 'tests/test_m146_*.py'
       - 'tooling/build_mhs146_verified.py'
@@ -22,7 +24,7 @@ jobs:
           python -m unittest tests.test_m146_class_timing_policy tests.test_m145_subject_picker_patch tests.test_m143_native_attendance_and_lunch tests.test_m142_two_periods_and_lunch tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
       - name: Build standalone Python 3.7 Mac .ts4script
         run: python -m tooling.build_mhs146_verified dist_m146
-      - name: Check archive contents and M145 menu
+      - name: Check archive contents and M146 menu
         run: |
           python - <<'PY'
           from tooling.build_mhs146_verified import SOURCES,MAGIC,NAME
