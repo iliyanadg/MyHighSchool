@@ -54,6 +54,10 @@ modifiche successive di terze parti.
 letture incomplete. Riconosce anche il `super_interaction` di un mixer: usare
 il telefono durante una lezione non significa che il Sim sia senza lezione.
 Le richieste successive non interrompono quel genitore attivo.
+Lo stesso controllo vale nell'invio iniziale di `Class_Start`, non soltanto
+nei tentativi successivi: anche lì vengono rispettate code, lezioni e azioni
+protette. Se la nuova API di lettura non è disponibile, non viene inviato
+un tentativo alla cieca.
 
 Il diario registra ora, per tutti i 16 iscritti, job EA, tratto Class1,
 azioni realmente in coda e azione principale del mixer. Il campionamento

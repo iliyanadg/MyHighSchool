@@ -3,6 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'/'m131_playable'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'/'classroom_control'))
 from mhs131_native_playable_class import (
     safe_class_board_candidates,find_playable_entry,queue_playable_class)
 
@@ -26,7 +27,8 @@ class Info:
 class Sim:
     def __init__(self,received):
         self.received=received
-        self.queue=type('Queue',(),{'running':None})()
+        self.queue=type('Queue',(),{'running':None,
+            '__iter__':lambda self:iter(()) if self.running is None else iter((self.running,))})()
     def push_super_affordance(self,affordance,target,context,picked_object=None):
         self.received.append((affordance,target,context))
         return True
@@ -38,6 +40,28 @@ class Home:
 
 
 class TestM131(unittest.TestCase):
+    def test_initial_request_does_not_interrupt_mixer_parent_lesson(self):
+        info=Info(9);sim=Sim(info.received)
+        parent=type('super_HighSchool_Active_Whiteboard_Attend_Art',(),{})()
+        mixer=type('mixer_HighSchool_Active_UsePhone',(),{})()
+        mixer.super_interaction=parent
+        sim.queue.running=mixer
+        info.get_sim_instance=lambda:sim
+        result=queue_playable_class(
+            ({'sim_id':'9','registered_class':2,'sim_info':info},),
+            {2:[object_HighSchool_Active_Whiteboard(2)]},object(),lambda _:'EA_CONTEXT')
+        self.assertEqual(result['results'][0]['reason'],'EXISTING_PROTECTED_ACTION')
+        self.assertEqual(info.received,[])
+
+    def test_initial_request_refuses_unknown_queue_without_pushing(self):
+        info=Info(9);sim=Sim(info.received)
+        sim.queue=object();info.get_sim_instance=lambda:sim
+        result=queue_playable_class(
+            ({'sim_id':'9','registered_class':2,'sim_info':info},),
+            {2:[object_HighSchool_Active_Whiteboard(2)]},object(),lambda _:'EA_CONTEXT')
+        self.assertEqual(result['results'][0]['reason'],'EA_QUEUE_UNAVAILABLE')
+        self.assertEqual(info.received,[])
+
     def test_board_state_never_guesses(self):
         boards,status=safe_class_board_candidates(
             [object_HighSchool_Active_Whiteboard(1),

@@ -86,6 +86,23 @@ def queue_playable_class(played,boards,affordance,context_factory):
             queue=getattr(sim,'queue',None)
             running=getattr(queue,'running',None)
             running_name=type(running).__name__ if running else ''
+            try:
+                from mhs_queue_readback import queue_snapshot
+                from mhs_attendance_policy import protected_gameplay
+            except ImportError:
+                # Historical standalone archives do not ship these modules.
+                pass
+            else:
+                snapshot=queue_snapshot(sim)
+                if not snapshot['available']:
+                    results.append({'sim_id':row['sim_id'],'queued':False,
+                                    'reason':'EA_QUEUE_UNAVAILABLE'})
+                    continue
+                names=(snapshot['running_name'],)+snapshot['queued_names']+snapshot['active_parent_names']
+                if any(protected_gameplay(name) for name in names):
+                    results.append({'sim_id':row['sim_id'],'queued':False,
+                                    'reason':'EXISTING_PROTECTED_ACTION'})
+                    continue
             # Never interrupt existing school player lesson or protected needs.
             if (('HighSchool_Active_Whiteboard_' in running_name
                     or 'HighSchool_Active_UseBook_Class' in running_name

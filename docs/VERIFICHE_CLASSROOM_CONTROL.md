@@ -13,6 +13,9 @@
   M148 e il registro sentinella restano invariati.
 - Verifica finale delle politiche, del runtime e del diario: **32 passati**;
   include conteggi EA diversi da tre e conservazione dei conteggi sconosciuti.
+- Protezione dell'invio iniziale, code, scope e diario: **28 passati** dopo
+  l'ultima correzione; un mixer con lezione principale attiva non riceve
+  richieste duplicate neppure alla creazione iniziale della lezione EA.
 - Prova privata con i metodi puri EA ricevuti: TestSetInstance,
   CompoundTestList, Resolver.get_participant e lettura InteractionQueue
   eseguiti con oggetti inerti. Rifiuto della lavagna sbagliata, identità dei
