@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
-NAME='MHS_M145C_TEST_MATERIE_ESPANSO_MAC_BETA.ts4script'
+NAME='MHS_M145D_TEST_MATERIE_NATIVE_MAC_BETA.ts4script'
 MAGIC=bytes((66,13,13,10))
 SOURCES=tuple(ROOT/path for path in (
 'src/m2_registry/mhs_m2_roster.py',
@@ -58,10 +58,10 @@ def build(folder):
     details={'name':NAME,'sha256':hashlib.sha256(result.read_bytes()).hexdigest(),
         'python':'3.7','module_count':len(SOURCES),
         'real_m145_commands_packaged':True, 'two_separate_ea_periods_rearmed':True, 'm145_classpicker_subject_patch_fail_closed':True, 'ea_test_never_bypassed':True,'seat_routing_fix_verified':False, 'lunch_fix_verified':False}
-    (out/'M145C_BUILD_REPORT.json').write_text(
+    (out/'M145D_BUILD_REPORT.json').write_text(
         json.dumps(details,indent=2),encoding='utf-8')
-    (out/'LEGGIMI_M145C.txt').write_text(
-        'M145c (correzione SUBJECT_TESTS_CHANGED) Mac: ESCLUSIVAMENTE SU COPIA DEL SALVATAGGIO.\n'
+    (out/'LEGGIMI_M145D.txt').write_text(
+        'M145d (correzione SUBJECT_DAY_TEST_MISSING) Mac: ESCLUSIVAMENTE SU COPIA DEL SALVATAGGIO.\n'
         'Rimuovi i controller M143, M142 e le altre beta dalla cartella Mods.\n'
         'NON rimuovere la mod Zerbu Elementary: le sue regole restano invariate.\n'
         'Da casa: mhs145.arm poi mhs145.compat (stessi comandi).\n'
