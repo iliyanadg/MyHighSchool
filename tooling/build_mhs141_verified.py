@@ -32,7 +32,7 @@ SOURCES=tuple(ROOT/path for path in (
 'src/m134_jobs/mhs134_native_player_job_audit.py',
 'src/m136_player_tests/mhs136_player_test_hierarchy.py',
 'src/m139_general_whiteboards/mhs139_ea_zerbu_adapter.py',
-'src/m141_auto_lesson/mhs140_native_lesson_entry.py',
+'src/m140_auto_lesson/mhs140_native_lesson_entry.py',
 'src/m141_day_trace/mhs141_day_trace.py',
 'src/m141_day_trace/mhs141_classroom_controller.py',
 ))
