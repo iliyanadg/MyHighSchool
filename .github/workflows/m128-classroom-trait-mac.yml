@@ -5,7 +5,7 @@ on:
       - feature/m55-presenze-studente-test
     paths:
       - 'src/m128_alignment/**'
-      - 'tests/test_m128_trait_alignment.py'
+      - 'tests/test_m128_*.py'
       - 'tooling/build_mhs128_verified.py'
       - '.github/workflows/m128-classroom-trait-mac.yml'
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: M128 and previous regression tests
-        run: python -m unittest tests.test_m128_trait_alignment tests.test_m127_school_timing_readback tests.test_m126_early_preparation_projection tests.test_m126_early_school_integration tests.test_m125_safe_recovery tests.test_m124_lesson_action_readback tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
+        run: python -m unittest tests.test_m128_trait_alignment tests.test_m128_board_posture_audit tests.test_m127_school_timing_readback tests.test_m126_early_preparation_projection tests.test_m126_early_school_integration tests.test_m125_safe_recovery tests.test_m124_lesson_action_readback tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
       - name: Build M128 Mac
         run: python -m tooling.build_mhs128_verified dist_m128
       - name: Inspect Mac archive for real M128 commands
@@ -27,13 +27,14 @@ jobs:
           from tooling.build_mhs128_verified import SOURCES, MAGIC, NAME
           from zipfile import ZipFile
           with ZipFile('dist_m128/'+NAME) as z:
-              assert len(z.namelist()) == len(SOURCES) == 14
+              assert len(z.namelist()) == len(SOURCES) == 15
               assert all(z.read(f)[:4] == MAGIC for f in z.namelist())
               assert 'mhs128_classroom_controller.pyc' in z.namelist()
               assert 'mhs128_ea_class_trait_alignment.pyc' in z.namelist()
+              assert 'mhs128_board_posture_audit.pyc' in z.namelist()
               assert 'mhs127_timed_school_controller.pyc' not in z.namelist()
               script=z.read('mhs128_classroom_controller.pyc')
-              for name in ('mhs128.arm','mhs128.verifica','mhs128.allinea','mhs128.stop'):
+              for name in ('mhs128.arm','mhs128.verifica','mhs128.allinea','mhs128.aula','mhs128.stop'):
                   assert name.encode('utf-8') in script, name
           print('M128 Mac alignment controller validated')
           PY
