@@ -126,6 +126,8 @@ class ThirteenNPCController(object):
         self.m140_auto_reports=[]
         self.m141_journal=None
         self.m141_timer=None
+        self.m141_watcher_timer=None
+        self.m141_trace_origin=None
         self.m141_start_error=None
         self.m141_last_tick_error=None
         self.m140_patch_checked=False
@@ -378,9 +380,10 @@ class ThirteenNPCController(object):
                         'clock':clock,
                         'original_ea_create_call_observed':True,
                     })
-            # M141: passive journal starts when EA prepares the first lesson.
-            if self.active and self.in_school() and guid in PREP_JOBS:
-                _m141_start_trace(self)
+            # M141b: observe on the FIRST school situation, not exclusively
+            # at 09:30 preparation: some saves already missed that event.
+            if self.active and self.in_school() and self.m141_timer is None:
+                _m141_start_trace(self,'school_situation')
             # M141: invite the same eight registered SimIDs into EA's
             # PREPARATION phase, before the original class lesson begins.
             # Preserve EA schedule, teachers and original fallback.
@@ -846,7 +849,8 @@ def arm_m127():
             trial.m140_patch_result={
                 'applied':False,'reason':'COMPAT_'+type(exc).__name__}
         _RUNTIME=trial
-        return 'M141 PRONTA: 13 NPC + preparazione anticipata due classi 2x8'
+        _m141_start_watcher(trial)
+        return 'M141b PRONTA: 13 NPC + registrazione scuola/mensa automatica'
     except Exception as exc:
         return 'M141 NON ATTIVA: '+type(exc).__name__+': '+str(exc)[:100]
 
@@ -1571,30 +1575,60 @@ def _m141_capture(runtime,event='interval'):
         return False
 
 
+def _m141_cancel_alarm(handle):
+    if handle is None:
+        return
+    try:
+        import alarms
+        alarms.cancel_alarm(handle)
+    except Exception:
+        pass
+
+
 def _m141_stop_trace(runtime):
     handle=runtime.m141_timer
+    watcher=runtime.m141_watcher_timer
     runtime.m141_timer=None
-    if handle is not None:
-        try:
-            import alarms
-            alarms.cancel_alarm(handle)
-        except Exception:
-            pass
+    runtime.m141_watcher_timer=None
+    _m141_cancel_alarm(handle)
+    _m141_cancel_alarm(watcher)
     if runtime.m141_journal is not None:
         runtime.m141_journal.flush()
 
 
-def _m141_start_trace(runtime):
-    if runtime.m141_journal is not None:
+def _m141_start_watcher(runtime):
+    """Watch for school arrival independently of any EA class event."""
+    if runtime.m141_watcher_timer is not None or not runtime.active:
         return
     try:
-        if not runtime.active or not runtime.in_school():
-            return
+        import alarms
+        import clock
+        def watch(handle):
+            if not runtime.active:
+                _m141_cancel_alarm(handle)
+                return
+            if runtime.in_school():
+                _m141_start_trace(runtime,'school_arrival_watcher')
+        runtime.m141_watcher_timer=alarms.add_alarm(
+            runtime,clock.interval_in_sim_minutes(2),watch,repeating=True)
+        if runtime.m141_watcher_timer is None:
+            raise ValueError('WATCHER_ALARM_UNAVAILABLE')
+    except Exception as exc:
+        runtime.m141_start_error='WATCHER_'+type(exc).__name__
+
+
+def _m141_start_trace(runtime,origin='ea_event'):
+    """Independent bootstrap: EA create, scheduled watcher, or monitor."""
+    if not runtime.active or not runtime.in_school():
+        return False
+    if runtime.m141_timer is not None:
+        return True
+    try:
         if runtime.lesson_classes is None:
             raise ValueError('ROSTER_UNAVAILABLE')
-        journal=DayJournal(FOLDER,runtime.slot,runtime.lesson_classes)
-        runtime.m141_journal=journal
-        _m141_capture(runtime,'first_ea_preparation')
+        if runtime.m141_journal is None:
+            runtime.m141_journal=DayJournal(
+                FOLDER,runtime.slot,runtime.lesson_classes)
         import alarms
         import clock
         def sample(handle):
@@ -1602,13 +1636,24 @@ def _m141_start_trace(runtime):
                 _m141_stop_trace(runtime)
                 return
             _m141_capture(runtime,'interval')
-        runtime.m141_timer=alarms.add_alarm(
+        handle=alarms.add_alarm(
             runtime,clock.interval_in_sim_minutes(3),sample,repeating=True)
-        if runtime.m141_timer is None:
+        if handle is None:
             raise ValueError('SIM_ALARM_UNAVAILABLE')
+        runtime.m141_timer=handle
+        runtime.m141_start_error=None
+        runtime.m141_trace_origin=origin
+        _m141_capture(runtime,'trace_started_'+origin)
+        runtime.m141_journal.flush()
+        watcher=runtime.m141_watcher_timer
+        runtime.m141_watcher_timer=None
+        _m141_cancel_alarm(watcher)
+        return True
     except Exception as exc:
-        runtime.m141_start_error=type(exc).__name__
-        _m141_stop_trace(runtime)
+        runtime.m141_start_error='START_'+type(exc).__name__
+        # Preserve the journal if a timer could not start, so monitor/log
+        # can retry and report the real underlying API error.
+        return False
 
 
 @sims4.commands.Command('mhs141.log',
@@ -1617,9 +1662,11 @@ def m141_log(_connection=None):
     if _RUNTIME is None or not _RUNTIME.active:
         sims4.commands.output('M141 LOG: non attiva, attivare da casa',_connection)
         return
+    if _RUNTIME.m141_timer is None and _RUNTIME.in_school():
+        _m141_start_trace(_RUNTIME,'log_fallback')
     if _RUNTIME.m141_journal is None:
         sims4.commands.output(
-            'M141 LOG: ancora nessun evento EA di preparazione; errore={}'.format(
+            'M141 LOG: registrazione non avviata; errore={}'.format(
                 _RUNTIME.m141_start_error or 'nessuno'),_connection)
         return
     _m141_capture(_RUNTIME,'manual_status_snapshot')
@@ -1638,10 +1685,13 @@ def m141_monitor(_connection=None):
     if _RUNTIME is None:
         sims4.commands.output('M141 MONITOR: non attiva',_connection)
         return
+    if _RUNTIME.active and _RUNTIME.in_school() and _RUNTIME.m141_timer is None:
+        _m141_start_trace(_RUNTIME,'monitor_fallback')
     j=_RUNTIME.m141_journal
     sims4.commands.output(
-        'M141 MONITOR: scuola={} timer={} campioni={} errore={}'.format(
+        'M141b MONITOR: scuola={} timer={} campioni={} origine={} errore={}'.format(
         _RUNTIME.in_school(),_RUNTIME.m141_timer is not None,
         len(j.samples) if j else 0,
+        _RUNTIME.m141_trace_origin or 'nessuna',
         _RUNTIME.m141_start_error or _RUNTIME.m141_last_tick_error or
         (j.write_error if j else None) or 'nessuno'),_connection)
