@@ -1,5 +1,31 @@
 # Verifiche della revisione unificata
 
+## Diagnostica dopo la prima giornata in gioco
+
+- Suite generale finale: **1.370 casi, 1.364 passati, 6 saltati**, nessun
+  fallimento (360,878 secondi). I sei test dell'archivio richiedono CPython 3.7
+  e vengono eseguiti nella verifica dedicata seguente.
+- Report ricevuto: 38 campioni; ricomputazione indipendente delle posizioni
+  conferma 8/6 alle 10:15, 8/8 alle 10:30, 7/7 alle 14:18 e 8/8 alle 14:33.
+  Nessun target di lezione campionato punta alla lavagna opposta. L'osservazione
+  non certifica puntualità, obiettivi finali o compatibilità universale.
+- Verifiche finali CPython 3.7: **75 casi, 74 passati, 1 saltato**; include
+  regressioni M25/M26, build, riproducibilità e import reale di sei moduli puri
+  dal ts4script. Corretto l'isolamento dei path del nuovo test rispetto alle
+  versioni storiche, senza cambiare gli store o i relativi gate di produzione.
+- Ultimo controllo letture incomplete/job non esposto: **27 passati** con 3.7.
+- Reset osservazioni della seconda giornata verificato sul controller reale;
+  conserva i campioni dello stesso giorno, azzera quelli al cambio giornata.
+- Confronto AST con `0dffc10`: i metodi di invito, Bouncer e assegnazione
+  studenti non cambiano; cambiano solo inizializzazione/reset delle letture.
+  Scope lavagna, policy, M131 e menu/store personale sono byte-identici.
+- Build corrente: **50 moduli**, package con lo stesso SHA-256 precedente;
+  il modulo aggiunto legge ingressi e personale. Il reclutamento del personale
+  salvato nel menu rimane non implementato e viene dichiarato nel manifest.
+
+Le verifiche automatiche della diagnostica non costituiscono un secondo
+collaudo nel gioco. Procedura e limiti: `SECONDA_GIORNATA_DIAGNOSTICA.md`.
+
 ## Seguito con i file EA e inventario Mods
 
 - Suite generale: **1.356 casi, 1.351 passati e 5 saltati** perché i test

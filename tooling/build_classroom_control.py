@@ -44,6 +44,7 @@ EXTRA_SOURCES = tuple(ROOT / path for path in (
     'src/classroom_control/mhs_classroom_bootstrap.py',
     'src/classroom_control/mhs_scoped_classroom.py',
     'src/classroom_control/mhs_queue_readback.py',
+    'src/classroom_control/mhs_school_readback.py',
 ))
 SOURCES = tuple(MENU_SOURCES) + tuple(ATTENDANCE_SOURCES) + EXTRA_SOURCES
 EA_MODULES = frozenset((
@@ -298,7 +299,8 @@ def installation_bundle(folder):
         PACKAGE,SCRIPT,REPORT,'SHA256SUMS.txt','LEGGIMI_CLASSROOM_CONTROL.txt')}
     for source in ('docs/INSTALLAZIONE_PULITA_MAC.md','docs/PRIMO_COLLAUDO_CLASSROOM_CONTROL.md',
                    'docs/EA_CONTRATTI_CLASSROOM_CONTROL.md',
-                   'docs/VERIFICHE_CLASSROOM_CONTROL.md','tooling/mod_inventory.py'):
+                   'docs/VERIFICHE_CLASSROOM_CONTROL.md',
+                   'docs/SECONDA_GIORNATA_DIAGNOSTICA.md','tooling/mod_inventory.py'):
         path=ROOT/source
         payload[path.name]=path.read_bytes()
     target=folder/BUNDLE
@@ -370,6 +372,8 @@ for source, destination, filename in json.loads(sys.stdin.read()):
             'bytecode_format': 'timestamp_normalized_for_python37_zipimport',
             'module_count': len(inventory), 'unique_controller': 'mhs145_classroom_controller',
             'm54_actions_preserved': True, 'manual_core_role_menu': True,
+            'diagnostic_revision': 'SECOND_DAY_READ_ONLY_OBSERVATIONS',
+            'staff_selection_bridge_implemented': False,
             'resources': gate['resource_count'],
             'category_simdata_pairs': gate['category_count'],
             'sha256': hashes,
@@ -397,6 +401,8 @@ for source, destination, filename in json.loads(sys.stdin.read()):
         'MY HIGH SCHOOL — Classroom Control\n'
         'Una sola coppia: MHS_CLASSROOM_CONTROL.package e MHS_CLASSROOM_CONTROL.ts4script.\n'
         'Include menu/registro/personale M54 e un solo controller derivato da M148.\n'
+        'Il personale scelto resta nel registro: il reclutamento EA non e ancora collegato.\n'
+        'La revisione diagnostica aggiunge letture per la seconda giornata.\n'
         'Conservare integralmente saves e MY_HIGH_SCHOOL_M25_TEST_DATA.\n'
         'Prima di installare, inventariare e spostare le vecchie versioni MHS fuori Mods.\n'
         'Non rimuovere automaticamente altre mod o XML Injector.\n'

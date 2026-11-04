@@ -270,6 +270,10 @@ class ThirteenNPCController(object):
         self.classroom_scope_checks=0
         self.classroom_scope_blocked=0
         self.classroom_scope_last={}
+        self.lesson_entry_samples=[]
+        self.lesson_entry_last_ticks=None
+        self.school_staff_samples=[]
+        self.school_readback_errors=[]
 
     def begin_school_day(self, key):
         """Reset our bookkeeping before EA's first create on a new day.
@@ -296,6 +300,10 @@ class ThirteenNPCController(object):
         self.classroom_scope_checks=0
         self.classroom_scope_blocked=0
         self.classroom_scope_last.clear()
+        self.lesson_entry_samples[:]=[]
+        self.lesson_entry_last_ticks=None
+        self.school_staff_samples[:]=[]
+        self.school_readback_errors[:]=[]
         for name in ('created','lesson_created','prep_created'):
             getattr(self,name).clear()
         for name in ('lesson_attempted','prep_attempted','m140_auto_attempted',
@@ -1928,6 +1936,52 @@ def _m147_early_playable_preparation(runtime):
         return False
 
 
+def _observe_lesson_entry(runtime,event='interval'):
+    """Extra read-only samples during entry; never feed them to push policy."""
+    if not runtime.active or not runtime.in_school():
+        return False
+    try:
+        from mhs_school_readback import entry_window,entry_snapshot
+        stamp=game_clock(services.time_service())
+        ticks=stamp.get('absolute_ticks')
+        if (entry_window(stamp) is None or type(ticks) is not int
+                or ticks==runtime.lesson_entry_last_ticks
+                or len(runtime.lesson_entry_samples)>=64):
+            return False
+        from sims4.resources import Types
+        traits=services.get_instance_manager(Types.TRAIT)
+        trait=traits.get(CLASS1_TRAIT_ID) if traits else None
+        sample=entry_snapshot(stamp,runtime.lesson_classes,
+            services.sim_info_manager(),services.get_zone_situation_manager(),trait)
+        sample['event']=event
+        sample['dual_clock']=read_live_clocks(services)
+        runtime.lesson_entry_samples.append(sample)
+        runtime.lesson_entry_last_ticks=ticks
+        return True
+    except Exception as exc:
+        # Readback cannot interrupt EA creation, alarms or the lesson policy.
+        if len(runtime.school_readback_errors)<16:
+            runtime.school_readback_errors.append('ENTRY_READ_'+type(exc).__name__)
+        return False
+
+
+def _observe_school_staff(runtime,stamp):
+    try:
+        from mhs53_staff_store import StaffStore
+        from mhs_school_readback import staff_snapshot
+        from sims4.resources import Types
+        roster=StaffStore(FOLDER).load(runtime.slot)
+        report=staff_snapshot(roster,services.sim_info_manager(),
+            services.get_zone_situation_manager(),services.get_instance_manager(Types.TRAIT))
+    except Exception as exc:
+        report={'complete':False,'errors':['STAFF_READ_'+type(exc).__name__],
+                'selection_bridge_implemented':False,'world_mutations':0}
+    report['clock']=stamp
+    if len(runtime.school_staff_samples)<64:
+        runtime.school_staff_samples.append(report)
+    return report
+
+
 def _m141_capture(runtime,event='interval'):
     journal=runtime.m141_journal
     if journal is None or not runtime.active or not runtime.in_school():
@@ -1993,6 +2047,9 @@ def _m141_capture(runtime,event='interval'):
         if ok:
             runtime.m148_last_sample_ticks=ticks
             journal.samples[-1]['dual_clock']=read_live_clocks(services)
+            # Staff is observed at the existing full-snapshot cadence only.
+            # Names/choices stay in the player's local report, never tuning.
+            _observe_school_staff(runtime,stamp)
         if not ok and len(journal.samples)>=200:
             _m141_stop_trace(runtime)
         return ok
@@ -2080,6 +2137,7 @@ def _m141_start_trace(runtime,origin='ea_event'):
                 return
             _m142_roll_period_if_due(runtime,
                                      game_clock(services.time_service()))
+            _observe_lesson_entry(runtime)
             _m141_capture(runtime,'interval')
             _m147_early_playable_preparation(runtime)
             _m142_retry_playables(runtime)
@@ -2552,6 +2610,13 @@ def _m143_write_full_report(runtime):
         waiting=summarize_npc_lunch(
             runtime.m141_journal.samples,all_sids,sample_minutes=3)
         complete={
+            'diagnostic_revision':'SECOND_DAY_READ_ONLY_OBSERVATIONS',
+            'school_readback_errors':runtime.school_readback_errors,
+            'lesson_entry_observations':runtime.lesson_entry_samples,
+            'school_staff':{
+                'samples':runtime.school_staff_samples,
+                'selection_bridge_implemented':False,
+                'registry_is_not_native_assignment':True},
             'classroom_control':{
                 'npc_board_guard':runtime.classroom_guard_result,
                 'scoped_test_checks':runtime.classroom_scope_checks,

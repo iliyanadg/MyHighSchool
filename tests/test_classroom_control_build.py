@@ -120,9 +120,9 @@ class Python37ArchiveTests(unittest.TestCase):
         code = '''import sys
 sys.path.insert(0, sys.argv[1])
 import mhs_school_session, mhs_attendance_policy, mhs_classroom_bootstrap
-import mhs_scoped_classroom, mhs_queue_readback
+import mhs_scoped_classroom, mhs_queue_readback, mhs_school_readback
 for module in (mhs_school_session, mhs_attendance_policy, mhs_classroom_bootstrap,
-               mhs_scoped_classroom, mhs_queue_readback):
+               mhs_scoped_classroom, mhs_queue_readback, mhs_school_readback):
     assert '.ts4script/' in module.__file__, module.__file__
 assert mhs_school_session.school_day_key('11',2160000)==('11',1)
 '''
@@ -156,6 +156,7 @@ assert mhs_school_session.school_day_key('11',2160000)==('11',1)
             self.assertIn(builder.SCRIPT,names)
             self.assertIn('PRIMO_COLLAUDO_CLASSROOM_CONTROL.md',names)
             self.assertIn('INSTALLAZIONE_PULITA_MAC.md',names)
+            self.assertIn('SECONDA_GIORNATA_DIAGNOSTICA.md',names)
             self.assertNotIn('MHS-inventario.json',names)
             self.assertFalse(any(name.endswith('.pyc') for name in names))
             self.assertIsNone(archive.testzip())

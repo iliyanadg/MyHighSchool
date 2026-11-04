@@ -2,9 +2,10 @@
 
 La nuova coppia prevista è `MHS_CLASSROOM_CONTROL.package` e `MHS_CLASSROOM_CONTROL.ts4script`, generata dalla stessa compilazione con relativo manifest SHA-256. Questa revisione integra il progetto e richiede ancora verifiche nel gioco: non è una dichiarazione di release stabile o di compatibilità universale.
 
-La revisione con i contratti EA ricevuti contiene **49 moduli**. Per il primo
-collaudo seguire anche `PRIMO_COLLAUDO_CLASSROOM_CONTROL.md`. Il precedente
-ZIP a 47 moduli, se già scaricato, resta un backup: installare la nuova coppia.
+La revisione dopo il primo collaudo contiene **50 moduli**; il modulo aggiunto
+legge gli ingressi e confronta personale scelto/effettivo, senza assegnare job.
+Per la seconda giornata seguire `SECONDA_GIORNATA_DIAGNOSTICA.md`.
+I precedenti ZIP a 47/49 moduli restano backup: installare una sola coppia.
 
 ## Dati da conservare
 
