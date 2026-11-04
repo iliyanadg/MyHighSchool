@@ -2074,7 +2074,7 @@ def _observe_lesson_entry(runtime,event='interval'):
         return False
 
 
-def _observe_school_staff(runtime,stamp):
+def _observe_school_staff(runtime,stamp,period):
     try:
         from mhs53_staff_store import StaffStore
         from mhs_school_readback import staff_snapshot
@@ -2088,6 +2088,7 @@ def _observe_school_staff(runtime,stamp):
     # A saved menu entry is not proof that EA staffed the selected Sim:
     # show both the attempted exact guests and the actual observed native job.
     report['clock']=stamp
+    report['period']=period
     report['selection_bridge_implemented']='EXPERIMENTAL_NATIVE_EXACT_GUESTS'
     report['registry_is_not_native_assignment']=True
     report['native_guest_projection_applied']=any(
@@ -2167,9 +2168,16 @@ def _m141_capture(runtime,event='interval'):
         if ok:
             runtime.m148_last_sample_ticks=ticks
             journal.samples[-1]['dual_clock']=read_live_clocks(services)
-            # Staff is observed at the existing full-snapshot cadence only.
-            # Names/choices stay in the player's local report, never tuning.
-            _observe_school_staff(runtime,stamp)
+            # A world-wide EA staff scan is expensive with large saves.
+            # Keep five phase snapshots (arrival, both lessons, lunch,
+            # school end) instead of re-reading every 15 minutes.
+            # The 16-student journal cadence remains unchanged.
+            from mhs_school_readback import staff_sample_period
+            staff_phase=staff_sample_period(stamp)
+            if (staff_phase is not None and
+                    not any(item.get('period')==staff_phase
+                            for item in runtime.school_staff_samples)):
+                _observe_school_staff(runtime,stamp,staff_phase)
         if not ok and len(journal.samples)>=200:
             _m141_stop_trace(runtime)
         return ok
