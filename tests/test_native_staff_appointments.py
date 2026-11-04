@@ -134,6 +134,36 @@ class StaffBridgeTests(unittest.TestCase):
         self.assertEqual(len(old.guests),2)
         self.assertEqual(report['reason'],'DUPLICATED_NATIVE_STAFF_JOB')
 
+    def test_appointee_cannot_duplicate_a_retained_core_student(self):
+        old=GuestList()
+        old.add_guest_info(Guest(41,278965))
+        old.add_guest_info(Guest(10,277895))
+        fixed,report=project_native_staff_guests(
+            old,298052,makeplan(),JOBS,Factory,'INVITED')
+        self.assertIsNone(fixed)
+        self.assertEqual(report['reason'],
+                         'APPOINTED_SIM_ALREADY_HAS_OTHER_EA_JOB')
+        self.assertEqual([x.sim_id for x in old.guests],[41,10])
+
+    def test_appointee_cannot_duplicate_an_unmodified_native_staff_job(self):
+        old=GuestList()
+        old.add_guest_info(Guest(44,290196))
+        # No requested custodians; principal ID 44 is already the janitor.
+        plan={'jobs':{278223:'44'},'blocked':{}}
+        fixed,report=project_native_staff_guests(
+            old,298096,plan,JOBS,Factory,'INVITED')
+        self.assertIsNone(fixed)
+        self.assertEqual(report['reason'],
+                         'APPOINTED_SIM_ALREADY_HAS_OTHER_EA_JOB')
+
+    def test_duplicate_appointments_from_invalid_plan_are_refused(self):
+        old=GuestList()
+        invalid={'jobs':{277895:'41',278963:'41'},'blocked':{}}
+        fixed,report=project_native_staff_guests(
+            old,298052,invalid,JOBS,Factory,'INVITED')
+        self.assertIsNone(fixed)
+        self.assertEqual(report['reason'],'DUPLICATED_APPOINTED_SIM')
+
     def test_missing_native_tuning_does_not_guess(self):
         fixed,report=project_native_staff_guests(
             GuestList(),298052,makeplan(),{},Factory,'INVITED')
