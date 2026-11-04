@@ -754,6 +754,43 @@ class ThirteenNPCController(object):
                             self.lesson_pending=None
                     else:
                         self.lesson_refused+=1
+            # M53 native staff mapping: original EA venue and cafeteria
+            # situations only. Keep original EA list on unsupported forms,
+            # multi-worker capacity, or failed eligibility; never invent
+            # additional situations or workers.
+            if (self.active and self.school_ready and self.in_school()
+                    and guid in (VENUE_STAFF_SITUATION,
+                                 CAFETERIA_STAFF_SITUATION)
+                    and self.staff_plan.get('jobs')):
+                if not ('guest_list' in kwargs and args):
+                    old=kwargs.get('guest_list',args[0] if args else None)
+                    prepared,staff_result=project_native_staff_guests(
+                        old,guid,self.staff_plan,self.staff_jobs,
+                        self.guest_cls,self.invited,
+                        excluded_ids=tuple(self.classroom_membership))
+                    if len(self.staff_projection_reports)<40:
+                        self.staff_projection_reports.append(staff_result)
+                    if prepared is not None:
+                        self.staff_pending=guid
+                        self.bound_zone=zone_schedule()[0]
+                        try:
+                            if 'guest_list' in kwargs:
+                                native=original_create(obj,kind,*args,
+                                    **dict(kwargs,guest_list=prepared))
+                            elif args:
+                                native=original_create(obj,kind,prepared,
+                                    *args[1:],**kwargs)
+                            else:
+                                return original_create(obj,kind,*args,**kwargs)
+                            if type(native) is int and native>0:
+                                self.staff_created[guid]=native
+                            else:
+                                self.error='EA_STAFF_NO_NATIVE_SITUATION_ID'
+                            return native
+                        finally:
+                            self.staff_pending=None
+            # No native staff placement if the original guest-list contract
+            # is unavailable: leave EA untouched and report the reason.
             # Original EA Core situation: ONE situation, FIVE explicit
             # user-appointed teen guest IDs; preserve teacher guests.
             if (self.active and self.in_school()
@@ -768,7 +805,17 @@ class ThirteenNPCController(object):
                 if prepared is None:
                     self.core_refused+=1
                     return original_create(obj,kind,*args,**kwargs)
+                if self.staff_plan.get('jobs'):
+                    with_staff,staff_result=project_native_staff_guests(
+                        prepared,CORE_SITUATION,self.staff_plan,self.staff_jobs,
+                        self.guest_cls,self.invited,
+                        excluded_ids=tuple(self.classroom_membership))
+                    if len(self.staff_projection_reports)<40:
+                        self.staff_projection_reports.append(staff_result)
+                    if with_staff is not None:
+                        prepared=with_staff
                 self.core_pending=True
+                self.staff_pending=CORE_SITUATION
                 self.bound_zone=zone_schedule()[0]
                 try:
                     if 'guest_list' in kwargs:
@@ -788,6 +835,7 @@ class ThirteenNPCController(object):
                     return native
                 finally:
                     self.core_pending=False
+                    self.staff_pending=None
             if (not self.active or not self.in_school()
                     or getattr(kind,'guid64',None)!=BASE_SITUATION
                     or len(self.created)>=len(self.targets)
@@ -2670,8 +2718,13 @@ def _m143_write_full_report(runtime):
             'lesson_entry_observations':runtime.lesson_entry_samples,
             'school_staff':{
                 'samples':runtime.school_staff_samples,
-                'selection_bridge_implemented':False,
-                'registry_is_not_native_assignment':True},
+                'selection_bridge_implemented':bool(runtime.staff_created),
+                'native_staff_appointments':dict(runtime.staff_plan.get('jobs',{})),
+                'native_staff_blocked_roles':dict(runtime.staff_plan.get('blocked',{})),
+                'native_staff_projection_attempts':runtime.staff_projection_reports,
+                'native_staff_situations_created':dict(runtime.staff_created),
+                'native_staff_exact_filter_hits':runtime.staff_filter_hits,
+                'actual_staff_still_requires_game_verification':True},
             'classroom_control':{
                 'npc_board_guard':runtime.classroom_guard_result,
                 'scoped_test_checks':runtime.classroom_scope_checks,
