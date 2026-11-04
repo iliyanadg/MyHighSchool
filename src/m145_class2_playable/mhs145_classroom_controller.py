@@ -805,6 +805,7 @@ class ThirteenNPCController(object):
                 if prepared is None:
                     self.core_refused+=1
                     return original_create(obj,kind,*args,**kwargs)
+                staff_projected=False
                 if self.staff_plan.get('jobs'):
                     with_staff,staff_result=project_native_staff_guests(
                         prepared,CORE_SITUATION,self.staff_plan,self.staff_jobs,
@@ -814,6 +815,7 @@ class ThirteenNPCController(object):
                         self.staff_projection_reports.append(staff_result)
                     if with_staff is not None:
                         prepared=with_staff
+                        staff_projected=True
                 self.core_pending=True
                 self.staff_pending=CORE_SITUATION
                 self.bound_zone=zone_schedule()[0]
@@ -829,6 +831,8 @@ class ThirteenNPCController(object):
                         return original_create(obj,kind,*args,**kwargs)
                     if type(native) is int and native>0:
                         self.core_created=native
+                        if staff_projected:
+                            self.staff_created[CORE_SITUATION]=native
                     else:
                         self.core_failures+=1
                         self.error='EA_CORE_NO_SITUATION_ID'
