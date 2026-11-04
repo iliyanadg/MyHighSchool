@@ -127,6 +127,33 @@ class ReadbackTests(unittest.TestCase):
         self.assertEqual(result['comparison']['teacher1']['observed'],['1'])
         self.assertTrue(result['comparison']['teacher1']['matches'])
 
+    def test_transient_lesson_teacher_is_not_misread_as_class1_staff(self):
+        selected=Info(1)
+        roles={'principal':None,'teacher1':'1','teacher2':None,
+               'teacher3':None,'cafeteria':[],'custodians':[]}
+        manager=NS(get_situations_sim_is_in=lambda _: [
+            situation(304567,277918)])
+        # In EA's class-two phase, job 277918 is a generic teacher phase,
+        # not evidence that our selected Core teacher1 is attending.
+        result=staff_snapshot(StaffRoster('11',roles),Infos(selected),
+                              manager,None)
+        self.assertEqual(result['comparison']['teacher1']['observed'],[])
+        self.assertFalse(result['comparison']['teacher1']['matches'])
+        phase=result['selected_sims'][0]['native_school_memberships']['jobs'][0]
+        self.assertIsNone(phase['staff_role'])
+        self.assertEqual(phase['phase_teacher_job'],277918)
+
+    def test_class_two_native_core_teacher_remains_distinct_from_phase_job(self):
+        selected=Info(1)
+        roles={'principal':None,'teacher1':None,'teacher2':'1',
+               'teacher3':None,'cafeteria':[],'custodians':[]}
+        manager=NS(get_situations_sim_is_in=lambda _: [
+            situation(298052,278963), situation(304567,277918)])
+        result=staff_snapshot(StaffRoster('11',roles),Infos(selected),
+                              manager,None)
+        self.assertTrue(result['comparison']['teacher2']['matches'])
+        self.assertEqual(result['comparison']['teacher1']['observed'],[])
+
     def test_unavailable_membership_api_cannot_certify_staff_matches(self):
         result=staff_snapshot(StaffRoster('11'),Infos(Info(1)),object(),None)
         self.assertFalse(result['complete'])
