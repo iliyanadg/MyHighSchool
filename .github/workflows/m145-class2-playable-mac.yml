@@ -1,4 +1,4 @@
-name: M145 native EA two-class playable lessons Mac beta
+name: M145b corrected native EA two-class playable lessons Mac beta
 on:
   push:
     branches: [feature/m145-class2-playable-followthrough]
@@ -45,9 +45,9 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: MHS_M145_TWO_CLASS_PLAYABLE_MAC_BETA
+          name: MHS_M145B_FIXED_PICKER_RUNTIME_MAC_BETA
           path: |
-            dist_m145/MHS_M145_DUE_CLASSI_LEZIONI_EA_MAC_BETA.ts4script
-            dist_m145/M145_BUILD_REPORT.json
-            dist_m145/LEGGIMI_M145.txt
+            dist_m145/MHS_M145B_CORREZIONE_SELETTORE_LEZIONI_MAC_BETA.ts4script
+            dist_m145/M145B_BUILD_REPORT.json
+            dist_m145/LEGGIMI_M145B.txt
           if-no-files-found: error
