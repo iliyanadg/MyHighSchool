@@ -1,0 +1,42 @@
+name: M121 thirteen registered NPCs Mac experimental
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m121_all_npc/**'
+      - 'tests/test_m121_thirteen_npc_trial.py'
+      - 'tooling/build_mhs121_beta.py'
+      - '.github/workflows/m121-thirteen-npc-mac.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test M121 8 Base and 5 manually pinned Core EA guest jobs
+        run: python -m unittest tests.test_m121_thirteen_npc_trial tests.test_m120_eight_base_live_trial -v
+      - name: Compile M121 Mac Sims 4 Python 3.7 beta
+        run: python -m tooling.build_mhs121_beta dist_m121
+      - name: Verify archive contains exact 7 Python3.7 compiled modules
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs121_beta import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m121/'+NAME) as z:
+              assert len(z.namelist()) == len(SOURCES) == 7
+              assert set(z.namelist()) == set(s.stem+'.pyc' for s in SOURCES)
+              assert all(z.read(p)[:4] == MAGIC for p in z.namelist())
+          print('M121 candidate prepared; not yet real gameplay validated')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M121_THIRTEEN_NPC_MAC_EXPERIMENTAL
+          path: |
+            dist_m121/MHS_M121_TREDICI_NPC_MAC_BETA.ts4script
+            dist_m121/M121_BUILD_REPORT.json
+            dist_m121/LEGGIMI_M121.txt
+          if-no-files-found: error

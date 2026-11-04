@@ -12,17 +12,47 @@ class BridgeError(RuntimeError):
     pass
 
 
-def current_slot():
-    """Read the active save ID; fail closed for temporary/unsaved games."""
+from mhs56_slot_identity import TravelSlotGuard, IdentityError
+
+_SLOT_GUARD = TravelSlotGuard()
+
+
+def current_slot(allow_travel=False):
+    """Resolve a verified per-save slot; scratch fallback is READ-ONLY.
+
+    EA persistence.get_save_slot_proto_guid() remains stable through scratch
+    travel (the same source used by Lot51 Core Context.save_slot_id).
+    We bind this stable identifier to the last REAL slot observed in the
+    SAME session and household. The stable GUID is NOT treated as a slot
+    number. Only read-only menu and transient school attendance may pass
+    allow_travel=True. Enrollment/staff/settings writes keep the strict gate.
+    """
     try:
         import services
         persistence = services.get_persistence_service()
-        proto = persistence.get_save_slot_proto_buff() if persistence else None
+        if persistence is None:
+            raise BridgeError('Servizio EA del salvataggio non disponibile')
+        proto = persistence.get_save_slot_proto_buff()
         slot = getattr(proto, 'slot_id', None)
-        from mhs_m2_roster import canonical_save_slot
-        return canonical_save_slot(slot)
-    except (ImportError, ValueError, TypeError, AttributeError):
-        raise BridgeError('Salva prima la nuova partita: slot non identificabile')
+        getter = getattr(persistence, 'get_save_slot_proto_guid', None)
+        stable = getter() if callable(getter) else None
+        household = services.active_household()
+        household_id = getattr(household, 'id', None)
+        return _SLOT_GUARD.resolve(slot, stable, household_id,
+                                   allow_travel=allow_travel)
+    except (IdentityError, ValueError, TypeError, AttributeError,
+            ImportError) as exc:
+        raise BridgeError('Slot EA non verificato: {}'.format(str(exc)[:125]))
+
+
+def slot_identity_status():
+    """Read-only identity diagnostic, independent from the game's UI."""
+    guard = _SLOT_GUARD
+    return ('Fonte slot: {} | slot verificato: {} | guid ancorato: {} '
+            '| nucleo ancorato: {}'.format(
+                guard.last_source, guard.slot or 'no',
+                'si' if guard.stable_guid is not None else 'no',
+                'si' if guard.household_id is not None else 'no'))
 
 
 def teenager_checker(sim_id):

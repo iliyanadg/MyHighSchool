@@ -1,0 +1,115 @@
+name: M58 read-only school situation probe Mac build
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m58_selection/**'
+      - 'src/m85_diagnostics/**'
+      - 'tests/test_m61_guest_adapter.py'
+      - 'tests/test_m61_check.py'
+      - 'tests/test_m62_one_seat_policy.py'
+      - 'tests/test_m85_reconcile.py'
+      - 'tests/test_m87_seat_allocation.py'
+      - 'src/m87_roster/**'
+      - 'src/m88_selection/**'
+      - 'tests/test_m88_replace_guest.py'
+      - 'src/m89_selection/**'
+      - 'tests/test_m89_precreate_hook.py'
+      - 'src/m90_selection/**'
+      - 'tests/test_m90_session.py'
+      - 'tests/test_m90_m89_bridge.py'
+      - 'src/m92_full_roster/**'
+      - 'tests/test_m92_atomic_16.py'
+      - 'src/m57_selection/mhs57_filter_runtime.py'
+      - 'src/m57_selection/mhs57_filter_policy.py'
+      - 'tests/test_m57_ea_filter_policy.py'
+      - 'src/m55_attendance/mhs55_attendance_auto.py'
+      - 'src/m55_attendance/mhs55_attendance_ui.py'
+      - 'tooling/build_m58_diagnostic.py'
+      - 'tooling/build_mhs_capacity_beta.py'
+      - 'tests/test_mhs_capacity_beta.py'
+      - 'assets/ea_2026_11_01/**'
+      - 'tests/test_m58_situation_probe.py'
+      - 'tests/test_m58_notification.py'
+      - '.github/workflows/m58-diagnostic.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mhs-m58-probe-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Run M58 pure diagnostic unit tests
+        run: PYTHONPATH=src/m57_selection:src/m2_registry:src/m53_staff python -m unittest tests.test_m58_situation_probe tests.test_m58_notification tests.test_m57_ea_filter_policy tests.test_m61_guest_adapter tests.test_m61_check tests.test_m62_one_seat_policy tests.test_m85_reconcile tests.test_m87_seat_allocation tests.test_m88_replace_guest tests.test_m89_precreate_hook tests.test_m90_session tests.test_m90_m89_bridge tests.test_m92_atomic_16 tests.test_mhs_capacity_beta -v
+      - name: Build Mac compatible diagnostic
+        run: python -m tooling.build_m58_diagnostic dist/
+      - name: Verify no guest mutation and Python 3.7 bytecode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist/MHS_M58_DIAGNOSTICA_SITUAZIONI_MAC_TEST.package')
+          z=Path('dist/MHS_M58_DIAGNOSTICA_SITUAZIONI_MAC_TEST.ts4script')
+          result=inspect_bytes(p.read_bytes())
+          assert result['status']=='STATIC_GATE_PASSED'
+          assert result['resource_count']==63
+          with ZipFile(z) as archive:
+              names=archive.namelist()
+              assert len(names)==32
+              assert 'mhs58_situation_probe.pyc' in names
+              assert 'mhs61_pilot_command.pyc' in names
+              assert 'mhs85_ui_bridge.pyc' in names
+              assert 'mhs85_reconcile.pyc' in names
+              assert 'mhs85_live_snapshot.pyc' in names
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          code=Path('src/m58_selection/mhs58_situation_probe.py').read_text()
+          assert 'guest_list.add_guest_info(' not in code
+          assert 'guest_list.remove_guest_info(' not in code
+          print('M58 diagnostic-only archive passed static check')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M58_DIAGNOSTICA_SITUAZIONI_MAC_TEST
+          path: |
+            dist/MHS_M58_DIAGNOSTICA_SITUAZIONI_MAC_TEST.package
+            dist/MHS_M58_DIAGNOSTICA_SITUAZIONI_MAC_TEST.ts4script
+          if-no-files-found: error
+
+      - name: Build integrated M85 capacity 8x8 Mac beta (not full roster mod)
+        run: python -m tooling.build_mhs_capacity_beta dist_capacity/
+      - name: Verify experimental capacity package
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import resources,inspect_bytes
+          p=Path('dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.package')
+          z=Path('dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.ts4script')
+          result=inspect_bytes(p.read_bytes())
+          assert result['status']=='STATIC_GATE_PASSED'
+          assert result['resource_count']==69
+          rec=resources(p.read_bytes())
+          assert len([r for r in rec if r[0]==0x7DF2169C and r[2] in (277657,279958,293642,293644,304561,304563)])==6
+          with ZipFile(z) as archive:
+              names=archive.namelist()
+              assert len(names)==32
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M85 63 resources preserved, six current-EA overrides validated; no in-game guarantee')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M85_CAPIENZA_8X8_MAC_BETA
+          path: |
+            dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.package
+            dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.ts4script
+            dist_capacity/MHS_CAPACITY_BETA_AUDIT.json
+          if-no-files-found: error

@@ -1,0 +1,42 @@
+name: M122 Two original EA classrooms Mac experimental
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m122_classrooms/**'
+      - 'tests/test_m122_*.py'
+      - 'tooling/build_mhs122_beta.py'
+      - '.github/workflows/m122-two-classroom-mac.yml'
+  workflow_dispatch:
+jobs:
+  validate_and_build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify original EA two-class memberships, playables and M121 base/Core regression
+        run: python -m unittest tests.test_m122_classroom_job_readback tests.test_m122_live_commands tests.test_m121_thirteen_npc_trial tests.test_m120_eight_base_live_trial -v
+      - name: Compile single M122 Mac experimental controller
+        run: python -m tooling.build_mhs122_beta dist_m122
+      - name: Check package includes exactly 8 Python3.7 original modules
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs122_beta import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m122/'+NAME) as z:
+              assert len(z.namelist())==len(SOURCES)==8
+              assert set(z.namelist())==set(s.stem+'.pyc' for s in SOURCES)
+              assert all(z.read(p)[:4]==MAGIC for p in z.namelist())
+          print('M122 one Mod script; original 13-NPC behavior retained')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M122_THIRTEEN_NPC_PLUS_CLASSROOM_MAC_EXPERIMENTAL
+          path: |
+            dist_m122/MHS_M122_TREDICI_NPC_MAC_BETA.ts4script
+            dist_m122/M122_BUILD_REPORT.json
+            dist_m122/LEGGIMI_M122.txt
+          if-no-files-found: error

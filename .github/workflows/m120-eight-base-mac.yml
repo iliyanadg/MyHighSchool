@@ -1,0 +1,41 @@
+name: M120 Eight registered Base NPCs Mac experimental
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m120_base/**'
+      - 'tests/test_m120_eight_base_live_trial.py'
+      - 'tooling/build_mhs120_beta.py'
+      - '.github/workflows/m120-eight-base-mac.yml'
+  workflow_dispatch:
+jobs:
+  compile_and_test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test M120 EA 8 registered Base, 5 pinned Core, rollback
+        run: python -m unittest tests.test_m120_eight_base_live_trial -v
+      - name: Build compiled Mac test package
+        run: python -m tooling.build_mhs120_beta dist_m120
+      - name: Verify Python3.7-only module archive
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs120_beta import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m120/'+NAME) as z:
+              assert len(z.namelist()) == len(SOURCES) == 7
+              assert set(z.namelist())==set(s.stem+'.pyc' for s in SOURCES)
+              assert all(z.read(p)[:4]==MAGIC for p in z.namelist())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M120_EIGHT_BASE_MAC_EXPERIMENTAL
+          path: |
+            dist_m120/MHS_M120_OTTO_BASE_MAC_BETA.ts4script
+            dist_m120/M120_BUILD_REPORT.json
+            dist_m120/LEGGIMI_M120.txt
+          if-no-files-found: error

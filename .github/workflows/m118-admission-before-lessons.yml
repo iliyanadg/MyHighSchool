@@ -1,0 +1,38 @@
+name: M118 Morning admission before late school lessons (offline)
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m118_controller/**'
+      - 'tests/test_m118_admission_before_lessons.py'
+      - 'docs/M118_AMMISSIONE_PRIMA_DELLE_LEZIONI.md'
+      - '.github/workflows/m118-admission-before-lessons.yml'
+  workflow_dispatch:
+jobs:
+  preflight:
+    name: M118 EA 13 NPC+3 playable verified before lesson gate (Python 3.7)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test M118 M117 M116 and Bouncer regressions
+        run: python -m unittest tests.test_m118_admission_before_lessons tests.test_m117_post_spinup_admission tests.test_m116_native_guest_job_readback tests.test_m114_school_bouncer_pair -v
+      - name: Compile Python 3.7 M118 (no playable script)
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import py_compile
+          import tempfile
+          from pathlib import Path
+          magic=bytes((66,13,13,10))
+          assert importlib.util.MAGIC_NUMBER==magic
+          with tempfile.TemporaryDirectory() as d:
+              for file in Path('src/m118_controller').glob('*.py'):
+                  compiled=Path(d)/(file.stem+'.pyc')
+                  py_compile.compile(str(file),cfile=str(compiled),doraise=True)
+                  assert compiled.read_bytes()[:4]==magic
+          print('M118 compiled for Python 3.7, no game mod published')
+          PY

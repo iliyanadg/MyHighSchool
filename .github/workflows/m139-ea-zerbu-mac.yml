@@ -1,0 +1,46 @@
+name: M139 native EA plus Zerbu whiteboards Mac
+on:
+  push:
+    branches: [feature/m55-presenze-studente-test]
+    paths:
+      - 'src/m139_general_whiteboards/**'
+      - 'tests/test_m139_*.py'
+      - 'tooling/build_mhs139_verified.py'
+      - '.github/workflows/m139-ea-zerbu-mac.yml'
+  workflow_dispatch:
+jobs:
+  validate_build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Existing roster + player routing and EA / Zerbu test regressions
+        run: python -m unittest tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m136_player_test_hierarchy tests.test_m134_native_player_job_audit tests.test_m132_native_player_test_audit tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit tests.test_m128_trait_alignment tests.test_m128_board_posture_audit tests.test_m127_school_timing_readback tests.test_m126_early_preparation_projection tests.test_m126_early_school_integration tests.test_m125_safe_recovery tests.test_m124_lesson_action_readback tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
+      - name: Compile Python 3.7 Mac beta
+        run: python -m tooling.build_mhs139_verified dist_m139
+      - name: Validate exact Python and archive contents
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs139_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m139/'+NAME) as z:
+              assert len(z.namelist()) == len(SOURCES) == 21
+              assert all(z.read(f)[:4] == MAGIC for f in z.namelist())
+              assert 'mhs139_classroom_controller.pyc' in z.namelist()
+              assert 'mhs139_ea_zerbu_adapter.pyc' in z.namelist()
+              assert 'mhs138_classroom_controller.pyc' not in z.namelist()
+              script=z.read('mhs139_classroom_controller.pyc')
+              for cmd in ('mhs139.arm','mhs139.compat','mhs139.sync','mhs139.stop'):
+                  assert cmd.encode('utf-8') in script,cmd
+          print('M139 EA and Zerbu Mac build verified; in-game result not yet proven')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M139_ORIGINAL_EA_AND_ZERBU_MAC_EXPERIMENTAL
+          path: |
+            dist_m139/MHS_M139_EA_ZERBU_LAVAGNE_MAC_BETA.ts4script
+            dist_m139/M139_BUILD_REPORT.json
+            dist_m139/LEGGIMI_M139.txt
+          if-no-files-found: error

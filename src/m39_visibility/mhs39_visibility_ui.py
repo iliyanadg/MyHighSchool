@@ -42,7 +42,7 @@ class _MHS39VisibilityMixin(object):
     @classmethod
     def _test(cls,*args,**kwargs):
         try:
-            config=_CONFIG.load(current_slot())
+            config=_CONFIG.load(current_slot(allow_travel=True))
             show=available_from_settings(
                 config,cls._mhs39_action,cls._mhs39_class)
         except Exception:

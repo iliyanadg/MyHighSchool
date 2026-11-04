@@ -2,6 +2,12 @@ name: Offline source tests (not a game validation)
 on:
   push:
   pull_request:
+# Use one concurrency key for both push and pull_request on the same
+# source branch, rather than queuing two identical 13-job builds.
+# No change to which tests/jobs are executed.
+concurrency:
+  group: offline-source-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   roster:
     runs-on: ubuntu-latest
@@ -12,3 +18,430 @@ jobs:
           python-version: '3.11'
       - name: Run offline roster tests
         run: python -m unittest discover -s tests -v
+
+  m109_readonly_mac_probe:
+    name: M109 native EA method probe (read-only, not classroom mod)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify read-only probe and no EA hooks
+        run: python -m unittest tests.test_m109_readonly_ea_probe tests.test_m109_game_probe tests.test_m109_live_owner_bridge -v
+      - name: Check M111 native EA classroom membership readback (Python 3.7)
+        run: python -m unittest tests.test_m111_school_job_readback tests.test_m111_live_school_bridge -v
+      - name: Build two-module TS4 Python 3.7 diagnostic
+        run: python -m tooling.build_mhs109_readonly dist_m109_probe/
+      - name: Check exact Mac archive contents, no other modules
+        run: |
+          python - <<'PY'
+          import importlib.util
+          from zipfile import ZipFile
+          from pathlib import Path
+          from tooling.build_mhs109_readonly import NAME,EXPECTED_MAGIC
+          p=Path('dist_m109_probe')/NAME
+          with ZipFile(str(p)) as z:
+              names=set(z.namelist())
+              assert names == {
+                  'mhs109_readonly_ea_probe.pyc',
+                  'mhs109_game_probe.pyc'}
+              assert all(z.read(x)[:4] == EXPECTED_MAGIC for x in names)
+          assert importlib.util.MAGIC_NUMBER == EXPECTED_MAGIC
+          print('M109 READ-ONLY DIAGNOSTIC, PYTHON3.7 VERIFIED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M109_NATIVE_METHODS_READ_ONLY_NOT_CLASSROOM_MOD
+          path: |
+            dist_m109_probe/MHS_M109_NATIVE_METHODS_READ_ONLY.ts4script
+            dist_m109_probe/MHS_M109_READONLY_BUILD_REPORT.json
+            dist_m109_probe/LEGGIMI_M109_DIAGNOSTICA.txt
+          if-no-files-found: error
+
+  capacity_mac_beta:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify integrated M85 and original EA tuning resources
+        run: python -m unittest tests.test_mhs_capacity_beta tests.test_m90_m89_bridge tests.test_m88_replace_guest tests.test_m108_native_invitation tests.test_m108_native_precreate tests.test_m108_native_school_tunings tests.test_m108_school_filter_scope tests.test_m108_no_show_guard tests.test_m108_native_base_count tests.test_m108_lesson_phase_policy tests.test_m108_ea_phase_adapter tests.test_m108_class1_dual_route_budget tests.test_m108_class1_shadow_cap tests.test_m108_class1_try_start_bridge tests.test_m108_unified_lessons tests.test_m108_post_bouncer_audit tests.test_m108_deferred_unified_lessons tests.test_m108_npc_soft_cap_audit tests.test_m108_spinup_barrier tests.test_m108_16_student_reconciliation tests.test_m109_atomic_activation tests.test_m109_native_hook_stage tests.test_m109_readonly_ea_probe tests.test_m109_game_probe -v
+      - name: Compile integrated M85 Mac beta
+        run: python -m tooling.build_mhs_capacity_beta dist_capacity/
+      - name: Check Mac bytecode and DBPF count
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import resources, inspect_bytes
+          p=Path('dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.package')
+          t=Path('dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.ts4script')
+          assert len(resources(p.read_bytes()))==69
+          assert inspect_bytes(p.read_bytes())['status']=='STATIC_GATE_PASSED'
+          with ZipFile(str(t)) as z:
+              names=z.namelist()
+              assert len(names)==32
+              assert all(z.read(name)[:4]==bytes((66,13,13,10)) for name in names)
+          print('PASS: Mac package and Python 3.7 archive, static only')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M85_CAPIENZA_8X8_MAC_BETA_NOT_FULL_ROSTER
+          path: |
+            dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.package
+            dist_capacity/MHS_M85_CAPIENZA_8X8_MAC_BETA.ts4script
+            dist_capacity/MHS_CAPACITY_BETA_AUDIT.json
+          if-no-files-found: error
+
+  m94_mac_job_probe:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify read-only EA job inspector
+        run: python -m unittest tests.test_m94_job_probe -v
+      - name: Build M94 Mac diagnostic archive
+        run: python -m tooling.build_mhs94_probe dist_m94/
+      - name: Verify preserved M85 tuning and Python 3.7 bytecode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.package')
+          z=Path('dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.ts4script')
+          assert inspect_bytes(p.read_bytes())['resource_count']==63
+          with ZipFile(str(z)) as archive:
+              names=archive.namelist()
+              assert len(names)==33
+              assert 'mhs94_school_job_probe.pyc' in names
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA
+          path: |
+            dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.package
+            dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.ts4script
+            dist_m94/MHS_M94_BUILD_REPORT.json
+          if-no-files-found: error
+
+  m96_school_dispatcher_logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify school day deterministic count and anti-random guest fallback
+        run: python -m unittest tests.test_m100_one_slot_policy tests.test_m97_core_filter_policy tests.test_m97_core_role_store tests.test_m97_early_role_plan tests.test_m96_exact_school_count tests.test_m90_m89_bridge tests.test_m89_precreate_hook tests.test_m92_atomic_16 tests.test_full_16_school_day_contract tests.test_m105_atomic_school_roster tests.test_m105_native_core_requests tests.test_m105_live_preflight tests.test_m105_native_session tests.test_m105_game_connector tests.test_m105_role_binding_gate tests.test_m105_lesson_gate tests.test_m105_live_core_binding tests.test_m105_schedule_audit tests.test_mhs105_beta_release -v
+
+  m98_mac_native_role_menu:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Run native role menu and saved roles tests
+        run: python -m unittest tests.test_m97_core_role_store tests.test_mhs98_roles_release -v
+      - name: Compile M98 Mac role menu
+        run: python -m tooling.build_mhs98_roles dist_m98/
+      - name: Validate 76 DBPF resources and Python3.7 scripts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          root=Path('dist_m98')
+          package=root/'MHS_M98_RUOLI_SPECIALI_MAC_TEST.package'
+          script=root/'MHS_M98_RUOLI_SPECIALI_MAC_TEST.ts4script'
+          report=inspect_bytes(package.read_bytes())
+          assert report['status']=='STATIC_GATE_PASSED'
+          assert (report['resource_count'],report['category_count'],report['simdata_count'])==(76,11,11)
+          with ZipFile(str(script)) as z:
+              names=z.namelist()
+              assert len(names)==35
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+              assert 'mhs98_core_role_ui.pyc' in names
+              assert 'mhs97_core_role_store.pyc' in names
+          print('M98 Mac menu compiled, but game menu still needs testing')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M98_RUOLI_SPECIALI_MAC_TEST
+          path: |
+            dist_m98/MHS_M98_RUOLI_SPECIALI_MAC_TEST.package
+            dist_m98/MHS_M98_RUOLI_SPECIALI_MAC_TEST.ts4script
+            dist_m98/MHS_M98_BUILD_REPORT.json
+          if-no-files-found: error
+
+  m99_mac_one_student_trace:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify M99 read-only situation tracing and preserved M94 pilot
+        run: python -m unittest tests.test_m99_situation_trace tests.test_mhs99_trace_build tests.test_m61_guest_adapter -v
+      - name: Compile M99 Mac one-student situation trace
+        run: python -m tooling.build_mhs99_trace dist_m99/
+      - name: Verify original 63 DBPF resources and 34 Python 3.7 modules
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_m55_attendance_trial import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          root=Path('dist_m99')
+          package=root/'MHS_M99_TRACCIA_INVITO_MAC_TEST.package'
+          script=root/'MHS_M99_TRACCIA_INVITO_MAC_TEST.ts4script'
+          blob=package.read_bytes()
+          report=inspect_bytes(blob)
+          assert report['status']=='STATIC_GATE_PASSED'
+          assert report['resource_count']==63
+          assert hashlib.sha256(blob).hexdigest()==hashlib.sha256(package_bytes()).hexdigest()
+          with ZipFile(str(script)) as z:
+              names=z.namelist()
+              assert len(names)==34
+              assert 'mhs99_situation_trace.pyc' in names
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M99 Mac diagnostic verified offline; in-game test still required')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M99_TRACCIA_INVITO_MAC_TEST
+          path: |
+            dist_m99/MHS_M99_TRACCIA_INVITO_MAC_TEST.package
+            dist_m99/MHS_M99_TRACCIA_INVITO_MAC_TEST.ts4script
+            dist_m99/MHS_M99_BUILD_REPORT.json
+          if-no-files-found: error
+
+  m101_mac_one_ea_slot:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Verify M101d required callback repair, original EA call and build topology
+        run: python -m unittest tests.test_m101b_filter_evidence tests.test_m101_original_slot_gate tests.test_m100_one_slot_policy tests.test_m89_precreate_hook tests.test_mhs101_one_slot_release -v
+      - name: Compile M101 one EA original school slot Mac pilot
+        run: python -m tooling.build_mhs101_one_slot dist_m101/
+      - name: Verify 63 preserved DBPF resources and 40 Python 3.7 scripts
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_m55_attendance_trial import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          root=Path('dist_m101')
+          blob=(root/'MHS_M101D_CALLBACK_EA_MAC_TEST.package').read_bytes()
+          assert inspect_bytes(blob)['status']=='STATIC_GATE_PASSED'
+          assert inspect_bytes(blob)['resource_count']==63
+          assert hashlib.sha256(blob).digest()==hashlib.sha256(package_bytes()).digest()
+          with ZipFile(str(root/'MHS_M101D_CALLBACK_EA_MAC_TEST.ts4script')) as z:
+              names=z.namelist()
+              assert len(names)==40
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+              assert 'mhs101_original_slot_runtime.pyc' in names
+          print('M101 offline verification OK; game behavior still untested')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M101D_CALLBACK_EA_MAC_TEST
+          path: |
+            dist_m101/MHS_M101D_CALLBACK_EA_MAC_TEST.package
+            dist_m101/MHS_M101D_CALLBACK_EA_MAC_TEST.ts4script
+            dist_m101/MHS_M101D_BUILD_REPORT.json
+          if-no-files-found: error
+
+  m102_mac_bouncer_readonly:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test read-only situation/Bouncer observer and M101d overlay
+        run: python -m unittest tests.test_m102_bouncer_observer tests.test_mhs102_bouncer_build tests.test_m101b_filter_evidence tests.test_m101_original_slot_gate tests.test_m100_one_slot_policy -v
+      - name: Compile 41 Python 3.7 scripts for Mac M102
+        run: python -m tooling.build_mhs102_bouncer dist_m102/
+      - name: Verify preserved EA resources and pure observer archive
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          from tooling.build_m55_attendance_trial import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          folder=Path('dist_m102')
+          payload=(folder/'MHS_M102_BOUNCER_READONLY_MAC_TEST.package').read_bytes()
+          assert payload==package_bytes()
+          assert inspect_bytes(payload)['resource_count']==63
+          with ZipFile(str(folder/'MHS_M102_BOUNCER_READONLY_MAC_TEST.ts4script')) as z:
+              names=z.namelist()
+              assert len(names)==41
+              assert all(z.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+              assert 'mhs102_bouncer_observer.pyc' in names
+          print('M102 safe offline build OK; live EA behavior still untested')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M102_BOUNCER_READONLY_MAC_TEST
+          path: |
+            dist_m102/MHS_M102_BOUNCER_READONLY_MAC_TEST.package
+            dist_m102/MHS_M102_BOUNCER_READONLY_MAC_TEST.ts4script
+            dist_m102/MHS_M102_BUILD_REPORT.json
+          if-no-files-found: error
+
+  m104_mac_native_filter:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test original native EA Base filter restriction and no guest overrides
+        run: python -m unittest tests.test_m104_native_filter_policy tests.test_mhs104_native_release -v
+      - name: Compile native filter Mac test archive
+        run: python -m tooling.build_mhs104_native_filter dist_m104/
+      - name: Verify 63 DBPF resources and 35 Python 3.7 scripts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_m55_attendance_trial import package_bytes
+          from tooling.simdata_release_gate import inspect_bytes
+          folder=Path('dist_m104')
+          payload=(folder/'MHS_M104_NATIVE_EA_FILTER_MAC_TEST.package').read_bytes()
+          assert payload==package_bytes()
+          assert inspect_bytes(payload)['resource_count']==63
+          with ZipFile(str(folder/'MHS_M104_NATIVE_EA_FILTER_MAC_TEST.ts4script')) as archive:
+              names=archive.namelist()
+              assert len(names)==35
+              assert 'mhs104_native_school_filter.pyc' in names
+              assert not {'mhs89_precreate_hook.pyc','mhs101_original_slot_runtime.pyc'} & set(names)
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M104 native filter compiled; in-game proof still needed')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M104_NATIVE_EA_FILTER_MAC_TEST
+          path: |
+            dist_m104/MHS_M104_NATIVE_EA_FILTER_MAC_TEST.package
+            dist_m104/MHS_M104_NATIVE_EA_FILTER_MAC_TEST.ts4script
+            dist_m104/MHS_M104_BUILD_REPORT.json
+          if-no-files-found: error
+
+  m106_roster_first_policy:
+    name: M106 roster-first offline feasibility (not Sims runtime)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test fixed 16 students without mandatory EA Mean eligibility
+        run: python -m unittest tests.test_m106_roster_first_policy tests.test_m106_bridge_arguments tests.test_m106_live_preflight tests.test_m106_school_session tests.test_m106_game_connector tests.test_m106_pilot_release tests.test_m106_fixed_roster_audit -v
+
+  m106_mac_native_pilot:
+    name: M106 Mac native Core/Base pilot (not 16-in-game validation)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Validate M106 fixed roster and native request delegation
+        run: python -m unittest tests.test_m106_roster_first_policy tests.test_m106_bridge_arguments tests.test_m106_live_preflight tests.test_m106_school_session tests.test_m106_game_connector tests.test_m106_pilot_release tests.test_m106_fixed_roster_audit -v
+      - name: Compile verified Python 3.7 M106 Mac native pilot
+        run: python -m tooling.build_mhs106_pilot dist_m106/
+      - name: Verify M106 53 compiled modules and archive safety flags
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.build_mhs106_pilot import PACKAGE,SCRIPT,ZIP,REPORT
+          folder=Path('dist_m106')
+          report=json.loads((folder/REPORT).read_text())
+          assert report['compiled_python37_modules']==53
+          assert report['package_resources']==76
+          assert report['release_ready'] is False
+          assert report['full_16_attendance_verified'] is False
+          assert report['ea_base_schedule_count_override_enabled'] is False
+          with ZipFile(str(folder/SCRIPT)) as script:
+              names=script.namelist()
+              assert len(names)==53
+              assert 'mhs106_game_controller.pyc' in names
+              assert 'mhs106_school_session.pyc' in names
+              assert 'mhs106_roster_first_policy.pyc' in names
+              assert all(script.read(n)[:4]==bytes((66,13,13,10))
+                         for n in names)
+          with ZipFile(str(folder/ZIP)) as bundle:
+              assert set(bundle.namelist())=={
+                  PACKAGE,SCRIPT,REPORT,'LEGGIMI_M106_PILOT.txt'}
+          print('M106 native Mac pilot compile passed; gameplay unverified')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M106_ROSTER_FIRST_MAC_PILOT_NON_VALIDATO_IN_GIOCO
+          path: |
+            dist_m106/MHS_M106_ROSTER_FIRST_MAC_PILOT_INSTALLAZIONE.zip
+            dist_m106/MHS_M106_PILOT_REPORT.json
+          if-no-files-found: error
+
+  m105_mac_3_5_8_beta:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test M105 early selection, scheduler audit and Mac build graph
+        run: python -m unittest tests.test_m105_atomic_school_roster tests.test_m105_native_core_requests tests.test_m105_live_preflight tests.test_m105_native_session tests.test_m105_game_connector tests.test_m105_role_binding_gate tests.test_m105_lesson_gate tests.test_m105_live_core_binding tests.test_m105_schedule_audit tests.test_mhs105_beta_release -v
+      - name: Compile single-pair Mac beta package and Python 3.7 scripts
+        run: python -m tooling.build_mhs105_beta dist_m105/
+      - name: Audit 76-resource menu, 48 Python 3.7 modules and ZIP contents
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          from tooling.build_mhs105_beta import PKG,SCRIPT,REPORT,ZIP
+          root=Path('dist_m105')
+          rep=json.loads((root/REPORT).read_text())
+          pkg=inspect_bytes((root/PKG).read_bytes())
+          assert pkg['status']=='STATIC_GATE_PASSED'
+          assert (pkg['resource_count'],pkg['category_count'])==(76,11)
+          assert rep['compiled_python37_modules']==48
+          assert rep['m96_ea_count_override_enabled'] is False
+          assert rep['full_16_attendance_verified'] is False
+          with ZipFile(str(root/SCRIPT)) as scripts:
+              names=scripts.namelist()
+              assert len(names)==48
+              assert 'mhs105_game_controller.pyc' in names
+              assert 'mhs105_schedule_runtime.pyc' in names
+              assert 'mhs98_core_role_ui.pyc' in names
+              assert all(scripts.read(n)[:4]==bytes((66,13,13,10))
+                         for n in names)
+          with ZipFile(str(root/ZIP)) as install:
+              assert set(install.namelist())=={PKG,SCRIPT,REPORT,
+                                              'LEGGIMI_M105_BETA.txt'}
+          print('M105 Mac beta build validated OFFLINE only')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M105_CONTROLLO_16_MAC_BETA_NON_VALIDATA_IN_GIOCO
+          path: |
+            dist_m105/MHS_M105_CONTROLLO_16_MAC_BETA_INSTALLAZIONE.zip
+            dist_m105/MHS_M105_BUILD_REPORT.json
+          if-no-files-found: error

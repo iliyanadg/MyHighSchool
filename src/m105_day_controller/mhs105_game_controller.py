@@ -1,0 +1,294 @@
+"""M105 early-game native EA school filter connector; NOT in any release.
+
+This module binds the already-tested pure M105 3+5+8 session to existing
+M57 EA SimFilterService thin interception. Requires explicit preflight at
+home and verified school schedule from venue zone director. No forced
+situation, no late invitations, no immediate Sim spawning.
+
+The EA calendar Base Student count is NOT overridden here: full 16
+attendance remains unproven until five roles, the capacity, and lessons
+are validated. No installable package includes this module yet.
+"""
+import inspect
+import json
+import os
+import services
+import sims4.commands
+from date_and_time import sim_ticks_per_day
+from mhs_m2_game_bridge import current_slot
+from mhs57_filter_policy import guid_for_filter
+from mhs105_live_preflight import prepare_live_school_day,diagnose_live_role_choices,find_outside_mean_candidates
+from mhs105_native_session import SchoolSession,EXPECTED_SCHOOL_FILTERS
+from mhs105_live_core_binding import inspect_core_jobs
+from mhs105_schedule_runtime import arm_schedule_observation,observation_status
+
+_ROOT=os.path.join(os.path.expanduser('~'),'Documents',
+                   'Electronic Arts','The Sims 4',
+                   'MY_HIGH_SCHOOL_M25_TEST_DATA')
+_REPORT='MHS_M105_PIANO_PRE_LEZIONI.json'
+_EA_SCHOOL_SCHEDULES=frozenset((277657,279958))
+_SESSION=None
+_OLD_FILTER=None
+_INSTALLED=False
+_LAST={'status':'NOT_ARMED',
+       'runtime_in_package':False,
+       'school_attendance_verified':False}
+
+def _save():
+    try:
+        if not os.path.isdir(_ROOT):
+            os.makedirs(_ROOT)
+        dest=os.path.join(_ROOT,_REPORT)
+        tmp=dest+'.tmp'
+        with open(tmp,'w',encoding='utf-8') as fd:
+            json.dump(_LAST,fd,indent=2,sort_keys=True)
+        os.replace(tmp,dest)
+    except Exception:
+        pass
+
+def _day():
+    return (int(services.time_service().sim_now.absolute_ticks())
+            //int(sim_ticks_per_day()))
+
+def _zone():
+    zone=services.current_zone()
+    value=getattr(zone,'id',None) if zone is not None else None
+    return str(value) if type(value) is int and value>0 else None
+
+def _school_schedule_verified():
+    """Read real EA High School schedule of this zone, not neighborhood."""
+    try:
+        venue=services.venue_service()
+        if venue is None:
+            return False
+        director=venue.get_zone_director()
+        if director is None:
+            return False
+        schedule=getattr(director,'_schedule',None)
+        guid=getattr(schedule,'guid64',None)
+        return type(guid) is int and guid in _EA_SCHOOL_SCHEDULES
+    except Exception:
+        return False
+
+def _original_bouncer_origin():
+    """Require a known EA Bouncer stack frame before altering requests."""
+    frame=inspect.currentframe()
+    try:
+        for _ in range(28):
+            frame=frame.f_back if frame is not None else None
+            if frame is None:
+                break
+            if frame.f_globals.get('__name__','').split('.')[-1]=='bouncer':
+                if frame.f_code.co_name in (
+                    '_spawn_all_during_zone_spin_up',
+                    '_spawn_sim_for_next_request','_submit_filter_request',
+                    '_request_sim_filter','_request_sim_filter_service',
+                    '_spawn_sim_for_request','_find_sim_for_request'):
+                    return True
+    finally:
+        del frame
+    return False
+
+def _filtered(original,service,args,kwargs,mode):
+    global _LAST
+    if _SESSION is None or mode!='matching':
+        return _OLD_FILTER(original,service,args,kwargs,mode)
+    try:
+        tuning=kwargs.get('sim_filter',args[1] if len(args)>1 else None)
+        guid=guid_for_filter(tuning)
+        if guid not in EXPECTED_SCHOOL_FILTERS:
+            return _OLD_FILTER(original,service,args,kwargs,mode)
+        decision,newargs,newkwargs=_SESSION.constrain(
+            mode,guid,args,kwargs,slot=current_slot(allow_travel=True),
+            day=_day(),zone=_zone(),
+            bouncer=_original_bouncer_origin(),
+            school_verified=_school_schedule_verified())
+    except Exception as exc:
+        _LAST={'status':'FILTER_CONTEXT_ERROR',
+               'error_type':type(exc).__name__,
+               'ea_school_not_modified':True}
+        _save()
+        # If preparation fails, delegate exactly once with original args.
+        return _OLD_FILTER(original,service,args,kwargs,mode)
+    if decision!='constrain':
+        return _OLD_FILTER(original,service,args,kwargs,mode)
+    _LAST=dict(_SESSION.evidence(),kind='M105_NATIVE_3_5_8_PREPARE',
+               note='Constrained request is NOT proof of spawned Sim')
+    _save()
+    # The previous M57 wrapper remains in observation-only isolation,
+    # preserving any unrelated installed EA filter hooks.
+    return _OLD_FILTER(original,service,newargs,newkwargs,mode)
+
+def _m57_compatible(m57):
+    """M105 must not bypass M57's competing-high-school-mod detection."""
+    return (m57.installed() is True
+            and callable(getattr(m57,'_filtered',None))
+            and not getattr(m57,'_CONFLICTS',()))
+
+def _install():
+    global _INSTALLED,_OLD_FILTER
+    if _INSTALLED:
+        return True
+    import mhs57_filter_runtime as m57
+    if not _m57_compatible(m57):
+        return False
+    _OLD_FILTER=m57._filtered
+    m57._filtered=_filtered
+    _INSTALLED=True
+    return True
+
+def _schedule_context():
+    """Require the same prepared save/day and non-home zone for observation.
+
+    The audit wrapper already requires the EA *school schedule GUID* and
+    Base Student situation GUID, even during zone spin-up before its
+    director is registered in VenueService.
+    """
+    if _SESSION is None or _SESSION.invalidated:
+        return {'school_verified':False}
+    try:
+        slot=str(current_slot(allow_travel=True))
+        day=_day()
+        zone=_zone()
+        valid=(slot==_SESSION.save_slot and day==_SESSION.sim_day
+               and zone is not None and zone!=_SESSION.home_zone
+               and (_SESSION.school_zone is None
+                    or zone==_SESSION.school_zone))
+        return {'school_verified':valid,'save_slot':slot,
+                'sim_day':day,'school_zone':zone}
+    except Exception:
+        return {'school_verified':False}
+
+def arm():
+    global _SESSION,_LAST
+    _SESSION=None
+    result=prepare_live_school_day()
+    if result['status']!='PREFLIGHT_READY_NOT_EA_BOUND':
+        # Preserve the actual six-filter/planner rejection: the outer
+        # preflight reason alone hides which EA student rule failed.
+        detail=result.get('plan_reason')
+        _LAST={'status':'BLOCKED_BY_PREFLIGHT',
+               'reason':result.get('reason','unverified'),
+               'plan_reason':detail,
+               'filter_details':result.get('filter_details'),
+               'game_unchanged':True}
+        _save()
+        return 'M105 BLOCCATA: '+(detail or _LAST['reason'])
+    home=_zone()
+    if home is None or _school_schedule_verified():
+        return 'M105 BLOCCATA: avvia prima da casa, fuori dal liceo'
+    try:
+        session=SchoolSession(result['plan'],result['save_slot'],_day(),home)
+        if not _install():
+            return 'M105 BLOCCATA: aggancio filtro EA non disponibile'
+        _SESSION=session
+        # Observation only. The count stays vanilla even if EA offers
+        # fewer than eight Base slots. M96 must remain disabled.
+        count_audit=arm_schedule_observation(
+            result['plan'],result['save_slot'],session.sim_day,home,
+            _schedule_context)
+        _LAST={'status':'ARMED_EARLY_NATIVE_FILTERS',
+               'save_slot':result['save_slot'],
+               'registered':16,'playable':3,'core':5,'base':8,
+               'ea_school_roles_bound':False,
+               'schedule_observation_hook_installed':count_audit,
+               'schedule_base_count_changed':False,
+               'eight_per_class_verified':False}
+        _save()
+        return ('M105 test armata: filtro 5 Core + 8 Base. '
+                'Audit calendario {}. Presenze non garantite'.format(
+                    'attivo' if count_audit else 'non disponibile'))
+    except Exception as exc:
+        _LAST={'status':'ARM_BLOCKED','error_type':type(exc).__name__}
+        _save()
+        return 'M105 BLOCCATA: '+type(exc).__name__
+
+def check():
+    if _SESSION is None:
+        return 'M105 non armata | '+_REPORT
+    evidence=_SESSION.evidence()
+    same_save=(str(current_slot(allow_travel=True))==_SESSION.save_slot)
+    same_day=(_day()==_SESSION.sim_day)
+    same_school=(_school_schedule_verified()
+                 and evidence.get('school_zone')==_zone()
+                 and _zone()!=_SESSION.home_zone)
+    if same_school and same_save and same_day:
+        try:
+            from sims.sim_info_types import Age,Species
+            manager=services.get_zone_situation_manager()
+            infos=services.sim_info_manager().get_all()
+            proof=inspect_core_jobs(
+                _SESSION.plan,infos,manager,Age.TEEN,Species.HUMAN,
+                school_verified=True,save_verified=True,day_verified=True)
+        except Exception as exc:
+            proof={'status':'UNKNOWN',
+                   'reason':'EA role inspection failed',
+                   'error_type':type(exc).__name__,
+                   'actual_ea_core_binding_verified':False}
+    else:
+        proof={'status':'UNKNOWN',
+               'reason':'not same verified school save/day/zone',
+               'actual_ea_core_binding_verified':False}
+    _LAST.update(evidence)
+    _LAST['actual_ea_core_role_evidence']=proof
+    schedule=observation_status()
+    _LAST['ea_original_base_schedule']=schedule
+    _save()
+    last=schedule.get('last_event') or {}
+    slots=last.get('ea_original_min')
+    max_slots=last.get('ea_original_max')
+    schedule_line=('{}-{}'.format(slots,max_slots)
+                   if slots is not None and max_slots is not None
+                   else 'non osservati')
+    return ('M105 richieste EA: Core {}/5 | Base {}/8. '
+            'Calendario EA Base: {}. Ruoli EA: {}. '
+            'Presenze 16 NON provate | {}').format(
+                evidence['core_requests_constrained'],
+                evidence['base_student_targets_constrained'],
+                schedule_line,proof['status'],_REPORT)
+
+def off():
+    global _SESSION,_LAST
+    if _SESSION is not None:
+        _SESSION.cancel()
+    _SESSION=None
+    _LAST={'status':'OFF','game_selection_restored':True}
+    _save()
+    return 'M105 disattivata; selezione EA originale ripristinata'
+
+@sims4.commands.Command('mhs105.arm',
+                        command_type=sims4.commands.CommandType.Live)
+def _arm_command(_connection=None):
+    sims4.commands.output(arm(),_connection)
+
+@sims4.commands.Command('mhs105.idonei',
+                        command_type=sims4.commands.CommandType.Live)
+def _idonei_command(_connection=None):
+    # Console text only: use verified EA results, never rewrite assignments.
+    try:
+        for row in diagnose_live_role_choices():
+            sims4.commands.output(str(row),_connection)
+    except Exception as exc:
+        sims4.commands.output('M105 DIAGNOSI NON DISPONIBILE: '+type(exc).__name__,
+                             _connection)
+
+@sims4.commands.Command('mhs105.cerca_perfido',
+                        command_type=sims4.commands.CommandType.Live)
+def _find_mean_command(_connection=None):
+    # Diagnosis only; never changes the manually chosen class roster.
+    try:
+        for line in find_outside_mean_candidates():
+            sims4.commands.output(str(line),_connection)
+    except Exception as exc:
+        sims4.commands.output('M105 RICERCA NON DISPONIBILE: '+type(exc).__name__,
+                             _connection)
+
+@sims4.commands.Command('mhs105.check',
+                        command_type=sims4.commands.CommandType.Live)
+def _check_command(_connection=None):
+    sims4.commands.output(check(),_connection)
+
+@sims4.commands.Command('mhs105.off',
+                        command_type=sims4.commands.CommandType.Live)
+def _off_command(_connection=None):
+    sims4.commands.output(off(),_connection)

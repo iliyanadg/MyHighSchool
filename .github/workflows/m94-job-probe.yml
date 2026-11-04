@@ -1,0 +1,52 @@
+name: M94 read-only EA school job probe Mac build
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m94_runtime/**'
+      - 'tooling/build_mhs94_probe.py'
+      - 'tests/test_m94_job_probe.py'
+      - '.github/workflows/m94-job-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Test M94 live-read code with isolated EA mocks
+        run: python -m unittest tests.test_m94_job_probe -v
+      - name: Build Mac-compatible M94 (preserve M85 package)
+        run: python -m tooling.build_mhs94_probe dist_m94/
+      - name: Verify DBPF and Python3.7 script archive
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from tooling.simdata_release_gate import inspect_bytes
+          p=Path('dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.package')
+          z=Path('dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.ts4script')
+          result=inspect_bytes(p.read_bytes())
+          assert result['status']=='STATIC_GATE_PASSED'
+          assert result['resource_count']==63
+          with ZipFile(str(z)) as archive:
+              names=archive.namelist()
+              assert len(names)==33
+              assert 'mhs94_school_job_probe.pyc' in names
+              assert 'mhs55_attendance_ui.pyc' in names
+              assert all(archive.read(n)[:4]==bytes((66,13,13,10)) for n in names)
+          print('M94 static probe built, not validated in game')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA
+          path: |
+            dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.package
+            dist_m94/MHS_M94_FILTRI_LICEO_MAC_SOLA_LETTURA.ts4script
+            dist_m94/MHS_M94_BUILD_REPORT.json
+          if-no-files-found: error

@@ -1,0 +1,46 @@
+name: M134 true playable EA job audit Mac
+on:
+  push:
+    branches: [feature/m55-presenze-studente-test]
+    paths:
+      - 'src/m134_jobs/**'
+      - 'tests/test_m134_*.py'
+      - 'tooling/build_mhs134_verified.py'
+      - '.github/workflows/m134-playable-jobs-mac.yml'
+  workflow_dispatch:
+jobs:
+  validate_build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Regression tests including prior live fixes
+        run: python -m unittest tests.test_m134_native_player_job_audit tests.test_m132_native_player_test_audit tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit tests.test_m128_trait_alignment tests.test_m128_board_posture_audit tests.test_m127_school_timing_readback tests.test_m126_early_preparation_projection tests.test_m126_early_school_integration tests.test_m125_safe_recovery tests.test_m124_lesson_action_readback tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
+      - name: Build Mac Python 3.7
+        run: python -m tooling.build_mhs134_verified dist_m134
+      - name: Verify generated M134 .ts4script
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs134_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m134/'+NAME) as z:
+              assert len(z.namelist()) == len(SOURCES) == 19
+              assert all(z.read(f)[:4] == MAGIC for f in z.namelist())
+              assert 'mhs134_classroom_controller.pyc' in z.namelist()
+              assert 'mhs134_native_player_job_audit.pyc' in z.namelist()
+              assert 'mhs132_classroom_controller.pyc' not in z.namelist()
+              script=z.read('mhs134_classroom_controller.pyc')
+              for name in ('mhs134.arm','mhs134.verifica','mhs134.ruoli','mhs134.sync','mhs134.stop'):
+                  assert name.encode() in script,name
+          print('M134 native player job audit Mac archive verified')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M134_NATIVE_PLAYER_JOBS_MAC_EXPERIMENTAL
+          path: |
+            dist_m134/MHS_M134_RUOLI_EA_GIOCABILI_MAC_BETA.ts4script
+            dist_m134/M134_BUILD_REPORT.json
+            dist_m134/LEGGIMI_M134.txt
+          if-no-files-found: error

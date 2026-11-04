@@ -1,0 +1,1 @@
+M134: Class 2 player students fail a SituationJobTest although the EA class roster shows 8/8. The original PickWhiteboard Student test also has a specific NPC gate for the Class 2 board. Do not alter NPC routing or bypass EA tests globally. Compare actual per-Sim situation GUID and job GUID against the affordance requirements before creating any focused fix.

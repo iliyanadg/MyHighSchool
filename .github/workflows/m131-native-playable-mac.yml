@@ -1,0 +1,47 @@
+name: M131 original EA player class and auto-trait sync Mac
+on:
+  push:
+    branches:
+      - feature/m55-presenze-studente-test
+    paths:
+      - 'src/m131_playable/**'
+      - 'tests/test_m131_*.py'
+      - 'tooling/build_mhs131_verified.py'
+      - '.github/workflows/m131-native-playable-mac.yml'
+  workflow_dispatch:
+jobs:
+  validate_build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Regressions M131 plus previously verified EA school controllers
+        run: python -m unittest tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit tests.test_m128_trait_alignment tests.test_m128_board_posture_audit tests.test_m127_school_timing_readback tests.test_m126_early_preparation_projection tests.test_m126_early_school_integration tests.test_m125_safe_recovery tests.test_m124_lesson_action_readback tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
+      - name: Build Mac Python 3.7 compatible archive
+        run: python -m tooling.build_mhs131_verified dist_m131
+      - name: Verify full Mac archive and commands
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs131_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m131/'+NAME) as z:
+              assert len(z.namelist()) == len(SOURCES) == 17
+              assert all(z.read(f)[:4] == MAGIC for f in z.namelist())
+              assert 'mhs131_classroom_controller.pyc' in z.namelist()
+              assert 'mhs131_native_playable_class.pyc' in z.namelist()
+              assert 'mhs130_classroom_controller.pyc' not in z.namelist()
+              script=z.read('mhs131_classroom_controller.pyc')
+              for name in ('mhs131.arm','mhs131.verifica','mhs131.allinea','mhs131.posti','mhs131.giocabili','mhs131.sync','mhs131.stop'):
+                  assert name.encode('utf-8') in script,name
+          print('M131 Mac original EA playable and auto-trait commands verified')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M131_PLAYABLE_CLASS_AND_AUTO_SYNC_MAC_EXPERIMENTAL
+          path: |
+            dist_m131/MHS_M131_GIOCABILI_E_SYNC_MAC_BETA.ts4script
+            dist_m131/M131_BUILD_REPORT.json
+            dist_m131/LEGGIMI_M131.txt
+          if-no-files-found: error

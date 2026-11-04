@@ -50,7 +50,7 @@ class TestM42(unittest.TestCase):
         namespace={
             'TestResult':FakeResult,
             '_CONFIG':config,
-            'current_slot':lambda:11,
+            'current_slot':lambda **kwargs:11,
             'available_from_settings':lambda state,action,num: allowed(
                 state.active,state.class_count,action,num),
         }

@@ -1,0 +1,389 @@
+"""M108: exact native EA school invitations, offline contract only (Python 3.7).
+
+Uses the already established SituationManager.create_situation guest-list seam.
+This is deliberately NOT installed in any Mac beta. It prepares invitations
+for the SAME original EA Base/Core situations; it never creates extra ones.
+
+A successful create_situation ID is NOT proof that Bouncer accepted, spawned,
+assigned or seated a Sim. Native job filters and no-show replacements remain
+UNRESOLVED and must be solved before installing any gameplay hook.
+"""
+BASE_SITUATION = 277733
+CORE_SITUATION = 298052
+BASE_JOB = 277894
+CORE_JOBS = (278965, 278966, 278967, 278968, 303765)
+TEACHER_JOBS = frozenset((277895, 278963))
+SCHEDULES = frozenset((277657, 279958))
+
+
+class InvitationPlanError(ValueError):
+    pass
+
+
+def _sid(value):
+    if type(value) not in (int, str):
+        raise InvitationPlanError('invalid Sim ID')
+    value = str(value)
+    if not value.isdigit() or int(value) < 1 or value != str(int(value)):
+        raise InvitationPlanError('invalid Sim ID')
+    return value
+
+
+def _id_list(values, length):
+    if not isinstance(values, (tuple, list)) or len(values) != length:
+        raise InvitationPlanError('wrong number of Sim IDs')
+    result = tuple(_sid(value) for value in values)
+    if len(set(result)) != length:
+        raise InvitationPlanError('duplicate Sim ID')
+    return result
+
+
+def prepare_fixed_manifest(classes, playable_ids, core_assignments,
+                           save_slot, sim_day, school_zone):
+    """Validate immutable user choices. Do not apply the original EA filters.
+
+    Those original filters are demonstrably incompatible with some user
+    choices, so compatibility needs a separate school-only admission path.
+    """
+    if not isinstance(classes, (list, tuple)) or len(classes) != 2:
+        raise InvitationPlanError('exactly two classes required')
+    groups = tuple(_id_list(group, 8) for group in classes)
+    all_students = groups[0] + groups[1]
+    if len(set(all_students)) != 16:
+        raise InvitationPlanError('student registered more than once')
+    played = _id_list(playable_ids, 3)
+    if not set(played) <= set(all_students):
+        raise InvitationPlanError('playable teen not enrolled')
+    if not isinstance(core_assignments, dict) or set(core_assignments) != set(CORE_JOBS):
+        raise InvitationPlanError('five exact user-confirmed Core assignments required')
+    core = tuple((job, _sid(core_assignments[job])) for job in CORE_JOBS)
+    core_ids = tuple(sid for _, sid in core)
+    if len(set(core_ids)) != 5:
+        raise InvitationPlanError('one student assigned to two Core jobs')
+    if not set(core_ids) <= set(all_students) - set(played):
+        raise InvitationPlanError('Core role holder must be an enrolled NPC')
+    base = tuple(sid for sid in all_students
+                 if sid not in set(played) and sid not in set(core_ids))
+    if len(base) != 8:
+        raise InvitationPlanError('exactly eight Base NPCs required')
+    slot = _sid(save_slot)
+    zone = _sid(school_zone)
+    if type(sim_day) is not int or sim_day < 0:
+        raise InvitationPlanError('invalid school day')
+    return {
+        'status': 'M108_INVITATIONS_PREPARED_NOT_GAME_AUTHORIZED',
+        'classes': groups,
+        'all_16': all_students,
+        'playable': played,
+        'core_assignments': core,
+        'base_ids': base,
+        'save_slot': slot,
+        'sim_day': sim_day,
+        'school_zone': zone,
+        'core_reservations_before_ea_verified': False,
+        'native_filter_bypass_verified': False,
+        'no_show_replacement_blocked': False,
+        'school_count_eight_verified': False,
+        'native_schedule_order': 'BASE_BEFORE_CORE',
+        'class_8_plus_8_verified': False,
+        'lot_capacity_verified': False,
+        'attendance_verified': False,
+    }
+
+
+class SchoolNativeGuestSession(object):
+    """Prepare a cloned guest list for the original EA creation call.
+
+    No monkey patches, no spawning, no writing save files. An external
+    caller must validate native call provenance AND separately solve all
+    five runtime gates before installing any adapter.
+    """
+
+    def __init__(self, manifest, guest_info_class, invited_purpose, job_by_id):
+        if (not isinstance(manifest, dict) or
+                manifest.get('status') !=
+                'M108_INVITATIONS_PREPARED_NOT_GAME_AUTHORIZED'):
+            raise InvitationPlanError('not an M108 manifest')
+        # Rebuild the exact 3+5+8 plan before any request is considered.
+        # Freeze it to prevent callers from changing enrolled IDs mid-day.
+        try:
+            canonical = prepare_fixed_manifest(
+                manifest['classes'], manifest['playable'],
+                dict(manifest['core_assignments']),
+                manifest['save_slot'], manifest['sim_day'],
+                manifest['school_zone'])
+        except (KeyError, TypeError, ValueError, InvitationPlanError):
+            raise InvitationPlanError('M108 roster manifest is incomplete')
+        for name in ('classes', 'all_16', 'playable', 'core_assignments',
+                     'base_ids', 'save_slot', 'sim_day', 'school_zone'):
+            if manifest.get(name) != canonical[name]:
+                raise InvitationPlanError('M108 roster manifest was changed')
+        # This pure adapter refuses fabricated/partial job object mappings.
+        if not isinstance(job_by_id, dict) or set(job_by_id) != set((BASE_JOB,) + CORE_JOBS):
+            raise InvitationPlanError('six native school SituationJob tunings required')
+        for job_id, tuned in job_by_id.items():
+            if type(job_id) is not int or getattr(tuned, 'guid64', None) != job_id:
+                raise InvitationPlanError('native SituationJob mismatch')
+        if not callable(getattr(guest_info_class, 'construct_from_purpose', None)):
+            raise InvitationPlanError('EA SituationGuestInfo constructor missing')
+        self.manifest = canonical
+        self.guest_info_class = guest_info_class
+        self.invited_purpose = invited_purpose
+        self.job_by_id = job_by_id
+        self._pending = set()
+        self._confirmed = set()
+        self._core_confirmed = False
+        self._base_cursor = 0
+        self._created_situation_ids = set()
+        # Exact original EA ID per guest ticket; not Bouncer assignment.
+        self._created_by_ticket = {}
+        self._local_core_holds = None
+
+    def reserve_core_before_schedule(self, context):
+        """Freeze five user-selected Core IDs BEFORE the first Base request.
+
+        This is an MHS *local planning reservation*, NOT an EA Bouncer
+        reservation or assignment. The verified early context must be
+        provided by a future live schedule adapter; never infer it from
+        creation_source alone.
+        """
+        if self._local_core_holds is not None or self._pending or self._confirmed:
+            return False
+        if not isinstance(context, dict):
+            return False
+        if not (context.get('before_school_schedule_verified') is True and
+                context.get('ea_schedule_not_started') is True and
+                context.get('school_verified') is True and
+                context.get('schedule_guid') in SCHEDULES and
+                str(context.get('save_slot')) == self.manifest['save_slot'] and
+                type(context.get('sim_day')) is int and
+                context.get('sim_day') == self.manifest['sim_day'] and
+                str(context.get('zone_id')) == self.manifest['school_zone']):
+            return False
+        reserved = tuple((job, sid) for job, sid in
+                         self.manifest['core_assignments'])
+        reserved_ids = set(sid for _, sid in reserved)
+        if (len(reserved) != 5 or len(reserved_ids) != 5 or
+                reserved_ids & set(self.manifest['base_ids']) or
+                reserved_ids & set(self.manifest['playable'])):
+            return False
+        self._local_core_holds = reserved
+        return True
+
+    def _valid_origin(self, context):
+        """'native_origin_verified' must come from a verified EA call-site.
+
+        creation_source text alone is NOT sufficient for this flag.
+        """
+        if not isinstance(context, dict):
+            return False
+        try:
+            return (context.get('native_origin_verified') is True and
+                    context.get('school_verified') is True and
+                    context.get('schedule_guid') in SCHEDULES and
+                    str(context.get('save_slot')) == self.manifest['save_slot'] and
+                    type(context.get('sim_day')) is int and
+                    context['sim_day'] == self.manifest['sim_day'] and
+                    str(context.get('zone_id')) == self.manifest['school_zone'])
+        except (KeyError, TypeError):
+            return False
+
+    def _guest_list(self, original, new_entries, permit_teacher_guests,
+                    context=None):
+        """Clone EA guests, replacing ONLY verified vanilla student slots.
+
+        EA can supply an *already populated* original Base/Core guest list.
+        Appending new students to it would leave random classmates, while
+        refusing every non-empty list prevents roster-first takeover.
+        Replace only original EA student-job guests, never teachers/other
+        roles, and only with separate verified native call provenance.
+        This is an OFFLINE proposal; no runtime override is authorized.
+        """
+        if original is None:
+            return None
+        try:
+            old = tuple(original.guest_info_gen())
+            # We cannot identify arbitrary jobs as school students. Core
+            # has exactly five distinct special student jobs; Base one.
+            expected_student_jobs = (
+                frozenset(CORE_JOBS) if permit_teacher_guests
+                else frozenset((BASE_JOB,)))
+            preserved = []
+            replaceable = []
+            original_jobs = set()
+            for g in old:
+                job = getattr(getattr(g, 'job_type', None), 'guid64', None)
+                sid = _sid(getattr(g, 'sim_id', None))
+                if (sid is None or
+                        (job not in expected_student_jobs and
+                         job not in TEACHER_JOBS)):
+                    return None
+                if job in TEACHER_JOBS:
+                    if (not permit_teacher_guests or
+                            sid in self.manifest['all_16']):
+                        return None
+                    preserved.append(g)
+                else:
+                    # Multiple guests for the same native special slot,
+                    # or two Base students in the same Base situation,
+                    # are ambiguous and must never be erased.
+                    if job in original_jobs:
+                        return None
+                    original_jobs.add(job)
+                    replaceable.append(g)
+            if (replaceable and
+                    (not isinstance(context, dict) or
+                     context.get('original_ea_school_guest_takeover_verified')
+                     is not True)):
+                return None
+            requested_jobs = tuple(job for _, job in new_entries)
+            if (len(requested_jobs) != len(set(requested_jobs)) or
+                    set(requested_jobs) != (
+                        set(CORE_JOBS) if permit_teacher_guests
+                        else {BASE_JOB})):
+                return None
+            replacement = type(original)(
+                invite_only=True,
+                host_sim_id=original.host_sim_id,
+                filter_requesting_sim_id=original.filter_requesting_sim_id)
+            for guest in preserved:
+                replacement.add_guest_info(guest.clone_for_guest_list())
+            for sid, job_id in new_entries:
+                guest = self.guest_info_class.construct_from_purpose(
+                    int(sid), self.job_by_id[job_id], self.invited_purpose)
+                if (str(getattr(guest, 'sim_id', None)) != sid or
+                        getattr(getattr(guest, 'job_type', None), 'guid64', None)
+                        != job_id or
+                        getattr(guest, 'accept_alternate_sim', None) is not False):
+                    return None
+                replacement.add_guest_info(guest)
+            actual = tuple(replacement.guest_info_gen())
+            if (len(actual) != len(preserved) + len(new_entries) or
+                    tuple(str(g.sim_id) for g in actual[len(preserved):]) !=
+                    tuple(sid for sid, _ in new_entries) or
+                    replacement.invite_only is not True or
+                    any(str(g.sim_id) in self.manifest['all_16']
+                        for g in actual[:len(preserved)])):
+                return None
+            return replacement
+        except (AttributeError, ValueError, TypeError, InvitationPlanError):
+            return None
+
+    def preview(self, situation_guid, original_guest_list, context):
+        """Return (ticket, clone) or (None,None), never change EA.
+
+        Core is ONE EA situation with five explicit student roles;
+        Base is EIGHT individual EA situations with one exact NPC each.
+        Native filter and scheduling compatibility are NOT assumed.
+        """
+        if self._local_core_holds is None or not self._valid_origin(context):
+            return None, None
+        if situation_guid == CORE_SITUATION:
+            ticket = 'core'
+            if ticket in self._pending or self._core_confirmed:
+                return None, None
+            entries = tuple((sid, job) for job, sid in
+                            self._local_core_holds)
+            clone = self._guest_list(original_guest_list, entries, True,
+                                     context)
+        elif situation_guid == BASE_SITUATION:
+            # EA's original WeeklyScheduleDay lists Base BEFORE Core.
+            # Plan selection here; an independent pre-spin-up role
+            # reservation gate is required before any live adapter is
+            # allowed to execute these proposals.
+            if self._base_cursor >= 8:
+                return None, None
+            sid = self.manifest['base_ids'][self._base_cursor]
+            if sid in set(x for _, x in self._local_core_holds):
+                return None, None
+            ticket = 'base:' + sid
+            if ticket in self._pending or ticket in self._confirmed:
+                return None, None
+            clone = self._guest_list(original_guest_list, ((sid, BASE_JOB),),
+                                     False, context)
+        else:
+            return None, None
+        if clone is None:
+            return None, None
+        self._pending.add(ticket)
+        return ticket, clone
+
+    def has_native_student_invitation(self, situation_guid, job_guid,
+                                      sim_id):
+        """True only for THIS student/job with a native guest ticket.
+
+        Pending tickets cover synchronous BouncerRequest construction
+        during create_situation(); confirmed tickets cover later Bouncer
+        allocation after EA returns a positive situation ID.
+        A cancelled or unattempted invite NEVER authorizes filter bypass.
+        This is MHS guest-list evidence only, not actual EA acceptance.
+        """
+        try:
+            sid = _sid(sim_id)
+            if situation_guid == BASE_SITUATION and job_guid == BASE_JOB:
+                ticket = 'base:' + sid
+                return (sid in self.manifest['base_ids']
+                        and (ticket in self._pending
+                             or ticket in self._confirmed))
+            if situation_guid == CORE_SITUATION and job_guid in CORE_JOBS:
+                selected = dict(self.manifest['core_assignments'])
+                return (selected.get(job_guid) == sid
+                        and ('core' in self._pending
+                             or 'core' in self._confirmed))
+            return False
+        except (InvitationPlanError, ValueError, TypeError, KeyError):
+            return False
+
+    def acknowledge_created(self, ticket, situation_id):
+        """Commit only an EA situation-creation receipt, NOT attendance."""
+        if (ticket not in self._pending or type(situation_id) is not int or
+                situation_id <= 0 or situation_id in self._created_situation_ids):
+            return False
+        self._pending.remove(ticket)
+        self._confirmed.add(ticket)
+        self._created_situation_ids.add(situation_id)
+        self._created_by_ticket[ticket] = situation_id
+        if ticket == 'core':
+            self._core_confirmed = True
+        else:
+            self._base_cursor += 1
+        return True
+
+    def native_created_receipts(self):
+        """Immutable original EA situation IDs linked to exact invitations.
+
+        This does not attest any Sim has joined a job. Intended for a
+        read-only, independently post-Bouncer job audit.
+        """
+        return tuple(sorted(self._created_by_ticket.items()))
+
+    def cancel(self, ticket):
+        """Rollback an unsuccessful original EA creation attempt."""
+        if ticket in self._pending:
+            self._pending.remove(ticket)
+            return True
+        return False
+
+    def snapshot(self):
+        return {
+            'status': 'NATIVE_INVITATION_RECEIPTS_ONLY',
+            'core_situation_created': self._core_confirmed,
+            'base_situations_created': self._base_cursor,
+            'base_situations_required': 8,
+            'original_schedule_base_first_supported_in_preview': True,
+            'local_core_ids_held_before_base': (
+                tuple((job, sid) for job, sid in self._local_core_holds)
+                if self._local_core_holds is not None else ()),
+            'actual_ea_core_reservations_verified': False,
+            'core_reservations_before_ea_verified': False,
+            'all_nine_situations_created': (
+                self._core_confirmed and self._base_cursor == 8),
+            'native_creation_receipts_count': len(self._created_by_ticket),
+            'student_ids_requested': (
+                tuple(sid for _, sid in self.manifest['core_assignments'])
+                if self._core_confirmed else ()) +
+                self.manifest['base_ids'][:self._base_cursor],
+            'attendance_verified': False,
+            'ea_job_assignment_verified': False,
+            'class_8_plus_8_verified': False,
+        }
