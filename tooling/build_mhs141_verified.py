@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
-NAME='MHS_M141_DIAGNOSTICA_AUTOMATICA_LICEO_MENSA_MAC.ts4script'
+NAME='MHS_M141B_MONITOR_ATTIVO_LICEO_MENSA_MAC.ts4script'
 MAGIC=bytes((66,13,13,10))
 SOURCES=tuple(ROOT/path for path in (
 'src/m2_registry/mhs_m2_roster.py',
@@ -54,25 +54,27 @@ def build(folder):
                 z.write(str(dest),src.stem+'.pyc')
     details={'name':NAME,'sha256':hashlib.sha256(result.read_bytes()).hexdigest(),
         'python':'3.7','module_count':len(SOURCES),
-        'real_m141_commands_packaged':True,'seat_routing_fix_verified':False, 'lunch_fix_verified':False}
-    (out/'M141_BUILD_REPORT.json').write_text(
+        'real_m141_commands_packaged':True, 'missed_prep_bootstrap_fixed':True,'seat_routing_fix_verified':False, 'lunch_fix_verified':False}
+    (out/'M141B_BUILD_REPORT.json').write_text(
         json.dumps(details,indent=2),encoding='utf-8')
-    (out/'LEGGIMI_M141.txt').write_text(
-        'M141 beta diagnostica Mac, usare soltanto una COPIA del salvataggio.\n'
-        'In Mods mantenere UN SOLO controller di scuola: rimuovere M140/M139 e altre beta.\n'
-        'Da casa, prima del liceo: mhs141.arm\n'
-        'Quando EA avvia la prima preparazione (circa 09:30), la registrazione parte automaticamente.\n'
-        'La M141 osserva ogni 3 minuti Sim i 16 studenti, le loro azioni, posizioni e ruoli.\n'
-        'Al liceo: mhs141.monitor mostra se il timer funziona.\n'
-        'Alla fine della giornata o dopo pranzo: mhs141.log salva immediatamente il file.\n'
-        'Invia MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M141_GIORNATA_LEZIONI_MENSA.json\n'
-        'Alla fine: mhs141.stop; nessuna punizione o interazione viene disabilitata.\n'
-        'Non cambiare il file del registro, le lavagne o lotti; test solo su copia.\n',
+    (out/'LEGGIMI_M141B.txt').write_text(
+        'M141b Mac diagnostic beta: use only a TEST COPY of your save.\n'
+        'Remove M141, M140, M139 and any other experimental controller from Mods.\n'
+        'Before traveling to school: mhs141.arm at home.\n'
+        'At school (even if past 09:30): mhs141.monitor.\n'
+        'M141b starts observation automatically on arrival, native EA situations,\n'
+        'or through the monitor command if the scheduled observation was missed.\n'
+        'Expected: M141b MONITOR scuola=True timer=True campioni>=1.\n'
+        'During school it records actions and positions every 3 Sim minutes.\n'
+        'After lunch or at the end of the school day: mhs141.log to flush.\n'
+        'Upload MY_HIGH_SCHOOL_M25_TEST_DATA/MHS_M141_GIORNATA_LEZIONI_MENSA.json.\n'
+        'If timer remains False, send its error value rather than playing all day.\n'
+        'Finish: mhs141.stop. Observation only: no lunch or lesson correction yet.\n',
         encoding='utf-8')
     return details
 
 
 if __name__=='__main__':
     if len(sys.argv)!=2:
-        raise SystemExit('Usage: python -m tooling.build_mhs140_verified OUTDIR')
+        raise SystemExit('Usage: python -m tooling.build_mhs141_verified OUTDIR')
     print(json.dumps(build(sys.argv[1]),indent=2))
