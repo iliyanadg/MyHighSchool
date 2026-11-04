@@ -87,6 +87,38 @@ class Cases(unittest.TestCase):
         self.assertFalse(d['applied'])
         self.assertEqual(d['reason'],'M139_PICKER_BRANCHES_NOT_PATCHED')
         self.assertIsNone(undo)
+    def test_extra_runtime_tests_and_reordered_state_are_preserved(self):
+        start,subs=fixture()
+        marker=object()
+        marker2=TestSetReference(555555)
+        changed=subs[SUBJECT_IDS[0]]
+        prior=changed.test_globals
+        # The game variant has one added test; exact tuple length is not 3.
+        changed.test_globals=TestList((prior[0],marker,prior[1],
+                                       prior[2],marker2))
+        old=changed.test_globals
+        result,undo=install_subject_picker(start,subs,True)
+        self.assertTrue(result['applied'],result)
+        now=changed.test_globals
+        self.assertEqual(len(now),5)
+        self.assertIs(now[0],old[0])
+        self.assertIs(now[1],marker)
+        self.assertIs(now[2],start.test_globals[1])
+        self.assertIs(now[3],old[3])
+        self.assertIs(now[4],marker2)
+        self.assertTrue(undo())
+        self.assertIs(changed.test_globals,old)
+    def test_unrecognized_subject_shape_fails_with_runtime_details(self):
+        start,subs=fixture()
+        subject=subs[SUBJECT_IDS[0]]
+        subject.test_globals=TestList((SimInfoTest(),object(),
+                                       TestSetReference(276240)))
+        result,undo=install_subject_picker(start,subs,True)
+        self.assertFalse(result['applied'])
+        self.assertEqual(result['subject_guid'],SUBJECT_IDS[0])
+        self.assertEqual(result['reason'],'SUBJECT_CLASS1_STATE_NOT_UNIQUE')
+        self.assertEqual(len(result['runtime_test_shape']),3)
+        self.assertIsNone(undo)
     def test_does_not_patch_without_m139_adapter(self):
         start,subs=fixture()
         prior={g:x.test_globals for g,x in subs.items()}
@@ -100,7 +132,8 @@ class Cases(unittest.TestCase):
             (SimInfoTest(),StateTest(276077),TestSetReference(276240)))
         data,undo=install_subject_picker(start,subs,True)
         self.assertFalse(data['applied'])
-        self.assertEqual(data['reason'],'SUBJECT_CLASS1_STATE_UNVERIFIED')
+        self.assertEqual(data['reason'],'SUBJECT_CLASS1_STATE_NOT_UNIQUE')
+        self.assertIsNotNone(data.get('runtime_test_shape'))
         self.assertIsNone(undo)
     def test_refuse_incomplete_ea_subjects(self):
         start,subs=fixture()
