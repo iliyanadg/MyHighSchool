@@ -70,6 +70,13 @@ def _is_class1_state(item):
 
 
 def _validate_source(source):
+    """Find M139's actual tuned EA/Zerbu picker, not a wrapper position.
+
+    Under EA runtime a TestSetReference in exported XML is resolved into a
+    snippet instance with guid64 279071. M139 already uses this exact source.
+    Its class-start globals can have a runtime-expanded shape, so requiring
+    len(test_globals)==2 or a TestSetReference object rejects valid installs.
+    """
     if source is None or getattr(source,'guid64',None)!=CLASS_START_ID:
         return None,'CLASS_START_AFFORDANCE_MISSING'
     original=getattr(source,'test_globals',None)
@@ -79,12 +86,29 @@ def _validate_source(source):
         tests=tuple(original)
     except Exception:
         return None,'CLASS_START_TEST_GLOBALS_UNREADABLE'
-    if len(tests)!=2 or _typename(tests[0])!='SimInfoTest':
-        return None,'CLASS_START_TESTS_CHANGED'
-    if not _is_picker_reference(tests[1]):
-        return None,'CLASS_START_PICKER_REF_UNVERIFIED'
-    return tests[1],'EA_CLASS_START_PICKER_VERIFIED'
-
+    snippets=[test for test in tests
+              if getattr(test,'guid64',None)==PICKER_ID and
+              getattr(test,'__name__',None) in (
+                  'testSet_HighSchool_Active_PickWhiteboard_Student',
+                  'Zerbu_GTS5_WhiteboardStudentTestSnippet')]
+    if len(snippets)!=1:
+        return None,'CLASS_START_PICKER_NOT_UNIQUE_OR_MISSING'
+    picker=snippets[0]
+    # The M139 installer validated the game's expected OR-branch hierarchy
+    # and appended precisely one playable Class2 branch, retaining EA NPC
+    # and Zerbu Elementary branches. Confirm that applied shape remains.
+    tests=getattr(picker,'test',None)
+    if type(tests).__name__!='CompoundTestList':
+        return None,'PICKER_IS_NOT_COMPOUND'
+    try:
+        groups=tuple(tests)
+    except Exception:
+        return None,'PICKER_BRANCHES_UNREADABLE'
+    target_count=(5 if getattr(picker,'__name__',None)==
+                  'Zerbu_GTS5_WhiteboardStudentTestSnippet' else 4)
+    if len(groups)!=target_count:
+        return None,'M139_PICKER_BRANCHES_NOT_PATCHED'
+    return picker,'VERIFIED_M139_EA_ZERBU_PICKER_INSTANCE'
 
 def _validate_subject(affordance,expected_guid):
     if affordance is None or getattr(affordance,'guid64',None)!=expected_guid:
