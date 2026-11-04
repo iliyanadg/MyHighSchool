@@ -1,0 +1,56 @@
+name: M143 native EA class and lunch Mac beta
+on:
+  push:
+    branches: [feature/m143-native-attendance-and-lunch]
+    paths:
+      - 'src/m143_native_attendance/**'
+      - 'src/m142_two_periods/mhs142_school_policy.py'
+      - 'tests/test_m143_*.py'
+      - 'tooling/build_mhs143_verified.py'
+      - '.github/workflows/m143-native-attendance-mac.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Run M143 native interaction and all relevant regression tests
+        run: |
+          python -m unittest tests.test_m143_native_attendance_and_lunch tests.test_m142_two_periods_and_lunch tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
+      - name: Compile full 25-module Sims 4 Mac Python 3.7 archive
+        run: python -m tooling.build_mhs143_verified dist_m143
+      - name: Check native Mac format and all console commands
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs143_verified import SOURCES, MAGIC, NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m143/'+NAME) as z:
+              names=z.namelist()
+              assert len(names)==len(SOURCES)==25,(len(names),len(SOURCES))
+              assert len(set(names))==25
+              assert all(z.read(x)[:4]==MAGIC for x in names)
+              for required in ('mhs143_day_trace.pyc',
+                   'mhs143_classroom_controller.pyc',
+                   'mhs143_native_attendance_policy.pyc',
+                   'mhs142_school_policy.pyc',
+                   'mhs140_native_lesson_entry.pyc'):
+                  assert required in names,required
+              assert 'mhs142_classroom_controller.pyc' not in names
+              assert 'mhs141_classroom_controller.pyc' not in names
+              script=z.read('mhs143_classroom_controller.pyc')
+              for cmd in ('mhs143.arm','mhs143.monitor','mhs143.report',
+                   'mhs143.stop','mhs143.periodi'):
+                  assert cmd.encode() in script,cmd
+          print('M143 Python3.7 script archive validated OFFLINE; no in-game assertion.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M143_NATIVE_EA_ATTEND_AND_NPC_LUNCH_MAC_BETA
+          path: |
+            dist_m143/MHS_M143_LEZIONI_EA_E_MENSA_MAC_BETA.ts4script
+            dist_m143/M143_BUILD_REPORT.json
+            dist_m143/LEGGIMI_M143.txt
+          if-no-files-found: error
