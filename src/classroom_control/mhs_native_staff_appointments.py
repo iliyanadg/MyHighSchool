@@ -112,6 +112,29 @@ def project_native_staff_guests(old,situation_guid,plan,job_types,guest_cls,
         forbidden={str(sid) for sid in excluded_ids}
         if set(wanted.values()) & forbidden:
             return None,{'applied':False,'reason':'STAFF_STUDENT_OR_CORE_COLLISION'}
+        # The original situation can contain unchanged staff, visitors or
+        # pupil guests. Replacing a teacher with a Sim already attending that
+        # same situation in another job would duplicate an EA participant.
+        # Zero/None are native unbound guest placeholders, not a Sim identity.
+        requested=tuple(wanted.values())
+        if len(set(requested))!=len(requested):
+            return None,{'applied':False,'reason':'DUPLICATED_APPOINTED_SIM'}
+        retained_ids=set()
+        for guest in original:
+            existing_job=getattr(getattr(guest,'job_type',None),'guid64',None)
+            if existing_job in wanted:
+                continue
+            raw_id=getattr(guest,'sim_id',None)
+            if type(raw_id) not in (str,int):
+                continue
+            try:
+                sid=_id(raw_id)
+            except ValueError:
+                continue
+            retained_ids.add(sid)
+        if set(requested) & retained_ids:
+            return None,{'applied':False,
+                         'reason':'APPOINTED_SIM_ALREADY_HAS_OTHER_EA_JOB'}
         modified=type(old)(
             invite_only=True,host_sim_id=old.host_sim_id,
             filter_requesting_sim_id=old.filter_requesting_sim_id)
