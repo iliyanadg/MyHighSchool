@@ -48,49 +48,50 @@ def public_rows(rows):
             for row in rows]
 
 
+def _trait_mutator(row):
+    """Find paired public trait methods; SimInfo often owns them, not tracker."""
+    for owner_name in ('trait_tracker','sim_info'):
+        owner=row[owner_name]
+        if (callable(getattr(owner,'add_trait',None)) and
+                callable(getattr(owner,'remove_trait',None))):
+            return owner,owner_name
+    return None,'UNAVAILABLE'
+
+
 def align_roster_trait(rows,trait):
-    """Opt-in. Atomic *preflight*, best-effort rollback after exceptions."""
+    """Opt-in, preflight all; rollback every attempted change on failure."""
     mismatches=[row for row in rows if row['requires_change']]
+    owners={}
     for row in mismatches:
-        tracker=row['trait_tracker']
-        method=getattr(tracker,'add_trait' if
-                       row['ea_class1_trait_expected'] else
-                       'remove_trait',None)
-        undo=getattr(tracker,'remove_trait' if
-                     row['ea_class1_trait_expected'] else
-                     'add_trait',None)
-        if not callable(method) or not callable(undo):
+        owner,source=_trait_mutator(row)
+        if owner is None:
             return {'success':False,'changed':0,
                     'reason':'TRAIT_MUTATOR_UNAVAILABLE'}
-    changed=[]
+        owners[row['sim_id']]=owner
+    attempted=[]
     try:
         for row in mismatches:
-            tracker=row['trait_tracker']
-            method=getattr(tracker,'add_trait' if
-                           row['ea_class1_trait_expected'] else
-                           'remove_trait')
+            owner=owners[row['sim_id']]
+            desired=row['ea_class1_trait_expected']
+            method=owner.add_trait if desired else owner.remove_trait
+            attempted.append(row)
             method(trait)
-            changed.append(row)
-            if not tracker.has_trait(trait)==row['ea_class1_trait_expected']:
+            if bool(row['trait_tracker'].has_trait(trait))!=desired:
                 raise RuntimeError('TRAIT_POSTCHECK_FAILED')
     except Exception as exc:
         rollback_ok=True
-        for row in reversed(changed):
-            tracker=row['trait_tracker']
-            method=getattr(tracker,'remove_trait' if
-                           row['ea_class1_trait_expected'] else
-                           'add_trait',None)
+        for row in reversed(attempted):
+            owner=owners[row['sim_id']]
+            restore=row['ea_class1_trait_present']
             try:
-                if method is None:
-                    raise RuntimeError('NO_REVERSE_METHOD')
+                method=owner.add_trait if restore else owner.remove_trait
                 method(trait)
-                rollback_ok=rollback_ok and (
-                    bool(tracker.has_trait(trait))==
-                    row['ea_class1_trait_present'])
+                if bool(row['trait_tracker'].has_trait(trait))!=restore:
+                    rollback_ok=False
             except Exception:
                 rollback_ok=False
-        return {'success':False,'changed':len(changed),
+        return {'success':False,'changed':len(attempted),
                 'reason':type(exc).__name__,
                 'rollback_verified':rollback_ok}
-    return {'success':True,'changed':len(changed),
+    return {'success':True,'changed':len(attempted),
             'reason':'ALIGNED' if mismatches else 'ALREADY_ALIGNED'}
