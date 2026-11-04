@@ -38,6 +38,9 @@ from mhs147_class_timing_policy import (
     can_early_request, preparation_period, validate_anchors, truant_evidence,
     roster_rearm_required)
 from mhs_school_session import plan_roster, school_day_key
+from mhs_native_staff_appointments import (
+    ROLE_JOBS, ALL_NATIVE_JOBS, load_native_staff_plan,
+    project_native_staff_guests)
 from mhs_attendance_policy import LessonRequestLedger, protected_gameplay
 from mhs_queue_readback import queue_snapshot
 from mhs143_native_attendance_policy import (
@@ -59,6 +62,8 @@ BASE_JOB=277894
 CORE_JOBS=(278965,278966,278967,278968,303765)
 CORE_SITUATION=298052
 STAFF_JOBS=frozenset((277895,278963))
+VENUE_STAFF_SITUATION=298096
+CAFETERIA_STAFF_SITUATION=278011
 _RUNTIME=None
 
 
@@ -274,6 +279,13 @@ class ThirteenNPCController(object):
         self.lesson_entry_last_ticks=None
         self.school_staff_samples=[]
         self.school_readback_errors=[]
+        self.staff_plan_loader=None
+        self.staff_plan={'jobs':{},'blocked':{},'roster_read_only':True}
+        self.staff_jobs={}
+        self.staff_pending=None
+        self.staff_created={}
+        self.staff_projection_reports=[]
+        self.staff_filter_hits=0
 
     def begin_school_day(self, key):
         """Reset our bookkeeping before EA's first create on a new day.
@@ -304,6 +316,17 @@ class ThirteenNPCController(object):
         self.lesson_entry_last_ticks=None
         self.school_staff_samples[:]=[]
         self.school_readback_errors[:]=[]
+        self.staff_pending=None
+        self.staff_created.clear()
+        self.staff_projection_reports[:]=[]
+        self.staff_filter_hits=0
+        if callable(self.staff_plan_loader):
+            try:
+                self.staff_plan=self.staff_plan_loader(self.slot,groups)
+            except Exception as exc:
+                self.staff_plan={'jobs':{},'blocked':{
+                    'all':'STAFF_PLAN_'+type(exc).__name__},
+                    'roster_read_only':True}
         for name in ('created','lesson_created','prep_created'):
             getattr(self,name).clear()
         for name in ('lesson_attempted','prep_attempted','m140_auto_attempted',
@@ -452,7 +475,13 @@ class ThirteenNPCController(object):
                        and sid in self.lesson_classes[spec[0]-1]
                        and (self.lesson_pending==spec[0]
                             or spec[0] in self.lesson_created))
-        if not (native_base or native_core or native_lesson or native_prep):
+        native_staff=(situation in ROLE_JOBS and
+                      self.staff_plan.get('jobs',{}).get(job)==sid and
+                      job in dict(ROLE_JOBS[situation]).values() and
+                      (self.staff_pending==situation or
+                       situation in self.staff_created))
+        if not (native_base or native_core or native_lesson or native_prep
+                or native_staff):
             return False
         zone,_=zone_schedule()
         if zone!=self.bound_zone:
@@ -467,6 +496,12 @@ class ThirteenNPCController(object):
                    getattr(getattr(request,'_job_type',None),'filter',None)):
             return False
         info=services.sim_info_manager().get(int(sid))
+        if native_staff:
+            return (info is not None and
+                    getattr(info,'age',None) in
+                    (Age.YOUNGADULT,Age.ADULT,Age.ELDER) and
+                    getattr(info,'species',None)==Species.HUMAN and
+                    sid not in self.classroom_membership)
         return (info is not None and getattr(info,'age',None)==Age.TEEN
                 and getattr(info,'species',None)==Species.HUMAN
                 and (native_lesson or native_prep or
@@ -804,6 +839,10 @@ class ThirteenNPCController(object):
                     self.filter_hits+=1
                     situ=getattr(getattr(obj,'_situation',None),
                                  'guid64',None)
+                    if (situ in ROLE_JOBS and
+                            getattr(getattr(obj,'_job_type',None),
+                                'guid64',None) in ALL_NATIVE_JOBS):
+                        self.staff_filter_hits+=1
                     if situ==CORE_SITUATION:
                         self.core_filter_hits+=1
                     if situ in LESSON_JOBS:
@@ -1083,7 +1122,23 @@ def arm_m127():
                 or len(set(selected[0]+selected[1]))!=16):
             return 'M147 BLOCCATA: registro classi 1 e 2 non valido'
         trial.lesson_classes=selected
+        def read_staff_plan(active_slot,active_groups):
+            from mhs53_staff_store import StaffStore
+            saved=StaffStore(FOLDER).load(active_slot)
+            return load_native_staff_plan(
+                saved,services.sim_info_manager(),Species.HUMAN,
+                (Age.YOUNGADULT,Age.ADULT,Age.ELDER),
+                enrolled_ids=tuple(sid for group in active_groups
+                                   for sid in group))
+        trial.staff_plan_loader=read_staff_plan
+        try:
+            trial.staff_plan=read_staff_plan(slot,selected)
+        except Exception as exc:
+            trial.staff_plan={'jobs':{},'blocked':{
+                'all':'STAFF_PLAN_'+type(exc).__name__},
+                'roster_read_only':True}
         job_mgr=services.get_instance_manager(Types.SITUATION_JOB)
+        trial.staff_jobs={guid:job_mgr.get(guid) for guid in ALL_NATIVE_JOBS}
         trial.lesson_jobs={j:job_mgr.get(j)
                            for j in set(x[1] for x in LESSON_JOBS.values())}
         trial.prep_jobs={j:job_mgr.get(j)
