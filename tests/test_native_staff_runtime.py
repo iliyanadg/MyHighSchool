@@ -86,6 +86,49 @@ class StaffNativeRuntimeTests(unittest.TestCase):
         self.assertFalse(runtime.eligible(request))
 
 
+class StaffNativeCreationTests(unittest.TestCase):
+    def test_native_vendor_invited_once_even_if_ea_creates_another_situation(self):
+        from tests.test_native_staff_appointments import GuestList,Factory
+        from mhs_native_staff_appointments import project_native_staff_guests
+        runtime,_,_,_=RuntimeTests().load_controller()
+        runtime.begin_school_day(('1',1))
+        runtime.staff_plan={'jobs':{278010:'46'},'blocked':{}}
+        runtime.staff_jobs={278010:SimpleNamespace(guid64=278010)}
+        runtime.guest_cls=Factory
+        runtime.in_school=lambda:True
+        runtime.m141_timer=object()  # Keep out of time-based diagnostics.
+        observed=[]
+        owner=runtime.manager_owner
+        def native_create(manager,kind,guest_list):
+            observed.append(tuple(g.sim_id for g in guest_list.guest_info_gen()))
+            return 800+len(observed)
+        owner.create_situation=native_create
+        env=runtime.install.__func__.__globals__
+        env.update({
+            'VENUE_STAFF_SITUATION':298096,
+            'CAFETERIA_STAFF_SITUATION':278011,
+            'project_native_staff_guests':project_native_staff_guests,
+            'zone_schedule':lambda:(20,277657),
+            'game_clock':lambda _: {'hour':8,'minute':0},
+            '_m142_roll_period_if_due':lambda *args:None,
+            'services':SimpleNamespace(time_service=lambda:object()),
+        })
+        self.assertTrue(runtime.install())
+        guest_list=GuestList()
+        manager=owner()
+        self.assertEqual(manager.create_situation(
+            SimpleNamespace(guid64=278011),guest_list),801)
+        self.assertEqual(runtime.staff_created,{278011:801})
+        self.assertEqual(observed[0],(46,))
+        # The second native vendor situation, if one exists, must not
+        # reuse the exact same person to fill two concurrent EA jobs.
+        self.assertEqual(manager.create_situation(
+            SimpleNamespace(guid64=278011),guest_list),802)
+        self.assertEqual(observed[1],())
+        self.assertEqual(runtime.staff_created,{278011:801})
+
+
+
 class StaffDailyPersistenceTests(unittest.TestCase):
     def test_staff_registry_is_snapshotted_once_per_school_day(self):
         runtime,_,_,groups=RuntimeTests().load_controller()
