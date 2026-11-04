@@ -83,6 +83,27 @@ class TestM131(unittest.TestCase):
         self.assertIs(infos[1].received[0][1],two)
         self.assertFalse(result['guaranteed_physically_seated'])
 
+    def test_do_not_duplicate_early_subject_started_before_10(self):
+        # M145d source shows playables already perform a native subject
+        # Whiteboard_Attend_Art at 09:37. M146 preclass may make Class2
+        # run at 09:37 too; the scheduled 10:00 push must not override it.
+        for action in ('super_HighSchool_Active_Whiteboard_Attend_Art',
+                       'super_HighSchool_Active_UseBook_Class',
+                       'super_HighSchool_Active_CreateBook_Class',
+                       'mixer_HighSchool_Active_WriteOnBook'):
+            info=Info(9)
+            sim=Sim(info.received)
+            sim.queue.running=type(action,(),{})()
+            info.get_sim_instance=lambda :sim
+            target=object_HighSchool_Active_Whiteboard(2)
+            result=queue_playable_class(
+                ({'sim_id':'9','registered_class':2,'sim_info':info},),
+                {2:[target]},object(),lambda _:'EA_CONTEXT')
+            self.assertFalse(result['success'])
+            self.assertEqual(result['results'][0]['reason'],
+                             'EXISTING_PROTECTED_ACTION')
+            self.assertEqual(info.received,[])
+
     def test_no_board_means_no_partial_player_mutation(self):
         infos=[Info(1),Info(9)]
         played=[{'sim_id':str(info.sim_id),
