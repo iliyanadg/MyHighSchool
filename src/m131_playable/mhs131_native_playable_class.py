@@ -87,9 +87,12 @@ def queue_playable_class(played,boards,affordance,context_factory):
             running=getattr(queue,'running',None)
             running_name=type(running).__name__ if running else ''
             # Never interrupt existing school player lesson or protected needs.
-            if ('HighSchool_Active_Whiteboard_Class_Start' in running_name
+            if (('HighSchool_Active_Whiteboard_' in running_name
                     or 'HighSchool_Active_UseBook_Class' in running_name
-                    or 'Toilet' in running_name or 'toilet' in running_name):
+                    or 'HighSchool_Active_CreateBook_Class' in running_name
+                    or 'HighSchool_Active_WriteOnBook' in running_name
+                    or 'HighSchool_Active_Listen_' in running_name
+                    or 'Toilet' in running_name or 'toilet' in running_name)):
                 results.append({'sim_id':row['sim_id'],
                     'queued':False,'reason':'EXISTING_PROTECTED_ACTION'})
                 continue
