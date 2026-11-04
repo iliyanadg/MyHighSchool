@@ -1,0 +1,46 @@
+name: M136 playable only EA interaction tests Mac
+on:
+  push:
+    branches: [feature/m55-presenze-studente-test]
+    paths:
+      - 'src/m136_player_tests/**'
+      - 'tests/test_m136_*.py'
+      - 'tooling/build_mhs136_verified.py'
+      - '.github/workflows/m136-player-tests-mac.yml'
+  workflow_dispatch:
+jobs:
+  validate_build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Offline tests (not game validation)
+        run: python -m unittest tests.test_m136_player_test_hierarchy tests.test_m134_native_player_job_audit tests.test_m132_native_player_test_audit tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit tests.test_m128_trait_alignment tests.test_m128_board_posture_audit tests.test_m127_school_timing_readback tests.test_m126_early_preparation_projection tests.test_m126_early_school_integration tests.test_m125_safe_recovery tests.test_m124_lesson_action_readback tests.test_m123_lesson_guest_projection tests.test_m121_thirteen_npc_trial tests.test_m122_classroom_job_readback -v
+      - name: Compile Mac Python 3.7
+        run: python -m tooling.build_mhs136_verified dist_m136
+      - name: Verify packaged M136 playable diagnostic
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs136_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m136/'+NAME) as z:
+              assert len(z.namelist()) == len(SOURCES) == 20
+              assert all(z.read(f)[:4] == MAGIC for f in z.namelist())
+              assert 'mhs136_classroom_controller.pyc' in z.namelist()
+              assert 'mhs136_player_test_hierarchy.pyc' in z.namelist()
+              assert 'mhs134_classroom_controller.pyc' not in z.namelist()
+              script=z.read('mhs136_classroom_controller.pyc')
+              for command in ('mhs136.arm','mhs136.sync','mhs136.testgiocabili','mhs136.stop'):
+                  assert command.encode() in script,command
+          print('M136 Mac beta valid; native EA game behavior NOT tested')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M136_PLAYER_EA_TESTS_MAC_EXPERIMENTAL
+          path: |
+            dist_m136/MHS_M136_TEST_GIOCABILI_MAC_BETA.ts4script
+            dist_m136/M136_BUILD_REPORT.json
+            dist_m136/LEGGIMI_M136.txt
+          if-no-files-found: error
