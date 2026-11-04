@@ -2,8 +2,9 @@
 
 Evidence: EA XML from user's 2026-11-04 Sims4Studio extraction:
 - 276774 (Class_Start) global tests are SimInfo + 279071 PickWhiteboard
-- 293197 and 293200 subject Attend globals are teen playable, Class1_True,
-  and subject-day test reference.
+- 293197 and 293200 exported subject Attend globals are teen playable,
+  Class1_True, and subject-day test reference. Other six EA subjects might
+  have additional runtime tests: preserve every other item and its position.
 - 279071 PickWhiteboard has EA/Zerbu compatibility adapted by M139 to test
   exact trait and board on both classes (no assignment to the wrong board).
 - NPC 297779 cannot safely be pushed on playables: its global test requires
@@ -12,8 +13,11 @@ Evidence: EA XML from user's 2026-11-04 Sims4Studio extraction:
 Patch subject interaction 'test_globals' by replacing ONLY their standalone
 Class1-only StateTest with the very same PickWhiteboard TestSetReference object
 used by the original Class_Start. The original subject/day tests stay intact.
-All 8 known EA subjects are validated and patched together or NONE are patched.
-Any unknown post-update tuning refuses the install. A restore callback restores
+All 8 known EA subjects require exactly one recognized SimInfoTest, a
+unique Class1-only StateTest, and at least one subject TestSetReference.
+Every other existing test is preserved in its original order. All eight are
+patched together or NONE are patched; unknown post-update tuning refuses the
+install with a compact runtime shape diagnostic. A restore callback restores
 the exact original objects with identity checks; third-party changes refuse
 restoration, rather than overwriting other mods.
 
@@ -110,31 +114,53 @@ def _validate_source(source):
         return None,'M139_PICKER_BRANCHES_NOT_PATCHED'
     return picker,'VERIFIED_M139_EA_ZERBU_PICKER_INSTANCE'
 
+def _test_shape(tests):
+    """Return compact JSON-friendly read-only shape for game diagnostics."""
+    result=[]
+    for index,item in enumerate(tests):
+        try:
+            label=repr(item)
+        except Exception:
+            label='<unprintable>'
+        result.append({'index':index,'type':_typename(item),
+                       'ref_guid':_ref_guid(item),
+                       'label':label[:120]})
+    return tuple(result)
+
+
 def _validate_subject(affordance,expected_guid):
+    """Identify exact unique EA semantic tests, NOT exact tuple offsets.
+
+    Subject test_globals may be extended by a pack update or by another mod.
+    The known class-specific StateTest and original subject test references
+    must remain intact, and the patch must preserve every other test.
+    """
     if affordance is None or getattr(affordance,'guid64',None)!=expected_guid:
-        return None,'SUBJECT_NOT_FOUND'
+        return None,'SUBJECT_NOT_FOUND',None
     if 'super_HighSchool_Active_Whiteboard_Attend_' not in str(
             getattr(affordance,'__name__','')):
-        return None,'NOT_KNOWN_SUBJECT_AFFORDANCE'
+        return None,'NOT_KNOWN_SUBJECT_AFFORDANCE',None
     old=getattr(affordance,'test_globals',None)
     if old is None:
-        return None,'SUBJECT_GLOBAL_TESTS_MISSING'
+        return None,'SUBJECT_GLOBAL_TESTS_MISSING',None
     try:
         tests=tuple(old)
     except Exception:
-        return None,'SUBJECT_GLOBAL_TESTS_UNREADABLE'
-    if len(tests)!=3:
-        return None,'SUBJECT_TESTS_CHANGED'
-    if _typename(tests[0])!='SimInfoTest':
-        return None,'SUBJECT_SIM_INFO_TEST_CHANGED'
-    if not _is_class1_state(tests[1]):
-        return None,'SUBJECT_CLASS1_STATE_UNVERIFIED'
-    if _typename(tests[2])!='TestSetReference':
-        return None,'SUBJECT_DAY_TEST_MISSING'
-    if _is_picker_reference(tests[2]):
-        return None,'SUBJECT_ALREADY_PATCHED_OR_WRONG_REFERENCE'
-    return (old,tests),'SUBJECT_EXACT_VANILLA_TUNING_VERIFIED'
-
+        return None,'SUBJECT_GLOBAL_TESTS_UNREADABLE',None
+    shape=_test_shape(tests)
+    if not (2 <= len(tests) <= 12):
+        return None,'SUBJECT_TEST_COUNT_UNRECOGNIZED',shape
+    if sum(_typename(x)=='SimInfoTest' for x in tests)!=1:
+        return None,'SUBJECT_SIM_INFO_TEST_NOT_UNIQUE',shape
+    candidates=[i for i,x in enumerate(tests) if _is_class1_state(x)]
+    if len(candidates)!=1:
+        return None,'SUBJECT_CLASS1_STATE_NOT_UNIQUE',shape
+    references=[x for x in tests if _typename(x)=='TestSetReference']
+    if not references:
+        return None,'SUBJECT_DAY_TEST_MISSING',shape
+    if any(_is_picker_reference(x) for x in references):
+        return None,'SUBJECT_ALREADY_PATCHED_OR_WRONG_REFERENCE',shape
+    return (old,tests,candidates[0]),'SUBJECT_CLASS1_STATE_UNIQUE',shape
 
 def install_subject_picker(source,subject_map,picker_patch_applied=False):
     """Return (result, rollback) with fail-closed behavior.
@@ -152,18 +178,23 @@ def install_subject_picker(source,subject_map,picker_patch_applied=False):
     checked=[]
     for guid in SUBJECT_IDS:
         affordance=subject_map[guid]
-        prior,why=_validate_subject(affordance,guid)
+        prior,why,shape=_validate_subject(affordance,guid)
         if prior is None:
-            return {'applied':False,'reason':why,
-                    'subject_guid':guid},None
-        old,original=prior
+            return {'applied':False,'reason':why,'subject_guid':guid,
+                    'runtime_test_shape':shape},None
+        old,original,index=prior
         try:
-            new=type(old)((original[0],picker,original[2]))
-            if len(tuple(new))!=3 or tuple(new)[1] is not picker:
-                raise ValueError('NEW_TEST_LIST_SHAPE_INVALID')
+            new_tests=list(original)
+            new_tests[index]=picker
+            new=type(old)(tuple(new_tests))
+            if (len(tuple(new))!=len(original)
+                    or tuple(new)[index] is not picker
+                    or any(tuple(new)[i] is not original[i]
+                           for i in range(len(original)) if i!=index)):
+                raise ValueError('NEW_TEST_LIST_PRESERVATION_INVALID')
         except Exception as exc:
             return {'applied':False,'reason':'TESTLIST_BUILD_'+type(exc).__name__,
-                    'subject_guid':guid},None
+                    'subject_guid':guid,'runtime_test_shape':shape},None
         checked.append((affordance,old,new))
     changed=[]
     try:
