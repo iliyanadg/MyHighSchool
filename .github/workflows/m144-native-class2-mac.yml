@@ -1,0 +1,55 @@
+name: M144 real native Class2 NPC route for playable Mac beta
+on:
+  push:
+    branches: [feature/m144-native-class2-npc-route]
+    paths:
+      - 'src/m144_class2_native/**'
+      - 'tests/test_m144_*.py'
+      - 'tooling/build_mhs144_verified.py'
+      - '.github/workflows/m144-native-class2-mac.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.7'
+      - name: Native EA Class2 safety and full school regression
+        run: |
+          python -m unittest tests.test_m144_native_class2_playable tests.test_m143_native_attendance_and_lunch tests.test_m142_two_periods_and_lunch tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v
+      - name: Build Python 3.7 native Mac controller
+        run: python -m tooling.build_mhs144_verified dist_m144
+      - name: Verify command and bytecode module archive
+        run: |
+          python - <<'PY'
+          from tooling.build_mhs144_verified import SOURCES,MAGIC,NAME
+          from zipfile import ZipFile
+          with ZipFile('dist_m144/'+NAME) as z:
+              names=z.namelist()
+              assert len(names)==len(SOURCES)==26,(len(names),len(SOURCES))
+              assert len(set(names))==26
+              assert all(z.read(f)[:4]==MAGIC for f in names)
+              for f in ('mhs144_classroom_controller.pyc',
+                        'mhs144_class2_policy.pyc','mhs143_native_attendance_policy.pyc',
+                        'mhs140_native_lesson_entry.pyc'):
+                  assert f in names,f
+              for f in ('mhs143_classroom_controller.pyc',
+                        'mhs142_classroom_controller.pyc',
+                        'mhs141_classroom_controller.pyc'):
+                  assert f not in names,f
+              code=z.read('mhs144_classroom_controller.pyc')
+              for cmd in ('mhs144.arm','mhs144.monitor','mhs144.report',
+                          'mhs144.stop','mhs144.periodi'):
+                  assert cmd.encode() in code,cmd
+          print('M144 beta offline test and Mac archive verified; game test required.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MHS_M144_CLASS2_NATIVE_PLAYABLE_MAC_BETA
+          path: |
+            dist_m144/MHS_M144_PERCORSO_NATIVO_CLASSE2_MAC_BETA.ts4script
+            dist_m144/M144_BUILD_REPORT.json
+            dist_m144/LEGGIMI_M144.txt
+          if-no-files-found: error
