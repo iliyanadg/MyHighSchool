@@ -413,6 +413,7 @@ for source, destination, filename in json.loads(sys.stdin.read()):
         'Beta: gli inviti esatti del personale sono collegati ai job EA nativi.\n'
         'L ingresso effettivo nel job deve ancora essere verificato nel gioco.\n'
         'Uno o due bidelli: inviti esatti per lo stesso job EA, in beta da collaudare.\n'
+        'Con 2-3 addetti mensa scelti: solo il PRIMO resta al banco EA come lavoratore primario fisso; gli altri sono in attesa.\n'
         'Due o piu addetti mensa contemporanei NON ancora supportati.\n'
         'Per la prova usa una copia del salvataggio e leggi COLLAUDO_PERSONALE_BETA.md.\n'
         'La revisione diagnostica aggiunge letture per la seconda giornata.\n'
