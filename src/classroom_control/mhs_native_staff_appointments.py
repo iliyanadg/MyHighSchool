@@ -137,6 +137,31 @@ def _requested_groups(situation_guid,plan):
     return wanted
 
 
+
+def projected_staff_ids(projection):
+    """Return only IDs genuinely placed into a verified new EA guest list.
+
+    A configured but unprojected native role must *never* receive the blank
+    Bouncer filter by borrowing another role's successful situation receipt.
+    This is a pure, read-only receipt for the create_situation boundary.
+    """
+    if not isinstance(projection,dict) or projection.get('applied') is not True:
+        return {}
+    accepted={}
+    try:
+        for job,ids in projection['appointed'].items():
+            job=int(job)
+            values=ids if isinstance(ids,(tuple,list)) else (ids,)
+            normalized=tuple(_id(item) for item in values)
+            if (job not in ALL_NATIVE_JOBS or not normalized or
+                    len(set(normalized))!=len(normalized)):
+                return {}
+            accepted[job]=normalized
+        return accepted
+    except (TypeError,ValueError,KeyError):
+        return {}
+
+
 def project_native_staff_guests(old,situation_guid,plan,job_types,guest_cls,
                                 invitation_purpose,excluded_ids=()):
     """Project exact selected guest IDs into one verified EA staff situation.
