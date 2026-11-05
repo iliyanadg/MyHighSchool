@@ -64,8 +64,11 @@ class StaffBridgeTests(unittest.TestCase):
         self.assertEqual(p['selected_roles']['teacher1'],('41',))
         self.assertEqual(p['selected_roles']['custodians'],('44','45'))
         self.assertEqual(p['selected_roles']['cafeteria'],('46','47'))
-        self.assertNotIn(278010,p['job_groups'])
-        self.assertIn('cafeteria',p['blocked'])
+        self.assertEqual(p['job_groups'][278010],('46',))
+        self.assertEqual(p['jobs'][278010],'46')
+        self.assertEqual(p['pending_extra_staff']['cafeteria'],('47',))
+        self.assertEqual(p['blocked']['cafeteria'],
+                         'EXTRA_CAFETERIA_WORKERS_PENDING_NATIVE_STATIONS')
 
     def test_only_successfully_projected_staff_receive_bouncer_receipt(self):
         self.assertEqual(projected_staff_ids(None),{})
@@ -190,16 +193,39 @@ class StaffBridgeTests(unittest.TestCase):
         self.assertIsNone(fixed)
         self.assertEqual(report['reason'],'DUPLICATED_APPOINTED_SIM')
 
-    def test_cafeteria_multi_selection_does_not_silently_choose_first(self):
-        values={'cafeteria':('46','45')}
+    def test_cafeteria_three_names_stable_primary_and_two_explicitly_pending(self):
+        values={'cafeteria':('46','45','47')}
         infos={n:SimpleNamespace(age='ADULT',species='HUMAN')
-               for n in (45,46)}
+               for n in (45,46,47)}
         plan=load_native_staff_plan(Stored(values),Sims(infos),'HUMAN',
                                    ('ADULT',))
-        self.assertNotIn(278010,plan['jobs'])
+        self.assertEqual(plan['jobs'][278010],'46')
+        self.assertEqual(plan['job_groups'][278010],('46',))
+        self.assertEqual(plan['selected_roles']['cafeteria'],
+                         ('46','45','47'))
+        self.assertEqual(plan['pending_extra_staff']['cafeteria'],
+                         ('45','47'))
+        self.assertEqual(plan['cafeteria_service_mode'],
+                         'ONE_STABLE_PRIMARY_PARTIAL_FALLBACK')
+        self.assertEqual(plan['blocked']['cafeteria'],
+                         'EXTRA_CAFETERIA_WORKERS_PENDING_NATIVE_STATIONS')
+        guest_list,report=project_native_staff_guests(
+            GuestList(),278011,plan,JOBS,Factory,'INVITED')
+        self.assertTrue(report['applied'],report)
+        self.assertEqual([(g.sim_id,g.job_type.guid64)
+                          for g in guest_list.guests],[(46,278010)])
+        self.assertEqual(projected_staff_ids(report),{278010:('46',)})
+
+    def test_cafeteria_invalid_worker_does_not_silently_replace_selection(self):
+        values={'cafeteria':('46','45','47')}
+        infos={46:SimpleNamespace(age='ADULT',species='HUMAN'),
+               45:SimpleNamespace(age='ADULT',species='DOG'),
+               47:SimpleNamespace(age='ADULT',species='HUMAN')}
+        plan=load_native_staff_plan(Stored(values),Sims(infos),'HUMAN',
+                                   ('ADULT',))
         self.assertNotIn(278010,plan['job_groups'])
         self.assertEqual(plan['blocked']['cafeteria'],
-                         'NATIVE_JOB_MULTI_CAPACITY_NOT_VERIFIED')
+                         'STAFF_NOT_ADULT_HUMAN')
 
     def test_teen_or_pet_invalid_without_any_modifications(self):
         r=Stored({'teacher1':('41',),'principal':('42',)})
