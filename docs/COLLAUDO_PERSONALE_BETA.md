@@ -13,7 +13,7 @@ bytecode Python 3.7 devono passare prima dell'installazione.
 | Professore Classe 1 | 298052 | 277895 | Invito esatto sperimentale |
 | Professore Classe 2 | 298052 | 278963 | Invito esatto sperimentale |
 | Preside | 298096 | 278223 | Invito esatto sperimentale |
-| Un bidello | 298096 | 290196 | Invito esatto sperimentale |
+| 1 o 2 bidelli | 298096 | 290196 | Inviti esatti sperimentali sullo stesso job |
 | Un addetto mensa | 278011 | 278010 | Invito esatto sperimentale |
 
 Il codice rilegge il registro alla nuova giornata, verifica che ogni Sim
@@ -23,12 +23,20 @@ Il filtro Bouncer e limitato all'ID, situazione e job dell'invito. Non si
 assegnano trait nascosti, non si creano situazioni aggiuntive e non si
 cancellano situazioni in corso.
 
-**Limite importante:** la selezione contemporanea di 2 bidelli, 2 o 3
-addetti mensa è ancora memorizzata nel registro, ma i posti multipli non
-sono implementati in questa revisione. Il tentativo native per quel ruolo
-viene omesso con codice `NATIVE_JOB_MULTI_CAPACITY_NOT_VERIFIED`: EA
-mantiene le regole originali, dunque potrebbe comparire il suo NPC.
-Questa revisione non deve essere presentata come soluzione completa.
+**Beta bidelli:** se nel registro vengono scelti esattamente due bidelli,
+il controller può invitarli entrambi nella situazione Venue EA 298096
+sullo stesso job 290196. Non crea un secondo job o una situazione inventata.
+L'auto-invite del tuning EA ha limite 1; questo non dimostra un limite 1
+agli inviti espliciti, ma nemmeno prova che EA assegni effettivamente due
+lavoratori. Occorre osservare nel gioco **due job nativi contemporanei**
+prima di dichiarare completata questa funzione.
+
+**Limite mensa:** scegliere 2 o 3 addetti è ancora possibile nel registro,
+ma il singolo vendor `278011` è collegato a una postazione. La selezione
+multipla per quel ruolo viene rifiutata con
+`NATIVE_JOB_MULTI_CAPACITY_NOT_VERIFIED`. Non è stata implementata la
+gestione di più postazioni di servizio, né è lecito considerare due Sim
+presenti sul lotto come due lavoratori realmente assegnati.
 
 ## Prima di provare su Mac
 
@@ -38,11 +46,13 @@ Questa revisione non deve essere presentata come soluzione completa.
    con una cartella Mods di prova che abbia **una sola** coppia MHS.
    Mantieni XML Injector e le altre mod nelle stesse condizioni del
    primo collaudo.
-3. Per la prova dell'assegnazione nativa scegli nel menu esattamente
-   un preside, un professore per ciascuna aula attiva, **un solo bidello
-   e un solo addetto alla mensa**. Non cancellare gli altri incarichi
-   dal tuo salvataggio originale: questa limitazione vale solo per
-   il test della build beta.
+3. Per il primo controllo del personale scegli nel menu un preside,
+   un professore per ciascuna aula attiva, **un bidello e un addetto
+   alla mensa**. Se questa prova funziona, sul salvataggio di test
+   scegli un **secondo bidello**, avvia una nuova giornata e confronta
+   l'identità di entrambi i lavoratori nel job EA 290196. Non aggiungere
+   un secondo addetto mensa in questa beta. Non cancellare incarichi
+   dal salvataggio originale.
 4. Attiva/ricarica la gestione da casa e avvia una nuova giornata
    scolastica. Non installare lo script a scuola, a lezioni iniziate.
 
@@ -72,10 +82,13 @@ Questa revisione non deve essere presentata come soluzione completa.
 Il codice passa il collaudo in gioco **solo** se il job nativo letto
 corrisponde ai Sim scelti, i loro comportamenti scolastici rimangono
 corretti, tutti gli studenti continuano a frequentare e i nomi restano
-stabili il giorno seguente. Un archivio Python valido, un test unitario
-verde o `create_situation` con ID positivo non certificano questi
-risultati. Per due o piu lavoratori della stessa categoria serve una
-successiva soluzione testata, non una promessa di capienza nativa.
+stabili il giorno seguente. Il caso dei due bidelli passa solo se
+entrambi sono osservati **nello stesso momento** con job EA 290196 e
+svolgono davvero le mansioni; non basta una guest list contenente
+due inviti. Un archivio Python valido, un test unitario verde o
+`create_situation` con ID positivo non certificano questi risultati.
+Per due o più lavoratori mensa occorre ancora un progetto verificabile
+che supporti più postazioni.
 
 Fonte: tuning EA gia verificati del repository,
 `docs/PASSO_74_ANALISI_10_SITUATION_JOB_EA.md`, e analisi del
