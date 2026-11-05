@@ -54,6 +54,18 @@ JOBS={j:SimpleNamespace(guid64=j)
       for pairs in ROLE_JOBS.values() for _,j in pairs}
 
 class StaffBridgeTests(unittest.TestCase):
+    def test_day_start_snapshots_every_selected_role_even_when_ea_unsupported(self):
+        r=Stored({'teacher1':('41',),'custodians':('44','45'),
+                  'cafeteria':('46','47')})
+        infos={n:SimpleNamespace(age='ADULT',species='HUMAN')
+               for n in range(41,48)}
+        p=load_native_staff_plan(r,Sims(infos),'HUMAN',('ADULT',))
+        self.assertEqual(p['selected_roles']['teacher1'],('41',))
+        self.assertEqual(p['selected_roles']['custodians'],('44','45'))
+        self.assertEqual(p['selected_roles']['cafeteria'],('46','47'))
+        self.assertNotIn(278010,p['job_groups'])
+        self.assertIn('cafeteria',p['blocked'])
+
     def test_dynamic_sims_and_real_job_identifiers(self):
         p=makeplan()
         self.assertEqual(p['jobs'][277895],'41')
