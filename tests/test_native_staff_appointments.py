@@ -119,6 +119,29 @@ class StaffBridgeTests(unittest.TestCase):
         self.assertEqual([x.sim_id for x in fixed.guests],[43,44,45])
         self.assertEqual(len(fixed.guests),3)
 
+    def test_two_janitors_are_all_or_nothing_when_one_is_unavailable(self):
+        values={'custodians':('44','45')}
+        infos={44:SimpleNamespace(age='ADULT',species='HUMAN'),
+               45:SimpleNamespace(age='ADULT',species='DOG')}
+        plan=load_native_staff_plan(Stored(values),Sims(infos),'HUMAN',
+                                    ('ADULT',))
+        self.assertNotIn(290196,plan['jobs'])
+        self.assertNotIn(290196,plan['job_groups'])
+        self.assertEqual(plan['blocked']['custodians'],'STAFF_NOT_ADULT_HUMAN')
+        guest_list,report=project_native_staff_guests(
+            GuestList(),298096,plan,JOBS,Factory,'INVITED')
+        self.assertIsNone(guest_list)
+        self.assertFalse(report['applied'])
+
+    def test_duplicate_janitor_ids_never_become_two_guests(self):
+        values={'custodians':('44','44')}
+        infos={44:SimpleNamespace(age='ADULT',species='HUMAN')}
+        plan=load_native_staff_plan(Stored(values),Sims(infos),'HUMAN',
+                                    ('ADULT',))
+        self.assertEqual(plan['blocked']['custodians'],
+                         'DUPLICATED_SELECTED_STAFF')
+        self.assertNotIn(290196,plan['job_groups'])
+
     def test_second_custodian_cannot_also_be_a_native_principal(self):
         p={'jobs':{278223:'45'},'job_groups':{
             278223:('45',),290196:('44','45')},'blocked':{}}
