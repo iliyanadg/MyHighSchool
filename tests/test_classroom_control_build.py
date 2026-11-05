@@ -143,7 +143,10 @@ assert mhs_school_session.school_day_key('11',2160000)==('11',1)
         self.assertFalse(self.report['third_party_compatibility_verified'])
         self.assertEqual(self.report['staff_selection_bridge_implemented'],
                          'EXPERIMENTAL_NATIVE_EXACT_GUESTS')
-        self.assertFalse(self.report['staff_multi_worker_supported'])
+        self.assertEqual(self.report['staff_multi_worker_supported'],
+                         'TWO_CUSTODIANS_BETA')
+        self.assertFalse(self.report['staff_two_custodians_in_game_verified'])
+        self.assertFalse(self.report['staff_multiple_cafeteria_workers_supported'])
         self.assertFalse(self.report['staff_actual_ea_job_verified_in_game'])
         persisted = json.loads((self.folder / builder.REPORT).read_text())
         self.assertEqual(persisted, self.report)
