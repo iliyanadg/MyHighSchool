@@ -50,6 +50,21 @@ def load_native_staff_plan(roster, info_manager, human_species, adult_ages,
     groups={}
     blocked={}
     selected=set()
+    # Store *all* menu choices at the start of the school day, including
+    # assignments EA cannot currently fulfill. Reports must compare against
+    # this snapshot, not a potentially modified menu during active lessons.
+    saved_roles=getattr(roster,'roles',None)
+    if saved_roles is None:
+        saved_roles={role:None for pairs in ROLE_JOBS.values()
+                     for role,_ in pairs}
+    selected_roles={}
+    for role in saved_roles:
+        try:
+            selected_roles[role]=tuple(
+                _id(sid) for sid in roster.members(role))
+        except Exception:
+            selected_roles[role]=()
+            blocked[role]='STAFF_SIM_ID_INVALID'
     for situation,roles in ROLE_JOBS.items():
         for role,job in roles:
             try:
@@ -86,6 +101,7 @@ def load_native_staff_plan(roster, info_manager, human_species, adult_ages,
                 ready[job]=ids[0]
     return {
         'jobs':ready,'job_groups':groups,'blocked':blocked,
+        'selected_roles':selected_roles,
         'situation_roles':ROLE_JOBS,'roster_read_only':True,
         'no_hidden_traits_modified':True,
         'two_custodians_explicit_invites_beta':any(
