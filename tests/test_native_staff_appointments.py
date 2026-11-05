@@ -7,7 +7,8 @@ from types import SimpleNamespace
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src/classroom_control'))
 from mhs_native_staff_appointments import (
-    ROLE_JOBS, load_native_staff_plan, project_native_staff_guests)
+    ROLE_JOBS, load_native_staff_plan, project_native_staff_guests,
+    projected_staff_ids)
 
 class Stored(object):
     def __init__(self,values):self.values=values
@@ -65,6 +66,33 @@ class StaffBridgeTests(unittest.TestCase):
         self.assertEqual(p['selected_roles']['cafeteria'],('46','47'))
         self.assertNotIn(278010,p['job_groups'])
         self.assertIn('cafeteria',p['blocked'])
+
+    def test_only_successfully_projected_staff_receive_bouncer_receipt(self):
+        self.assertEqual(projected_staff_ids(None),{})
+        self.assertEqual(projected_staff_ids({
+            'applied':False,'appointed':{278223:'43'}}),{})
+        receipt=projected_staff_ids({
+            'applied':True,'appointed':{278223:'43',290196:['44','45']}})
+        self.assertEqual(receipt,{278223:('43',),290196:('44','45')})
+        # A bad ID, duplicate job entries or a forged unknown job
+        # must not let a selected Sim bypass EA filter validation.
+        self.assertEqual(projected_staff_ids({
+            'applied':True,'appointed':{290196:['44','44']}}),{})
+        self.assertEqual(projected_staff_ids({
+            'applied':True,'appointed':{999999:'44'}}),{})
+
+    def test_two_custodians_without_principal_still_project(self):
+        values={'custodians':('44','45')}
+        infos={n:SimpleNamespace(age='ADULT',species='HUMAN')
+               for n in (44,45)}
+        plan=load_native_staff_plan(Stored(values),Sims(infos),
+                                    'HUMAN',('ADULT',))
+        self.assertEqual(plan['jobs'],{})
+        self.assertEqual(plan['job_groups'],{290196:('44','45')})
+        projected,report=project_native_staff_guests(
+            GuestList(),298096,plan,JOBS,Factory,'INVITED')
+        self.assertTrue(report['applied'],report)
+        self.assertEqual(tuple(x.sim_id for x in projected.guests),(44,45))
 
     def test_dynamic_sims_and_real_job_identifiers(self):
         p=makeplan()
