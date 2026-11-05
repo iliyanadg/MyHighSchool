@@ -50,6 +50,12 @@ def load_native_staff_plan(roster, info_manager, human_species, adult_ages,
     groups={}
     blocked={}
     selected=set()
+    # If the player's roster contains multiple cafeteria workers but the
+    # currently verified EA Vendor situation supports only a single service
+    # job, keep ONE deterministic primary instead of leaving all students
+    # without a worker. The remaining names stay saved and explicitly
+    # reported as pending. Never claim all selected staff are employed.
+    pending_extra_staff={}
     # Store *all* menu choices at the start of the school day, including
     # assignments EA cannot currently fulfill. Reports must compare against
     # this snapshot, not a potentially modified menu during active lessons.
@@ -77,8 +83,9 @@ def load_native_staff_plan(roster, info_manager, human_species, adult_ages,
             if len(set(ids))!=len(ids):
                 blocked[role]='DUPLICATED_SELECTED_STAFF'
                 continue
-            if len(ids)>1 and (role not in MULTI_GUEST_NATIVE_ROLES or
-                                len(ids)>2):
+            if len(ids)>1 and not (
+                    (role in MULTI_GUEST_NATIVE_ROLES and len(ids)<=2)
+                    or (role=='cafeteria' and len(ids)<=3)):
                 blocked[role]='NATIVE_JOB_MULTI_CAPACITY_NOT_VERIFIED'
                 continue
             if any(sid in selected or sid in enrolled for sid in ids):
@@ -96,12 +103,28 @@ def load_native_staff_plan(roster, info_manager, human_species, adult_ages,
                 blocked[role]='STAFF_SIM_INFO_UNAVAILABLE'
                 continue
             selected.update(ids)
-            groups[job]=ids
-            if len(ids)==1:
-                ready[job]=ids[0]
+            if role=='cafeteria' and len(ids)>1:
+                # Stable order from StaffRoster, no round-robin or random
+                # shift. This is an explicit PARTIAL service fallback only.
+                # Three simultaneous vendor jobs require proven separate
+                # EA stations and situation support before implementation.
+                primary=ids[0]
+                groups[job]=(primary,)
+                ready[job]=primary
+                pending_extra_staff[role]=ids[1:]
+                blocked[role]='EXTRA_CAFETERIA_WORKERS_PENDING_NATIVE_STATIONS'
+            else:
+                groups[job]=ids
+                if len(ids)==1:
+                    ready[job]=ids[0]
     return {
         'jobs':ready,'job_groups':groups,'blocked':blocked,
         'selected_roles':selected_roles,
+        'pending_extra_staff':pending_extra_staff,
+        'cafeteria_service_mode':(
+            'ONE_STABLE_PRIMARY_PARTIAL_FALLBACK'
+            if pending_extra_staff.get('cafeteria')
+            else 'EXACT_SINGLE_NATIVE_WORKER_OR_NONE'),
         'situation_roles':ROLE_JOBS,'roster_read_only':True,
         'no_hidden_traits_modified':True,
         'two_custodians_explicit_invites_beta':any(
