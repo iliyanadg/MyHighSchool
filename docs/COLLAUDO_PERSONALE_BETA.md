@@ -31,12 +31,21 @@ agli inviti espliciti, ma nemmeno prova che EA assegni effettivamente due
 lavoratori. Occorre osservare nel gioco **due job nativi contemporanei**
 prima di dichiarare completata questa funzione.
 
-**Limite mensa:** scegliere 2 o 3 addetti è ancora possibile nel registro,
-ma il singolo vendor `278011` è collegato a una postazione. La selezione
-multipla per quel ruolo viene rifiutata con
-`NATIVE_JOB_MULTI_CAPACITY_NOT_VERIFIED`. Non è stata implementata la
-gestione di più postazioni di servizio, né è lecito considerare due Sim
-presenti sul lotto come due lavoratori realmente assegnati.
+**Correzione mensa dopo il primo collaudo reale (5 novembre 2026):**
+in un salvataggio con 3 addetti selezionati, il controller precedente
+bloccava TUTTI e tre con `NATIVE_JOB_MULTI_CAPACITY_NOT_VERIFIED`.
+Il rapporto mostrava 0 addetti con job EA 278010 e 0 richieste di cibo
+osservate fra i 13 studenti NPC (solo 1 NPC visto mangiare).
+Per non lasciare il banco senza lavoratore, questa beta propone il **primo
+addetto del registro**, sempre lo stesso, come unico vendor EA 278010.
+Gli altri due restano nel registro e sono **esplicitamente segnalati**
+come `EXTRA_CAFETERIA_WORKERS_PENDING_NATIVE_STATIONS`; non vengono
+impiegati, non vengono alternati e non vengono rimossi.
+
+Questo e un fallback **parziale**, non la soluzione ai 2–3 lavoratori
+contemporanei, per la quale occorre un meccanismo verificato di
+assegnazione a vere postazioni EA distinte. Il successo dell'invito
+non garantisce presenza o servizio: verificarli durante il pranzo.
 
 ## Prima di provare su Mac
 
@@ -50,9 +59,11 @@ presenti sul lotto come due lavoratori realmente assegnati.
    un professore per ciascuna aula attiva, **un bidello e un addetto
    alla mensa**. Se questa prova funziona, sul salvataggio di test
    scegli un **secondo bidello**, avvia una nuova giornata e confronta
-   l'identità di entrambi i lavoratori nel job EA 290196. Non aggiungere
-   un secondo addetto mensa in questa beta. Non cancellare incarichi
-   dal salvataggio originale.
+   l'identità di entrambi i lavoratori nel job EA 290196. Se il registro
+   contiene gia 2–3 addetti mensa, non serve eliminarli: un solo
+   lavoratore principale sara invitato, mentre gli altri resteranno
+   esplicitamente in sospeso. Non cancellare incarichi dal salvataggio
+   originale.
 4. Attiva/ricarica la gestione da casa e avvia una nuova giornata
    scolastica. Non installare lo script a scuola, a lezioni iniziate.
 
@@ -74,6 +85,11 @@ presenti sul lotto come due lavoratori realmente assegnati.
   job EA. Un `matches: null` non prova successo o fallimento: la
   lettura e incompleta. `native_staff_projection_attempts` distingue
   un invito preparato dall'effettivo job osservato.
+- `school_staff.cafeteria_native_primary` riporta l'ID dell'unico
+  addetto mensa invitato; `school_staff.staff_pending_extra_workers`
+  contiene gli altri addetti selezionati, ancora senza vero job EA.
+  Il rapporto non dichiarera completa l'assegnazione di 3 lavoratori
+  soltanto perche il primo e stato visto al banco.
 - Il riepilogo `school_staff.native_job_shift_verdict` mostra
   `NATIVE_JOB_MATCH_OBSERVED`, `NATIVE_JOB_DIFFERENT_FROM_MENU`,
   `NATIVE_JOB_INCONSISTENT_ACROSS_SAMPLES` oppure l'incompletezza.
