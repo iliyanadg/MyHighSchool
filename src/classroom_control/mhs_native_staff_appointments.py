@@ -11,7 +11,10 @@ the job and work in-game still REQUIRES a real Sims 4 playtest.
 
 The High School cafeteria is a TendObjectSituation. Multiple vendors for
 one object have not been validated; this code must never insert a second
-vendor into a single station or fake a second station/situation.
+vendor into a single station or fake a second station/situation. When the
+saved registry lists 2–3 cafeteria workers, only the first is projected into
+the existing native vendor job, with all extras retained but marked pending.
+This is an explicit PARTIAL fallback, not simultaneous staffing.
 """
 ROLE_JOBS = {
     298052: (('teacher1', 277895), ('teacher2', 278963)),
@@ -39,8 +42,10 @@ def load_native_staff_plan(roster, info_manager, human_species, adult_ages,
     'jobs' retains compatibility with one-Sim callers: it intentionally has
     no entry for a role with two selected Sims. 'job_groups' always stores all
     selected IDs per eligible native job, never silently drops the second
-    employee. A failed role is refused *as a whole*, leaving EA's native
-    fallback in charge and recording an explicit reason.
+    employee. Invalid employee identities refuse a role *as a whole*,
+    leaving EA's native fallback in charge. Valid multi-cafeteria choices
+    are different: they receive one explicitly marked primary native vendor
+    and all remaining choices stay saved as pending unstaffed workers.
     """
     enrolled=set(str(sid) for sid in enrolled_ids)
     getter=getattr(info_manager,'get',None)
