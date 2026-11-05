@@ -2090,7 +2090,9 @@ def _observe_school_staff(runtime,stamp,period):
         from sims4.resources import Types
         roster=StaffStore(FOLDER).load(runtime.slot)
         report=staff_snapshot(roster,services.sim_info_manager(),
-            services.get_zone_situation_manager(),services.get_instance_manager(Types.TRAIT))
+            services.get_zone_situation_manager(),
+            services.get_instance_manager(Types.TRAIT),
+            expected_roles=runtime.staff_plan.get('selected_roles'))
     except Exception as exc:
         report={'complete':False,'errors':['STAFF_READ_'+type(exc).__name__],
                 'selection_bridge_implemented':False,'world_mutations':0}
