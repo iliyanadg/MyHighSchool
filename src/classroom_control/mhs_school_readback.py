@@ -139,19 +139,27 @@ def entry_snapshot(clock, groups, info_manager, situation_manager, class_trait):
             'world_mutations': 0, 'routing_progress_not_observed': True}
 
 
-def staff_snapshot(roster, info_manager, situation_manager, trait_manager):
+def staff_snapshot(roster, info_manager, situation_manager, trait_manager,
+                   expected_roles=None):
     """Compare the saved choices with actual native jobs; never appoint staff.
 
     get_all is already used by the staff picker. Stop at a bounded count and
     mark partial reads explicitly; absence in partial data proves nothing.
     """
-    expected = {key: list(roster.members(key)) for key in roster.roles}
+    if expected_roles is None:
+        expected={key:list(roster.members(key)) for key in roster.roles}
+    else:
+        # Use the immutable choices frozen BEFORE the current EA school day.
+        # A change to the menu at lunch must not make an existing staff job
+        # appear wrong; it is intended for the NEXT school day.
+        expected={str(role):list(ids) for role,ids in expected_roles.items()}
+    selected_ids=set(str(sid) for ids in expected.values() for sid in ids)
     result = {'expected': expected, 'selected_sims': [], 'observed_staff': [],
               'complete': True, 'errors': [], 'world_mutations': 0,
               'selection_bridge_implemented': False,
               'registry_is_not_native_assignment': True,
               'native_staff_job_capacity_not_inferred_from_registry': True}
-    for sid in sorted(roster.all_ids()):
+    for sid in sorted(selected_ids):
         info = info_manager.get(int(sid))
         row = {'sim_id': sid, 'name': _name(info), 'known_role_traits': {}}
         try:
