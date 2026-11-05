@@ -377,7 +377,9 @@ for source, destination, filename in json.loads(sys.stdin.read()):
             'm54_actions_preserved': True, 'manual_core_role_menu': True,
             'diagnostic_revision': 'SECOND_DAY_READ_ONLY_OBSERVATIONS',
             'staff_selection_bridge_implemented': 'EXPERIMENTAL_NATIVE_EXACT_GUESTS',
-            'staff_multi_worker_supported': False,
+            'staff_multi_worker_supported': 'TWO_CUSTODIANS_BETA',
+            'staff_two_custodians_in_game_verified': False,
+            'staff_multiple_cafeteria_workers_supported': False,
             'staff_actual_ea_job_verified_in_game': False,
             'resources': gate['resource_count'],
             'category_simdata_pairs': gate['category_count'],
@@ -408,7 +410,8 @@ for source, destination, filename in json.loads(sys.stdin.read()):
         'Include menu/registro/personale M54 e un solo controller derivato da M148.\n'
         'Beta: gli inviti esatti del personale sono collegati ai job EA nativi.\n'
         'L ingresso effettivo nel job deve ancora essere verificato nel gioco.\n'
-        'Due o piu bidelli/addetti mensa nella stessa giornata non sono supportati.\n'
+        'Uno o due bidelli: inviti esatti per lo stesso job EA, in beta da collaudare.\n'
+        'Due o piu addetti mensa contemporanei NON ancora supportati.\n'
         'Per la prova usa una copia del salvataggio e leggi COLLAUDO_PERSONALE_BETA.md.\n'
         'La revisione diagnostica aggiunge letture per la seconda giornata.\n'
         'Conservare integralmente saves e MY_HIGH_SCHOOL_M25_TEST_DATA.\n'
