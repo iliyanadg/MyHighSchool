@@ -69,10 +69,18 @@ presenti sul lotto come due lavoratori realmente assegnati.
   `..._PERSONALE_GIORNO1.json`. Il file esportato normalmente usa
   `MHS_CLASSROOM_CONTROL_REPORT_COMPLETO.json`.
 - Nel JSON, `school_staff.samples[*].comparison` mostra per ogni
-  incarico l'identita scelta e quella osservata nel job EA; un
-  `matches: null` non prova successo o fallimento: significa che la
+  incarico l'identita scelta **all'inizio di quella giornata**, anche
+  se il menu viene modificato in seguito, e l'identita osservata nel
+  job EA. Un `matches: null` non prova successo o fallimento: la
   lettura e incompleta. `native_staff_projection_attempts` distingue
   un invito preparato dall'effettivo job osservato.
+- Il riepilogo `school_staff.native_job_shift_verdict` mostra
+  `NATIVE_JOB_MATCH_OBSERVED`, `NATIVE_JOB_DIFFERENT_FROM_MENU`,
+  `NATIVE_JOB_INCONSISTENT_ACROSS_SAMPLES` oppure l'incompletezza.
+  Per due bidelli, `two_custodians_same_sample_confirmed=true`
+  richiede che entrambi abbiano davvero il job EA 290196 nello stesso
+  campione completo: **non** prova che lavorino l'intera giornata,
+  né il funzionamento nei giorni successivi.
 - Ripeti soltanto se la prima giornata non mostra problemi al gioco.
   Le scelte effettuate durante una giornata devono valere dal giorno
   successivo; non fare cambiamenti sul salvataggio originale.
