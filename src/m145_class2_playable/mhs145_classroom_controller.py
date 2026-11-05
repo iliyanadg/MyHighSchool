@@ -2745,6 +2745,8 @@ def _m143_write_full_report(runtime):
              encoding='utf-8') as output:
             json.dump(attendance,output,indent=2,ensure_ascii=False)
         # One comprehensive report: the user uploads ONE file, not four.
+        from mhs_school_readback import summarize_staff_shift
+        shift_verdict=summarize_staff_shift(runtime.school_staff_samples)
         all_sids=tuple(str(sid) for group in groups for sid in group)
         waiting=summarize_npc_lunch(
             runtime.m141_journal.samples,all_sids,sample_minutes=3)
@@ -2754,6 +2756,7 @@ def _m143_write_full_report(runtime):
             'lesson_entry_observations':runtime.lesson_entry_samples,
             'school_staff':{
                 'samples':runtime.school_staff_samples,
+                'native_job_shift_verdict':shift_verdict,
                 'selection_bridge_implemented':'EXPERIMENTAL_NATIVE_EXACT_GUESTS',
                 'native_guest_projection_applied':any(
                     item.get('applied') for item in runtime.staff_projection_reports),
