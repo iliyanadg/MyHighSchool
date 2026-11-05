@@ -203,3 +203,65 @@ def staff_snapshot(roster, info_manager, situation_manager, trait_manager,
                                         if result['complete'] else None)}
     result['comparison'] = comparison
     return result
+
+
+def summarize_staff_shift(samples):
+    """Explain observed native jobs without treating guest invites as hires.
+
+    Five school-phase samples are enough to answer whether two janitors
+    appeared **together** in one complete native EA job observation.
+    Missing or incomplete data can never count as a successful assignment.
+    """
+    rows=tuple(samples or ())
+    names=()
+    for sample in rows:
+        comparison=sample.get('comparison') if isinstance(sample,dict) else None
+        if isinstance(comparison,dict):
+            names=tuple(sorted(set(names)|set(comparison)))
+    result={'sample_count':len(rows),'roles':{},
+            'all_selected_roles_confirmed':False,
+            'two_custodians_same_sample_confirmed':False,
+            'guest_invitation_is_not_ea_job':True}
+    required=[]
+    for role in names:
+        expected=()
+        for sample in rows:
+            record=(sample.get('comparison') or {}).get(role, {})
+            if isinstance(record,dict) and 'expected' in record:
+                expected=tuple(str(sid) for sid in record['expected'])
+                break
+        matching=[]
+        differing=[]
+        unavailable=[]
+        for sample in rows:
+            period=sample.get('period','UNKNOWN_PERIOD')
+            record=(sample.get('comparison') or {}).get(role,{})
+            verdict=record.get('matches') if isinstance(record,dict) else None
+            if verdict is True and sample.get('complete') is True:
+                matching.append(period)
+            elif verdict is False and sample.get('complete') is True:
+                differing.append(period)
+            else:
+                unavailable.append(period)
+        if not expected:
+            status='NO_USER_APPOINTMENT'
+        elif not matching and not differing:
+            status='NATIVE_JOB_NOT_OBSERVED_COMPLETELY'
+        elif matching and differing:
+            status='NATIVE_JOB_INCONSISTENT_ACROSS_SAMPLES'
+        elif matching:
+            status='NATIVE_JOB_MATCH_OBSERVED'
+        else:
+            status='NATIVE_JOB_DIFFERENT_FROM_MENU'
+        result['roles'][role]={
+            'expected':list(expected),'status':status,
+            'matching_phases':matching,'different_phases':differing,
+            'incomplete_phases':unavailable}
+        if expected:
+            required.append(role)
+        if role=='custodians' and len(expected)==2 and matching:
+            result['two_custodians_same_sample_confirmed']=True
+    result['all_selected_roles_confirmed']=bool(required) and all(
+        result['roles'][role]['status']=='NATIVE_JOB_MATCH_OBSERVED'
+        for role in required)
+    return result
