@@ -380,6 +380,8 @@ for source, destination, filename in json.loads(sys.stdin.read()):
             'staff_multi_worker_supported': 'TWO_CUSTODIANS_BETA',
             'staff_two_custodians_in_game_verified': False,
             'staff_multiple_cafeteria_workers_supported': False,
+            'staff_cafeteria_primary_fallback_supported': True,
+            'staff_cafeteria_policy': 'FIRST_REGISTERED_NATIVE_VENDOR_ONLY_EXTRAS_PENDING',
             'staff_actual_ea_job_verified_in_game': False,
             'resources': gate['resource_count'],
             'category_simdata_pairs': gate['category_count'],
