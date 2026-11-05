@@ -151,6 +151,50 @@ class StaffNativeRuntimeTests(unittest.TestCase):
 
 
 class StaffNativeCreationTests(unittest.TestCase):
+    def test_real_create_hook_invites_two_custodians_without_principal(self):
+        from tests.test_native_staff_appointments import GuestList,Factory
+        from mhs_native_staff_appointments import (
+            project_native_staff_guests,projected_staff_ids)
+        runtime,_,_,_=RuntimeTests().load_controller()
+        runtime.begin_school_day(('1',1))
+        runtime.staff_plan={'jobs':{},
+            'job_groups':{290196:('44','45')},
+            'blocked':{},'selected_roles':{'custodians':('44','45')}}
+        runtime.staff_jobs={290196:SimpleNamespace(guid64=290196)}
+        runtime.guest_cls=Factory
+        runtime.in_school=lambda:True
+        native_calls=[]
+        owner=runtime.manager_owner
+        def native_create(manager,kind,guest_list):
+            native_calls.append(tuple(
+                (g.sim_id,g.job_type.guid64)
+                for g in guest_list.guest_info_gen()))
+            return 901
+        owner.create_situation=native_create
+        runtime.install.__func__.__globals__.update({
+            'VENUE_STAFF_SITUATION':298096,
+            'CAFETERIA_STAFF_SITUATION':278011,
+            'CORE_SITUATION':298052,
+            'PREP_JOBS':{},'LESSON_JOBS':{},
+            'project_native_staff_guests':project_native_staff_guests,
+            'projected_staff_ids':projected_staff_ids,
+            'zone_schedule':lambda:(20,277657),
+            'game_clock':lambda _: {'hour':8,'minute':0},
+            '_m142_roll_period_if_due':lambda *args:None,
+            'services':SimpleNamespace(time_service=lambda:object()),
+        })
+        self.assertTrue(runtime.install())
+        manager=owner()
+        returned=manager.create_situation(SimpleNamespace(guid64=298096),
+                                           GuestList())
+        self.assertEqual(returned,901)
+        self.assertEqual(native_calls,[((44,290196),(45,290196))])
+        self.assertEqual(runtime.staff_created,{298096:901})
+        self.assertEqual(runtime.staff_created_guests,{
+            298096:{290196:('44','45')}})
+        self.assertIsNone(runtime.staff_pending)
+        self.assertEqual(runtime.staff_pending_guests,{})
+
     def test_native_vendor_invited_once_even_if_ea_creates_another_situation(self):
         from tests.test_native_staff_appointments import GuestList,Factory
         from mhs_native_staff_appointments import project_native_staff_guests
