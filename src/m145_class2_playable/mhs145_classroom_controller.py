@@ -40,7 +40,7 @@ from mhs147_class_timing_policy import (
 from mhs_school_session import plan_roster, school_day_key
 from mhs_native_staff_appointments import (
     ROLE_JOBS, ALL_NATIVE_JOBS, load_native_staff_plan,
-    project_native_staff_guests)
+    project_native_staff_guests, projected_staff_ids)
 from mhs_attendance_policy import LessonRequestLedger, protected_gameplay
 from mhs_queue_readback import queue_snapshot
 from mhs143_native_attendance_policy import (
@@ -283,7 +283,9 @@ class ThirteenNPCController(object):
         self.staff_plan={'jobs':{},'blocked':{},'roster_read_only':True}
         self.staff_jobs={}
         self.staff_pending=None
+        self.staff_pending_guests={}
         self.staff_created={}
+        self.staff_created_guests={}
         self.staff_projection_reports=[]
         self.staff_filter_hits=0
 
@@ -317,7 +319,9 @@ class ThirteenNPCController(object):
         self.school_staff_samples[:]=[]
         self.school_readback_errors[:]=[]
         self.staff_pending=None
+        self.staff_pending_guests.clear()
         self.staff_created.clear()
+        self.staff_created_guests.clear()
         self.staff_projection_reports[:]=[]
         self.staff_filter_hits=0
         if callable(self.staff_plan_loader):
@@ -475,15 +479,16 @@ class ThirteenNPCController(object):
                        and sid in self.lesson_classes[spec[0]-1]
                        and (self.lesson_pending==spec[0]
                             or spec[0] in self.lesson_created))
-        staff_ids=self.staff_plan.get('job_groups',{}).get(job)
-        if staff_ids is None:
-            one=self.staff_plan.get('jobs',{}).get(job)
-            staff_ids=(one,) if one is not None else ()
+        # Bouncer exemptions require proof this *exact* job/Sim ID
+        # occurred in the projected list for this specific EA situation.
+        # Mere presence in the M53 menu is NOT an invitation ticket.
+        if self.staff_pending==situation:
+            permitted=self.staff_pending_guests
+        else:
+            permitted=self.staff_created_guests.get(situation,{})
         native_staff=(situation in ROLE_JOBS and
-                      sid in staff_ids and
-                      job in dict(ROLE_JOBS[situation]).values() and
-                      (self.staff_pending==situation or
-                       situation in self.staff_created))
+                      sid in permitted.get(job,()) and
+                      job in dict(ROLE_JOBS[situation]).values())
         if not (native_base or native_core or native_lesson or native_prep
                 or native_staff):
             return False
@@ -770,7 +775,8 @@ class ThirteenNPCController(object):
                     # We have verified just one native job per role.
                     and guid not in self.staff_created
                     and self.staff_pending is None
-                    and self.staff_plan.get('jobs')):
+                    and (self.staff_plan.get('jobs') or
+                         self.staff_plan.get('job_groups'))):
                 if not ('guest_list' in kwargs and args):
                     old=kwargs.get('guest_list',args[0] if args else None)
                     prepared,staff_result=project_native_staff_guests(
@@ -781,6 +787,7 @@ class ThirteenNPCController(object):
                         self.staff_projection_reports.append(staff_result)
                     if prepared is not None:
                         self.staff_pending=guid
+                        self.staff_pending_guests=projected_staff_ids(staff_result)
                         self.bound_zone=zone_schedule()[0]
                         try:
                             if 'guest_list' in kwargs:
@@ -793,11 +800,14 @@ class ThirteenNPCController(object):
                                 return original_create(obj,kind,*args,**kwargs)
                             if type(native) is int and native>0:
                                 self.staff_created[guid]=native
+                                self.staff_created_guests[guid]=dict(
+                                    self.staff_pending_guests)
                             else:
                                 self.error='EA_STAFF_NO_NATIVE_SITUATION_ID'
                             return native
                         finally:
                             self.staff_pending=None
+                            self.staff_pending_guests.clear()
             # No native staff placement if the original guest-list contract
             # is unavailable: leave EA untouched and report the reason.
             # Original EA Core situation: ONE situation, FIVE explicit
@@ -815,7 +825,8 @@ class ThirteenNPCController(object):
                     self.core_refused+=1
                     return original_create(obj,kind,*args,**kwargs)
                 staff_projected=False
-                if self.staff_plan.get('jobs'):
+                if (self.staff_plan.get('jobs') or
+                        self.staff_plan.get('job_groups')):
                     with_staff,staff_result=project_native_staff_guests(
                         prepared,CORE_SITUATION,self.staff_plan,self.staff_jobs,
                         self.guest_cls,self.invited,
@@ -829,6 +840,8 @@ class ThirteenNPCController(object):
                 # Never loosen a staff Bouncer filter unless the exact
                 # selected employee was actually added to the guest list.
                 self.staff_pending=(CORE_SITUATION if staff_projected else None)
+                self.staff_pending_guests=(
+                    projected_staff_ids(staff_result) if staff_projected else {})
                 self.bound_zone=zone_schedule()[0]
                 try:
                     if 'guest_list' in kwargs:
@@ -844,6 +857,8 @@ class ThirteenNPCController(object):
                         self.core_created=native
                         if staff_projected:
                             self.staff_created[CORE_SITUATION]=native
+                            self.staff_created_guests[CORE_SITUATION]=dict(
+                                self.staff_pending_guests)
                     else:
                         self.core_failures+=1
                         self.error='EA_CORE_NO_SITUATION_ID'
@@ -851,6 +866,7 @@ class ThirteenNPCController(object):
                 finally:
                     self.core_pending=False
                     self.staff_pending=None
+                    self.staff_pending_guests.clear()
             if (not self.active or not self.in_school()
                     or getattr(kind,'guid64',None)!=BASE_SITUATION
                     or len(self.created)>=len(self.targets)
@@ -2772,6 +2788,11 @@ def _m143_write_full_report(runtime):
                 'native_staff_blocked_roles':dict(runtime.staff_plan.get('blocked',{})),
                 'native_staff_projection_attempts':runtime.staff_projection_reports,
                 'native_staff_situations_created':dict(runtime.staff_created),
+                'native_staff_exact_guest_receipts':{
+                    str(situation):{str(job):list(ids)
+                        for job,ids in roles.items()}
+                    for situation,roles in
+                    runtime.staff_created_guests.items()},
                 'native_staff_exact_filter_hits':runtime.staff_filter_hits,
                 'actual_staff_still_requires_game_verification':True},
             'classroom_control':{
