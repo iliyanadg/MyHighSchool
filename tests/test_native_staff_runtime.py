@@ -197,7 +197,8 @@ class StaffNativeCreationTests(unittest.TestCase):
 
     def test_native_vendor_invited_once_even_if_ea_creates_another_situation(self):
         from tests.test_native_staff_appointments import GuestList,Factory
-        from mhs_native_staff_appointments import project_native_staff_guests
+        from mhs_native_staff_appointments import (
+            project_native_staff_guests,projected_staff_ids)
         runtime,_,_,_=RuntimeTests().load_controller()
         runtime.begin_school_day(('1',1))
         runtime.staff_plan={'jobs':{278010:'46'},'blocked':{}}
@@ -218,6 +219,7 @@ class StaffNativeCreationTests(unittest.TestCase):
             'CORE_SITUATION':298052,
             'PREP_JOBS':{},'LESSON_JOBS':{},
             'project_native_staff_guests':project_native_staff_guests,
+            'projected_staff_ids':projected_staff_ids,
             'zone_schedule':lambda:(20,277657),
             'game_clock':lambda _: {'hour':8,'minute':0},
             '_m142_roll_period_if_due':lambda *args:None,
