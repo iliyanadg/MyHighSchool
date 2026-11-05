@@ -94,14 +94,49 @@ class StaffBridgeTests(unittest.TestCase):
         self.assertIsNone(fixed)
         self.assertEqual(report['reason'],'NATIVE_GUEST_LIST_UNAVAILABLE')
 
-    def test_multi_workers_never_silently_select_only_one(self):
+    def test_two_custodians_exactly_selected_in_one_original_venue(self):
         p=makeplan(multi=True)
-        self.assertNotIn(290196,p['jobs'])
-        self.assertIn('custodians',p['blocked'])
+        self.assertNotIn(290196,p['jobs'])  # Not quietly truncating to one.
+        self.assertEqual(p['job_groups'][290196],('44','45'))
+        self.assertTrue(p['two_custodians_explicit_invites_beta'])
         fixed,report=project_native_staff_guests(
             GuestList(),298096,p,JOBS,Factory,'INVITED')
-        self.assertEqual([x.sim_id for x in fixed.guests],[43])
-        self.assertIn('custodians',report['blocked'])
+        self.assertTrue(report['applied'],report)
+        self.assertTrue(report['two_custodians_explicit_invites_beta'])
+        self.assertEqual([x.job_type.guid64 for x in fixed.guests],
+                         [278223,290196,290196])
+        self.assertEqual([x.sim_id for x in fixed.guests],[43,44,45])
+        self.assertEqual(report['appointed'][290196],['44','45'])
+
+    def test_two_custodians_replace_one_ea_original_without_duplicates(self):
+        old=GuestList()
+        old.add_guest_info(Guest(90,278223))
+        old.add_guest_info(Guest(91,290196))
+        fixed,report=project_native_staff_guests(
+            old,298096,makeplan(multi=True),JOBS,Factory,'INVITED')
+        self.assertTrue(report['applied'],report)
+        self.assertEqual([x.sim_id for x in old.guests],[90,91])
+        self.assertEqual([x.sim_id for x in fixed.guests],[43,44,45])
+        self.assertEqual(len(fixed.guests),3)
+
+    def test_second_custodian_cannot_also_be_a_native_principal(self):
+        p={'jobs':{278223:'45'},'job_groups':{
+            278223:('45',),290196:('44','45')},'blocked':{}}
+        fixed,report=project_native_staff_guests(
+            GuestList(),298096,p,JOBS,Factory,'INVITED')
+        self.assertIsNone(fixed)
+        self.assertEqual(report['reason'],'DUPLICATED_APPOINTED_SIM')
+
+    def test_cafeteria_multi_selection_does_not_silently_choose_first(self):
+        values={'cafeteria':('46','45')}
+        infos={n:SimpleNamespace(age='ADULT',species='HUMAN')
+               for n in (45,46)}
+        plan=load_native_staff_plan(Stored(values),Sims(infos),'HUMAN',
+                                   ('ADULT',))
+        self.assertNotIn(278010,plan['jobs'])
+        self.assertNotIn(278010,plan['job_groups'])
+        self.assertEqual(plan['blocked']['cafeteria'],
+                         'NATIVE_JOB_MULTI_CAPACITY_NOT_VERIFIED')
 
     def test_teen_or_pet_invalid_without_any_modifications(self):
         r=Stored({'teacher1':('41',),'principal':('42',)})
