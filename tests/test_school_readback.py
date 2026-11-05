@@ -117,6 +117,29 @@ class ReadbackTests(unittest.TestCase):
         self.assertFalse(result['selection_bridge_implemented'])
         self.assertEqual(roster.to_json(),before)
 
+    def test_staff_comparison_uses_frozen_day_even_if_menu_changes(self):
+        old_info,new_info=Info(1),Info(2)
+        old_roles={'principal':None,'teacher1':'1','teacher2':None,
+                   'teacher3':None,'cafeteria':[],'custodians':[]}
+        new_roles=dict(old_roles,teacher1='2')
+        current_menu=StaffRoster('11',new_roles)
+        original_snapshot={role:list(StaffRoster('11',old_roles).members(role))
+                           for role in old_roles}
+        manager=NS(get_situations_sim_is_in=lambda sim:
+                   [situation(298052,277895)]
+                   if sim is old_info.sim else ())
+        report=staff_snapshot(current_menu,Infos(old_info,new_info),
+                              manager,None,
+                              expected_roles=original_snapshot)
+        self.assertEqual(report['comparison']['teacher1']['expected'],['1'])
+        self.assertEqual(report['comparison']['teacher1']['observed'],['1'])
+        self.assertTrue(report['comparison']['teacher1']['matches'])
+        self.assertEqual([r['sim_id'] for r in report['selected_sims']],['1'])
+        # Without the frozen snapshot, the newer menu legitimately differs.
+        live=staff_snapshot(current_menu,Infos(old_info,new_info),
+                            manager,None)
+        self.assertFalse(live['comparison']['teacher1']['matches'])
+
     def test_same_teacher_in_core_and_lesson_is_one_observed_person(self):
         info=Info(1)
         roles={'principal':None,'teacher1':'1','teacher2':None,'teacher3':None,
