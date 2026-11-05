@@ -2786,6 +2786,14 @@ def _m143_write_full_report(runtime):
                     runtime.staff_plan.get(
                         'two_custodians_explicit_invites_beta')),
                 'native_staff_blocked_roles':dict(runtime.staff_plan.get('blocked',{})),
+                'cafeteria_service_mode':runtime.staff_plan.get(
+                    'cafeteria_service_mode','NOT_CONFIGURED'),
+                'cafeteria_native_primary':runtime.staff_plan.get(
+                    'jobs',{}).get(278010),
+                'staff_pending_extra_workers':{
+                    role:list(ids) for role,ids in
+                    runtime.staff_plan.get('pending_extra_staff',{}).items()},
+                'cafeteria_multiple_workers_still_not_supported':True,
                 'native_staff_projection_attempts':runtime.staff_projection_reports,
                 'native_staff_situations_created':dict(runtime.staff_created),
                 'native_staff_exact_guest_receipts':{
