@@ -53,6 +53,35 @@ class StaffNativeRuntimeTests(unittest.TestCase):
         runtime.staff_created[298052]=12345
         self.assertTrue(runtime.eligible(request))
 
+    def test_both_custodians_get_only_the_exact_original_ea_venue_job(self):
+        runtime,request,sims=self.make()
+        sims[44]=SimpleNamespace(age='ADULT',species='HUMAN',
+                                 is_selectable=False)
+        sims[45]=SimpleNamespace(age='ADULT',species='HUMAN',
+                                 is_selectable=False)
+        runtime.staff_plan={'jobs':{},'job_groups':{290196:('44','45')}}
+        runtime.staff_pending=298096
+        request._situation.guid64=298096
+        request._job_type.guid64=290196
+        request._constrained_sim_ids={44}
+        request._requested_sim_id=44
+        self.assertTrue(runtime.eligible(request))
+        request._requested_sim_id=45
+        request._constrained_sim_ids={45}
+        self.assertTrue(runtime.eligible(request))
+        request._requested_sim_id=46
+        request._constrained_sim_ids={46}
+        self.assertFalse(runtime.eligible(request))
+        request._requested_sim_id=45
+        request._constrained_sim_ids={45}
+        request._job_type.guid64=278223
+        self.assertFalse(runtime.eligible(request))
+        request._job_type.guid64=290196
+        runtime.staff_pending=None
+        self.assertFalse(runtime.eligible(request))
+        runtime.staff_created[298096]=4567
+        self.assertTrue(runtime.eligible(request))
+
     def test_wrong_sim_job_venue_or_zone_cannot_get_blank_filter(self):
         runtime,request,_=self.make()
         request._requested_sim_id=42
