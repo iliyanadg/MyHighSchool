@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for folder in ('classroom_control', 'm148_clock', 'm53_staff', 'm2_registry'):
     sys.path.insert(0, str(ROOT / 'src' / folder))
 from mhs53_staff_store import StaffRoster
-from mhs_school_readback import entry_window, entry_snapshot, staff_snapshot, school_memberships, staff_sample_period
+from mhs_school_readback import entry_window, entry_snapshot, staff_snapshot, school_memberships, staff_sample_period, summarize_staff_shift
 
 
 class Queue:
@@ -45,6 +45,42 @@ def situation(sid, job, role=1):
 
 
 class ReadbackTests(unittest.TestCase):
+    def test_two_janitors_must_be_seen_in_same_complete_ea_job_snapshot(self):
+        def sample(phase, observed, complete=True):
+            return {'period':phase,'complete':complete,'comparison':{
+                'custodians':{'expected':['44','45'],'observed':observed,
+                              'matches':set(observed)=={'44','45'} if complete
+                                        else None}}}
+        # Having the two employees in different samples does NOT mean
+        # EA appointed them simultaneously in one native janitor job.
+        split=summarize_staff_shift([
+            sample('morning_lesson',['44']),
+            sample('afternoon_lesson',['45'])])
+        self.assertFalse(split['two_custodians_same_sample_confirmed'])
+        self.assertEqual(split['roles']['custodians']['status'],
+                         'NATIVE_JOB_DIFFERENT_FROM_MENU')
+        both=summarize_staff_shift([
+            sample('arrival',[],False),
+            sample('morning_lesson',['44','45'])])
+        self.assertTrue(both['two_custodians_same_sample_confirmed'])
+        self.assertEqual(both['roles']['custodians']['matching_phases'],
+                         ['morning_lesson'])
+        incomplete=summarize_staff_shift([
+            sample('morning_lesson',['44','45'],False)])
+        self.assertFalse(incomplete['two_custodians_same_sample_confirmed'])
+        self.assertEqual(incomplete['roles']['custodians']['status'],
+                         'NATIVE_JOB_NOT_OBSERVED_COMPLETELY')
+
+    def test_staff_summary_flags_earlier_match_later_mismatch(self):
+        first={'period':'morning_lesson','complete':True,'comparison':{
+            'teacher1':{'expected':['41'],'observed':['41'],'matches':True}}}
+        second={'period':'afternoon_lesson','complete':True,'comparison':{
+            'teacher1':{'expected':['41'],'observed':['88'],'matches':False}}}
+        result=summarize_staff_shift([first,second])
+        self.assertEqual(result['roles']['teacher1']['status'],
+                         'NATIVE_JOB_INCONSISTENT_ACROSS_SAMPLES')
+        self.assertFalse(result['all_selected_roles_confirmed'])
+
     def test_both_entry_windows_include_boundaries_and_reject_unknown_time(self):
         for hour, minute, expected in ((9,29,None),(9,30,'morning'),
                 (10,30,'morning'),(10,31,None),(13,30,'afternoon'),
