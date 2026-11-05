@@ -475,8 +475,12 @@ class ThirteenNPCController(object):
                        and sid in self.lesson_classes[spec[0]-1]
                        and (self.lesson_pending==spec[0]
                             or spec[0] in self.lesson_created))
+        staff_ids=self.staff_plan.get('job_groups',{}).get(job)
+        if staff_ids is None:
+            one=self.staff_plan.get('jobs',{}).get(job)
+            staff_ids=(one,) if one is not None else ()
         native_staff=(situation in ROLE_JOBS and
-                      self.staff_plan.get('jobs',{}).get(job)==sid and
+                      sid in staff_ids and
                       job in dict(ROLE_JOBS[situation]).values() and
                       (self.staff_pending==situation or
                        situation in self.staff_created))
@@ -2753,6 +2757,13 @@ def _m143_write_full_report(runtime):
                     item.get('applied') for item in runtime.staff_projection_reports),
                 'registry_is_not_native_assignment':True,
                 'native_staff_appointments':dict(runtime.staff_plan.get('jobs',{})),
+                'native_staff_multi_appointments':{
+                    str(job):list(ids) for job,ids in
+                    runtime.staff_plan.get('job_groups',{}).items()
+                    if len(ids)>1},
+                'native_two_custodians_beta':bool(
+                    runtime.staff_plan.get(
+                        'two_custodians_explicit_invites_beta')),
                 'native_staff_blocked_roles':dict(runtime.staff_plan.get('blocked',{})),
                 'native_staff_projection_attempts':runtime.staff_projection_reports,
                 'native_staff_situations_created':dict(runtime.staff_created),
