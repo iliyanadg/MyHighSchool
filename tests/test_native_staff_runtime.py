@@ -15,6 +15,7 @@ class StaffNativeRuntimeTests(unittest.TestCase):
         runtime.bound_zone=20
         runtime.staff_plan={'jobs':{277895:'41'},'blocked':{}}
         runtime.staff_pending=298052
+        runtime.staff_pending_guests={277895:('41',)}
         fake_age=SimpleNamespace(TEEN='TEEN',YOUNGADULT='YA',
                                  ADULT='ADULT',ELDER='ELDER')
         fake_species=SimpleNamespace(HUMAN='HUMAN')
@@ -51,6 +52,7 @@ class StaffNativeRuntimeTests(unittest.TestCase):
         self.assertTrue(runtime.eligible(request))
         runtime.staff_pending=None
         runtime.staff_created[298052]=12345
+        runtime.staff_created_guests[298052]={277895:('41',)}
         self.assertTrue(runtime.eligible(request))
 
     def test_both_custodians_get_only_the_exact_original_ea_venue_job(self):
@@ -61,6 +63,7 @@ class StaffNativeRuntimeTests(unittest.TestCase):
                                  is_selectable=False)
         runtime.staff_plan={'jobs':{},'job_groups':{290196:('44','45')}}
         runtime.staff_pending=298096
+        runtime.staff_pending_guests={290196:('44','45')}
         request._situation.guid64=298096
         request._job_type.guid64=290196
         request._constrained_sim_ids={44}
@@ -80,7 +83,39 @@ class StaffNativeRuntimeTests(unittest.TestCase):
         runtime.staff_pending=None
         self.assertFalse(runtime.eligible(request))
         runtime.staff_created[298096]=4567
+        runtime.staff_created_guests[298096]={290196:('44','45')}
         self.assertTrue(runtime.eligible(request))
+
+    def test_selected_but_uninvited_job_cannot_borrow_another_staff_receipt(self):
+        runtime,request,sims=self.make()
+        sims[44]=SimpleNamespace(age='ADULT',species='HUMAN',
+                                 is_selectable=False)
+        sims[43]=SimpleNamespace(age='ADULT',species='HUMAN',
+                                 is_selectable=False)
+        runtime.staff_plan={'jobs':{278223:'43',290196:'44'},
+                            'job_groups':{278223:('43',),290196:('44',)}}
+        # Only the principal is actually in the approved new guest list.
+        # The separate janitor choice must NOT bypass the native filter.
+        runtime.staff_pending=298096
+        runtime.staff_pending_guests={278223:('43',)}
+        request._situation.guid64=298096
+        request._job_type.guid64=290196
+        request._requested_sim_id=44
+        request._constrained_sim_ids={44}
+        self.assertFalse(runtime.eligible(request))
+        request._job_type.guid64=278223
+        request._requested_sim_id=43
+        request._constrained_sim_ids={43}
+        self.assertTrue(runtime.eligible(request))
+        runtime.staff_pending=None
+        runtime.staff_pending_guests.clear()
+        runtime.staff_created[298096]=500
+        runtime.staff_created_guests[298096]={278223:('43',)}
+        self.assertTrue(runtime.eligible(request))
+        request._job_type.guid64=290196
+        request._requested_sim_id=44
+        request._constrained_sim_ids={44}
+        self.assertFalse(runtime.eligible(request))
 
     def test_wrong_sim_job_venue_or_zone_cannot_get_blank_filter(self):
         runtime,request,_=self.make()
@@ -185,6 +220,8 @@ class StaffDailyPersistenceTests(unittest.TestCase):
         runtime.begin_school_day(('1',2))
         self.assertEqual(runtime.staff_plan['jobs'][277895],'48')
         self.assertEqual(runtime.staff_created,{})
+        self.assertEqual(runtime.staff_created_guests,{})
+        self.assertEqual(runtime.staff_pending_guests,{})
         self.assertEqual(runtime.staff_filter_hits,0)
         self.assertEqual(runtime.lesson_classes,groups)
         self.assertEqual(len(calls),2)
