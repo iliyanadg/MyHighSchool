@@ -45,6 +45,7 @@ EXTRA_SOURCES = tuple(ROOT / path for path in (
     'src/classroom_control/mhs_scoped_classroom.py',
     'src/classroom_control/mhs_queue_readback.py',
     'src/classroom_control/mhs_school_readback.py',
+    'src/classroom_control/mhs_native_staff_appointments.py',
 ))
 SOURCES = tuple(MENU_SOURCES) + tuple(ATTENDANCE_SOURCES) + EXTRA_SOURCES
 EA_MODULES = frozenset((
@@ -300,7 +301,9 @@ def installation_bundle(folder):
     for source in ('docs/INSTALLAZIONE_PULITA_MAC.md','docs/PRIMO_COLLAUDO_CLASSROOM_CONTROL.md',
                    'docs/EA_CONTRATTI_CLASSROOM_CONTROL.md',
                    'docs/VERIFICHE_CLASSROOM_CONTROL.md',
-                   'docs/SECONDA_GIORNATA_DIAGNOSTICA.md','tooling/mod_inventory.py'):
+                   'docs/SECONDA_GIORNATA_DIAGNOSTICA.md',
+                   'docs/COLLAUDO_PERSONALE_BETA.md',
+                   'tooling/mod_inventory.py'):
         path=ROOT/source
         payload[path.name]=path.read_bytes()
     target=folder/BUNDLE
@@ -373,7 +376,13 @@ for source, destination, filename in json.loads(sys.stdin.read()):
             'module_count': len(inventory), 'unique_controller': 'mhs145_classroom_controller',
             'm54_actions_preserved': True, 'manual_core_role_menu': True,
             'diagnostic_revision': 'SECOND_DAY_READ_ONLY_OBSERVATIONS',
-            'staff_selection_bridge_implemented': False,
+            'staff_selection_bridge_implemented': 'EXPERIMENTAL_NATIVE_EXACT_GUESTS',
+            'staff_multi_worker_supported': 'TWO_CUSTODIANS_BETA',
+            'staff_two_custodians_in_game_verified': False,
+            'staff_multiple_cafeteria_workers_supported': False,
+            'staff_cafeteria_primary_fallback_supported': True,
+            'staff_cafeteria_policy': 'FIRST_REGISTERED_NATIVE_VENDOR_ONLY_EXTRAS_PENDING',
+            'staff_actual_ea_job_verified_in_game': False,
             'resources': gate['resource_count'],
             'category_simdata_pairs': gate['category_count'],
             'sha256': hashes,
@@ -401,7 +410,12 @@ for source, destination, filename in json.loads(sys.stdin.read()):
         'MY HIGH SCHOOL — Classroom Control\n'
         'Una sola coppia: MHS_CLASSROOM_CONTROL.package e MHS_CLASSROOM_CONTROL.ts4script.\n'
         'Include menu/registro/personale M54 e un solo controller derivato da M148.\n'
-        'Il personale scelto resta nel registro: il reclutamento EA non e ancora collegato.\n'
+        'Beta: gli inviti esatti del personale sono collegati ai job EA nativi.\n'
+        'L ingresso effettivo nel job deve ancora essere verificato nel gioco.\n'
+        'Uno o due bidelli: inviti esatti per lo stesso job EA, in beta da collaudare.\n'
+        'Con 2-3 addetti mensa scelti: solo il PRIMO resta al banco EA come lavoratore primario fisso; gli altri sono in attesa.\n'
+        'Due o piu addetti mensa contemporanei NON ancora supportati.\n'
+        'Per la prova usa una copia del salvataggio e leggi COLLAUDO_PERSONALE_BETA.md.\n'
         'La revisione diagnostica aggiunge letture per la seconda giornata.\n'
         'Conservare integralmente saves e MY_HIGH_SCHOOL_M25_TEST_DATA.\n'
         'Prima di installare, inventariare e spostare le vecchie versioni MHS fuori Mods.\n'

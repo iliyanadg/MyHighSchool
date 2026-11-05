@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for folder in ('classroom_control', 'm148_clock', 'm53_staff', 'm2_registry'):
     sys.path.insert(0, str(ROOT / 'src' / folder))
 from mhs53_staff_store import StaffRoster
-from mhs_school_readback import entry_window, entry_snapshot, staff_snapshot, school_memberships
+from mhs_school_readback import entry_window, entry_snapshot, staff_snapshot, school_memberships, staff_sample_period, summarize_staff_shift
 
 
 class Queue:
@@ -45,11 +45,65 @@ def situation(sid, job, role=1):
 
 
 class ReadbackTests(unittest.TestCase):
+    def test_two_janitors_must_be_seen_in_same_complete_ea_job_snapshot(self):
+        def sample(phase, observed, complete=True):
+            return {'period':phase,'complete':complete,'comparison':{
+                'custodians':{'expected':['44','45'],'observed':observed,
+                              'matches':set(observed)=={'44','45'} if complete
+                                        else None}}}
+        # Having the two employees in different samples does NOT mean
+        # EA appointed them simultaneously in one native janitor job.
+        split=summarize_staff_shift([
+            sample('morning_lesson',['44']),
+            sample('afternoon_lesson',['45'])])
+        self.assertFalse(split['two_custodians_same_sample_confirmed'])
+        self.assertEqual(split['roles']['custodians']['status'],
+                         'NATIVE_JOB_DIFFERENT_FROM_MENU')
+        both=summarize_staff_shift([
+            sample('arrival',[],False),
+            sample('morning_lesson',['44','45'])])
+        self.assertTrue(both['two_custodians_same_sample_confirmed'])
+        self.assertEqual(both['roles']['custodians']['matching_phases'],
+                         ['morning_lesson'])
+        incomplete=summarize_staff_shift([
+            sample('morning_lesson',['44','45'],False)])
+        self.assertFalse(incomplete['two_custodians_same_sample_confirmed'])
+        self.assertEqual(incomplete['roles']['custodians']['status'],
+                         'NATIVE_JOB_NOT_OBSERVED_COMPLETELY')
+
+    def test_staff_summary_flags_earlier_match_later_mismatch(self):
+        first={'period':'morning_lesson','complete':True,'comparison':{
+            'teacher1':{'expected':['41'],'observed':['41'],'matches':True}}}
+        second={'period':'afternoon_lesson','complete':True,'comparison':{
+            'teacher1':{'expected':['41'],'observed':['88'],'matches':False}}}
+        result=summarize_staff_shift([first,second])
+        self.assertEqual(result['roles']['teacher1']['status'],
+                         'NATIVE_JOB_INCONSISTENT_ACROSS_SAMPLES')
+        self.assertFalse(result['all_selected_roles_confirmed'])
+
     def test_both_entry_windows_include_boundaries_and_reject_unknown_time(self):
         for hour, minute, expected in ((9,29,None),(9,30,'morning'),
                 (10,30,'morning'),(10,31,None),(13,30,'afternoon'),
                 (14,30,'afternoon'),(14,31,None),(True,30,None)):
             self.assertEqual(entry_window({'hour':hour,'minute':minute}),expected)
+
+    def test_staff_reads_are_limited_to_five_original_school_phases(self):
+        samples=((7,59,None),(8,0,'arrival'),(9,29,'arrival'),
+                 (9,30,'morning_lesson'),(10,59,'morning_lesson'),
+                 (11,0,'lunch_and_preparation'),
+                 (13,59,'lunch_and_preparation'),
+                 (14,0,'afternoon_lesson'),
+                 (14,59,'afternoon_lesson'),
+                 (15,0,'school_end'),(16,0,'school_end'),
+                 (16,1,None),(24,0,None),(True,30,None))
+        for hour,minute,expected in samples:
+            self.assertEqual(
+                staff_sample_period({'hour':hour,'minute':minute}),expected)
+
+    def test_staff_read_period_refuses_unknown_clock_without_fabricating_result(self):
+        for clock in (None,0,{},[],{'hour':'9','minute':30},
+                      {'hour':9,'minute':60}):
+            self.assertIsNone(staff_sample_period(clock))
 
     def test_preparation_job_277919_is_retained_for_class_two_without_guessing(self):
         info = Info(1)
@@ -99,6 +153,29 @@ class ReadbackTests(unittest.TestCase):
         self.assertFalse(result['selection_bridge_implemented'])
         self.assertEqual(roster.to_json(),before)
 
+    def test_staff_comparison_uses_frozen_day_even_if_menu_changes(self):
+        old_info,new_info=Info(1),Info(2)
+        old_roles={'principal':None,'teacher1':'1','teacher2':None,
+                   'teacher3':None,'cafeteria':[],'custodians':[]}
+        new_roles=dict(old_roles,teacher1='2')
+        current_menu=StaffRoster('11',new_roles)
+        original_snapshot={role:list(StaffRoster('11',old_roles).members(role))
+                           for role in old_roles}
+        manager=NS(get_situations_sim_is_in=lambda sim:
+                   [situation(298052,277895)]
+                   if sim is old_info.sim else ())
+        report=staff_snapshot(current_menu,Infos(old_info,new_info),
+                              manager,None,
+                              expected_roles=original_snapshot)
+        self.assertEqual(report['comparison']['teacher1']['expected'],['1'])
+        self.assertEqual(report['comparison']['teacher1']['observed'],['1'])
+        self.assertTrue(report['comparison']['teacher1']['matches'])
+        self.assertEqual([r['sim_id'] for r in report['selected_sims']],['1'])
+        # Without the frozen snapshot, the newer menu legitimately differs.
+        live=staff_snapshot(current_menu,Infos(old_info,new_info),
+                            manager,None)
+        self.assertFalse(live['comparison']['teacher1']['matches'])
+
     def test_same_teacher_in_core_and_lesson_is_one_observed_person(self):
         info=Info(1)
         roles={'principal':None,'teacher1':'1','teacher2':None,'teacher3':None,
@@ -108,6 +185,33 @@ class ReadbackTests(unittest.TestCase):
         result=staff_snapshot(StaffRoster('11',roles),Infos(info),manager,None)
         self.assertEqual(result['comparison']['teacher1']['observed'],['1'])
         self.assertTrue(result['comparison']['teacher1']['matches'])
+
+    def test_transient_lesson_teacher_is_not_misread_as_class1_staff(self):
+        selected=Info(1)
+        roles={'principal':None,'teacher1':'1','teacher2':None,
+               'teacher3':None,'cafeteria':[],'custodians':[]}
+        manager=NS(get_situations_sim_is_in=lambda _: [
+            situation(304567,277918)])
+        # In EA's class-two phase, job 277918 is a generic teacher phase,
+        # not evidence that our selected Core teacher1 is attending.
+        result=staff_snapshot(StaffRoster('11',roles),Infos(selected),
+                              manager,None)
+        self.assertEqual(result['comparison']['teacher1']['observed'],[])
+        self.assertFalse(result['comparison']['teacher1']['matches'])
+        phase=result['selected_sims'][0]['native_school_memberships']['jobs'][0]
+        self.assertIsNone(phase['staff_role'])
+        self.assertEqual(phase['phase_teacher_job'],277918)
+
+    def test_class_two_native_core_teacher_remains_distinct_from_phase_job(self):
+        selected=Info(1)
+        roles={'principal':None,'teacher1':None,'teacher2':'1',
+               'teacher3':None,'cafeteria':[],'custodians':[]}
+        manager=NS(get_situations_sim_is_in=lambda _: [
+            situation(298052,278963), situation(304567,277918)])
+        result=staff_snapshot(StaffRoster('11',roles),Infos(selected),
+                              manager,None)
+        self.assertTrue(result['comparison']['teacher2']['matches'])
+        self.assertEqual(result['comparison']['teacher1']['observed'],[])
 
     def test_unavailable_membership_api_cannot_certify_staff_matches(self):
         result=staff_snapshot(StaffRoster('11'),Infos(Info(1)),object(),None)

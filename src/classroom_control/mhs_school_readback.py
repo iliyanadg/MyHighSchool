@@ -10,9 +10,18 @@ from mhs_queue_readback import queue_snapshot
 
 SCHOOL_SITUATIONS = frozenset((277733, 298052, 298096, 278011,
                               293815, 304701, 297774, 304565, 304703, 304567))
-STAFF_JOBS = {277895: 'teacher1', 278963: 'teacher2',
-              277918: 'teacher1', 297170: 'teacher2',
-              278223: 'principal', 290196: 'custodians', 278010: 'cafeteria'}
+# Only the long-lived EA Core/Venue/Vendor situation jobs establish
+# the stable personnel roles that the M53 register can appoint.
+# A lesson-phase "Teacher1" job is not proof of the MHS Classe 1 teacher:
+# EA may reuse both base teachers in an unrelated phase.
+STAFF_JOBS = {
+    (298052,277895): 'teacher1',
+    (298052,278963): 'teacher2',
+    (298096,278223): 'principal',
+    (298096,290196): 'custodians',
+    (278011,278010): 'cafeteria',
+}
+PHASE_TEACHER_JOBS = frozenset((277918,297170,278224))
 KNOWN_STAFF_TRAITS = {'teacher1': 300380, 'principal': 300487,
                       'custodians': 300488, 'cafeteria': 300519}
 
@@ -53,7 +62,11 @@ def school_memberships(sim, manager):
             job = _guid(job_reader(sim))
             role = _guid(role_reader(sim)) if callable(role_reader) else None
             rows.append({'situation_guid': sid, 'job_guid': job,
-                         'role_guid': role, 'staff_role': STAFF_JOBS.get(job)})
+                         'role_guid': role,
+                         'staff_role': STAFF_JOBS.get((sid,job)),
+                         'phase_teacher_job': (
+                             job if sid not in (298052,298096,278011)
+                             and job in PHASE_TEACHER_JOBS else None)})
             if job is None:
                 raise ValueError('NATIVE_JOB_NOT_EXPOSED')
         return {'available': True, 'reason': 'EA_SCHOOL_MEMBERSHIPS_READ', 'jobs': rows}
@@ -70,6 +83,33 @@ def entry_window(clock):
         return 'morning'
     if 810 <= total <= 870:
         return 'afternoon'
+    return None
+
+
+def staff_sample_period(clock):
+    """At most five expensive all-Sim staff reads per school day.
+
+    Match actual phase *observations*, not scheduled staff arrivals.
+    The monitor reads the full school journal separately every 15 minutes;
+    this function avoids repeating a world-wide scan on every sample.
+    """
+    if not isinstance(clock,dict):
+        return None
+    hour,minute=clock.get('hour'),clock.get('minute')
+    if (type(hour) is not int or type(minute) is not int
+            or not 0<=hour<=23 or not 0<=minute<60):
+        return None
+    total=hour*60+minute
+    if 480<=total<570:
+        return 'arrival'
+    if 570<=total<660:
+        return 'morning_lesson'
+    if 660<=total<840:
+        return 'lunch_and_preparation'
+    if 840<=total<900:
+        return 'afternoon_lesson'
+    if 900<=total<=960:
+        return 'school_end'
     return None
 
 
@@ -99,19 +139,27 @@ def entry_snapshot(clock, groups, info_manager, situation_manager, class_trait):
             'world_mutations': 0, 'routing_progress_not_observed': True}
 
 
-def staff_snapshot(roster, info_manager, situation_manager, trait_manager):
+def staff_snapshot(roster, info_manager, situation_manager, trait_manager,
+                   expected_roles=None):
     """Compare the saved choices with actual native jobs; never appoint staff.
 
     get_all is already used by the staff picker. Stop at a bounded count and
     mark partial reads explicitly; absence in partial data proves nothing.
     """
-    expected = {key: list(roster.members(key)) for key in roster.roles}
+    if expected_roles is None:
+        expected={key:list(roster.members(key)) for key in roster.roles}
+    else:
+        # Use the immutable choices frozen BEFORE the current EA school day.
+        # A change to the menu at lunch must not make an existing staff job
+        # appear wrong; it is intended for the NEXT school day.
+        expected={str(role):list(ids) for role,ids in expected_roles.items()}
+    selected_ids=set(str(sid) for ids in expected.values() for sid in ids)
     result = {'expected': expected, 'selected_sims': [], 'observed_staff': [],
               'complete': True, 'errors': [], 'world_mutations': 0,
               'selection_bridge_implemented': False,
               'registry_is_not_native_assignment': True,
               'native_staff_job_capacity_not_inferred_from_registry': True}
-    for sid in sorted(roster.all_ids()):
+    for sid in sorted(selected_ids):
         info = info_manager.get(int(sid))
         row = {'sim_id': sid, 'name': _name(info), 'known_role_traits': {}}
         try:
@@ -154,4 +202,66 @@ def staff_snapshot(roster, info_manager, situation_manager, trait_manager):
                             'matches': (set(wanted) == set(actual)
                                         if result['complete'] else None)}
     result['comparison'] = comparison
+    return result
+
+
+def summarize_staff_shift(samples):
+    """Explain observed native jobs without treating guest invites as hires.
+
+    Five school-phase samples are enough to answer whether two janitors
+    appeared **together** in one complete native EA job observation.
+    Missing or incomplete data can never count as a successful assignment.
+    """
+    rows=tuple(samples or ())
+    names=()
+    for sample in rows:
+        comparison=sample.get('comparison') if isinstance(sample,dict) else None
+        if isinstance(comparison,dict):
+            names=tuple(sorted(set(names)|set(comparison)))
+    result={'sample_count':len(rows),'roles':{},
+            'all_selected_roles_confirmed':False,
+            'two_custodians_same_sample_confirmed':False,
+            'guest_invitation_is_not_ea_job':True}
+    required=[]
+    for role in names:
+        expected=()
+        for sample in rows:
+            record=(sample.get('comparison') or {}).get(role, {})
+            if isinstance(record,dict) and 'expected' in record:
+                expected=tuple(str(sid) for sid in record['expected'])
+                break
+        matching=[]
+        differing=[]
+        unavailable=[]
+        for sample in rows:
+            period=sample.get('period','UNKNOWN_PERIOD')
+            record=(sample.get('comparison') or {}).get(role,{})
+            verdict=record.get('matches') if isinstance(record,dict) else None
+            if verdict is True and sample.get('complete') is True:
+                matching.append(period)
+            elif verdict is False and sample.get('complete') is True:
+                differing.append(period)
+            else:
+                unavailable.append(period)
+        if not expected:
+            status='NO_USER_APPOINTMENT'
+        elif not matching and not differing:
+            status='NATIVE_JOB_NOT_OBSERVED_COMPLETELY'
+        elif matching and differing:
+            status='NATIVE_JOB_INCONSISTENT_ACROSS_SAMPLES'
+        elif matching:
+            status='NATIVE_JOB_MATCH_OBSERVED'
+        else:
+            status='NATIVE_JOB_DIFFERENT_FROM_MENU'
+        result['roles'][role]={
+            'expected':list(expected),'status':status,
+            'matching_phases':matching,'different_phases':differing,
+            'incomplete_phases':unavailable}
+        if expected:
+            required.append(role)
+        if role=='custodians' and len(expected)==2 and matching:
+            result['two_custodians_same_sample_confirmed']=True
+    result['all_selected_roles_confirmed']=bool(required) and all(
+        result['roles'][role]['status']=='NATIVE_JOB_MATCH_OBSERVED'
+        for role in required)
     return result

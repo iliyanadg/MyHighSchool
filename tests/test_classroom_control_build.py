@@ -31,6 +31,7 @@ class SourceInventoryTests(unittest.TestCase):
         self.assertIn('mhs53_staff_ui', inventory)
         self.assertIn('mhs34_runtime_gate', inventory)
         self.assertIn('mhs148_clock_and_sampling', inventory)
+        self.assertIn('mhs_native_staff_appointments', inventory)
         controllers = [name for name in inventory if name.endswith('classroom_controller')]
         self.assertEqual(controllers, ['mhs145_classroom_controller'])
 
@@ -114,6 +115,7 @@ class Python37ArchiveTests(unittest.TestCase):
             self.assertEqual(len(archive.namelist()), len(inventory))
             self.assertIn('mhs53_staff_ui.pyc', archive.namelist())
             self.assertIn('mhs145_classroom_controller.pyc', archive.namelist())
+            self.assertIn('mhs_native_staff_appointments.pyc', archive.namelist())
             self.assertNotIn('mhs143_classroom_controller.pyc', archive.namelist())
 
     def test_real_python37_zipimport_loads_sourceless_runtime_modules(self):
@@ -121,8 +123,10 @@ class Python37ArchiveTests(unittest.TestCase):
 sys.path.insert(0, sys.argv[1])
 import mhs_school_session, mhs_attendance_policy, mhs_classroom_bootstrap
 import mhs_scoped_classroom, mhs_queue_readback, mhs_school_readback
+import mhs_native_staff_appointments
 for module in (mhs_school_session, mhs_attendance_policy, mhs_classroom_bootstrap,
-               mhs_scoped_classroom, mhs_queue_readback, mhs_school_readback):
+               mhs_scoped_classroom, mhs_queue_readback, mhs_school_readback,
+               mhs_native_staff_appointments):
     assert '.ts4script/' in module.__file__, module.__file__
 assert mhs_school_session.school_day_key('11',2160000)==('11',1)
 '''
@@ -137,6 +141,16 @@ assert mhs_school_session.school_day_key('11',2160000)==('11',1)
                          builder.package_bytes())
         self.assertFalse(self.report['in_game_verified'])
         self.assertFalse(self.report['third_party_compatibility_verified'])
+        self.assertEqual(self.report['staff_selection_bridge_implemented'],
+                         'EXPERIMENTAL_NATIVE_EXACT_GUESTS')
+        self.assertEqual(self.report['staff_multi_worker_supported'],
+                         'TWO_CUSTODIANS_BETA')
+        self.assertFalse(self.report['staff_two_custodians_in_game_verified'])
+        self.assertFalse(self.report['staff_multiple_cafeteria_workers_supported'])
+        self.assertTrue(self.report['staff_cafeteria_primary_fallback_supported'])
+        self.assertEqual(self.report['staff_cafeteria_policy'],
+                         'FIRST_REGISTERED_NATIVE_VENDOR_ONLY_EXTRAS_PENDING')
+        self.assertFalse(self.report['staff_actual_ea_job_verified_in_game'])
         persisted = json.loads((self.folder / builder.REPORT).read_text())
         self.assertEqual(persisted, self.report)
         for name, digest in persisted['sha256'].items():
@@ -157,6 +171,7 @@ assert mhs_school_session.school_day_key('11',2160000)==('11',1)
             self.assertIn('PRIMO_COLLAUDO_CLASSROOM_CONTROL.md',names)
             self.assertIn('INSTALLAZIONE_PULITA_MAC.md',names)
             self.assertIn('SECONDA_GIORNATA_DIAGNOSTICA.md',names)
+            self.assertIn('COLLAUDO_PERSONALE_BETA.md',names)
             self.assertNotIn('MHS-inventario.json',names)
             self.assertFalse(any(name.endswith('.pyc') for name in names))
             self.assertIsNone(archive.testzip())

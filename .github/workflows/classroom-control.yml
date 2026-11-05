@@ -8,7 +8,7 @@ on:
       - 'tests/**'
       - '.github/workflows/classroom-control.yml'
   push:
-    branches: [feature/classroom-control-unified]
+    branches: [feature/classroom-control-unified, feature/staff-native-appointments-v1]
     paths:
       - 'src/**'
       - 'tooling/**'
@@ -29,6 +29,7 @@ jobs:
           python-version: '3.7'
       - name: Menu, registry, source closure and school regressions
         run: |
+          python -m unittest tests.test_native_staff_appointments tests.test_native_staff_runtime -v
           python -m unittest tests.test_scoped_classroom tests.test_queue_readback -v
           python -m unittest tests.test_school_readback -v
           python -m unittest tests.test_unified_journal -v
