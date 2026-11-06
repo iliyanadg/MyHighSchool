@@ -34,7 +34,9 @@ class M149LessonAuditTests(unittest.TestCase):
         self.assertEqual(len(ticks),21)
         self.assertEqual(len(stored),7)
         self.assertEqual(skipped,14)
-        self.assertEqual(stored[-1],ticks[-1])
+        # Nine-minute samples at indices 0,3,...,18; final index 20
+        # remains deliberately unsampled without a forced event.
+        self.assertEqual(stored[-1],ticks[-3])
         self.assertTrue(should_capture_entry_snapshot(
             ticks[1],ticks[0],forced=True))
 
