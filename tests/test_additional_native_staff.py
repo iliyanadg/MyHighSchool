@@ -31,6 +31,32 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
             self.CLOCK,3,already_attempted=('44',))
         self.assertEqual((item['sim_id'],item['situation_guid']),('47',278011))
 
+    def test_missing_principal_and_second_teacher_use_verified_native_jobs(self):
+        selected={'custodians':('44','45'),'principal':('43',),
+                  'teacher1':('41',),'teacher2':('42',),
+                  'cafeteria':('46',)}
+        observed={'custodians':('45',),'principal':(),
+                  'teacher1':('41',),'teacher2':(),
+                  'cafeteria':('46',)}
+        expected=(('44',290196,298096),('43',278223,298096),
+                  ('42',278963,298052))
+        for count,each in enumerate(expected):
+            item,_=additional_staff_plan(selected,observed,(),
+                self.CLOCK,1,already_attempted=tuple(x[0] for x in expected[:count]))
+            self.assertEqual((item['sim_id'],item['job_guid'],
+                              item['situation_guid']),each)
+        item,_=additional_staff_plan(selected,observed,(),
+            self.CLOCK,1,already_attempted=('44','43','42'))
+        self.assertIsNone(item)
+        observed['custodians']=()
+        item,_=additional_staff_plan(selected,observed,(),
+            self.CLOCK,1,already_attempted=('44',))
+        self.assertEqual(item['role'],'teacher2')
+        observed['teacher1']=()
+        item,_=additional_staff_plan(selected,observed,(),
+            self.CLOCK,1,already_attempted=('44',))
+        self.assertIsNone(item)
+
     def test_second_and_third_vendor_require_extra_stations(self):
         sel={'custodians':(),'cafeteria':('46','47','48')}
         obs={'custodians':(),'cafeteria':('46',)}
@@ -61,7 +87,7 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
             self.CLOCK,2)
         self.assertIsNone(item)
         self.assertEqual(reason,'PRIMARY_CAFETERIA_WORKER_NOT_IN_NATIVE_JOB')
-        for clock in (None,{}, {'hour':10,'minute':29},
+        for clock in (None,{}, {'hour':9,'minute':39},
                       {'hour':11,'minute':30}, {'hour':10,'minute':True}):
             self.assertFalse(supplemental_staff_window(clock))
 
@@ -102,6 +128,207 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
         self.assertEqual(projected_staff_ids(projection),{290196:('44',)})
 
 
+class SchoolNativeNpcBudgetTests(unittest.TestCase):
+    """EA property contract and report 11: the external cap is repeatedly
+    reset from 35 to 22. Keep an effective zone cap >=30 without writing
+    set_npc_soft_cap_override, touching reservations, or global leakage.
+    """
+
+    @staticmethod
+    def fixture(cap=15):
+        class Spawner:
+            def __init__(self, initial_effective):
+                self.NPC_SOFT_CAP=initial_effective+5
+                self.household_size=5
+                self._npc_soft_cap_override=None
+                self._npc_cap_modifier=0
+                self.number_of_npcs_instantiated=17
+                self.number_of_npcs_leaving=0
+                self.overrides=[]
+                self.modifier_calls=[]
+            @property
+            def npc_soft_cap(self):
+                from math import floor
+                raw=(self.NPC_SOFT_CAP if
+                     self._npc_soft_cap_override is None else
+                     self._npc_soft_cap_override)
+                return raw-floor(self._npc_cap_modifier)-self.household_size
+            def add_npc_cap_modifier(self,value):
+                self.modifier_calls.append(value)
+                self._npc_cap_modifier=max(0,self._npc_cap_modifier+value)
+            def set_npc_soft_cap_override(self,value):
+                self.overrides.append(value)
+                self._npc_soft_cap_override=value
+        spawner=Spawner(cap)
+        runtime=types.SimpleNamespace(
+            active=True,in_school=lambda:True,
+            lesson_classes=(tuple(str(i) for i in range(1,9)),
+                            tuple(str(i) for i in range(9,17))),
+            staff_plan={'selected_roles':{
+                'teacher1':('41',),'teacher2':('42',),
+                'principal':('43',),'custodians':('44','45'),
+                'cafeteria':('46','47','48')}},
+            school_npc_cap_service=None,school_npc_cap_delta=0,
+            school_npc_cap_state={'status':'NOT_STARTED'})
+        return runtime,spawner
+
+    def test_school_guard_15_to_30_with_exact_getter_restoration(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        desc=type(spawner).__dict__['npc_soft_cap']
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],
+                         'SCHOOL_NPC_CAP_GUARD_INSTALLED_AND_VERIFIED')
+        self.assertEqual((spawner.npc_soft_cap,state['npc_soft_cap_before']),
+                         (30,15))
+        self.assertIsNot(type(spawner).__dict__['npc_soft_cap'],desc)
+        self.assertEqual(spawner._npc_soft_cap_override,None)
+        self.assertEqual(spawner.overrides,[])
+        self.assertEqual(spawner.modifier_calls,[])
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertIs(type(spawner).__dict__['npc_soft_cap'],desc)
+        self.assertEqual(spawner.npc_soft_cap,15)
+        self.assertEqual(state['release'],'EA_NATIVE_NPC_CAP_GETTER_RESTORED')
+
+    def test_actual_report11_external_override_22_remains_30_at_school(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        start_temporary_school_npc_capacity(rt,spawner)
+        # Reproduce repeated 30->17 from report 11. The game/mod itself
+        # changes the raw value, but our guard never writes back.
+        for value in (22,22,22,22,22):
+            spawner.set_npc_soft_cap_override(value)
+            state=start_temporary_school_npc_capacity(rt,spawner)
+            self.assertEqual(state['status'],'SCHOOL_NPC_CAP_GUARD_ACTIVE')
+            self.assertEqual(state['underlying_native_npc_cap'],17)
+            self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertEqual(spawner.overrides,[22]*5)
+        self.assertEqual(spawner.modifier_calls,[])
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner.npc_soft_cap,17)
+        self.assertEqual(spawner._npc_soft_cap_override,22)
+
+    def test_school_guard_is_zone_and_service_scoped(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        other=type(spawner)(15)
+        start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertEqual(other.npc_soft_cap,15)
+        rt.in_school=lambda:False
+        self.assertEqual(spawner.npc_soft_cap,15)
+        rt.in_school=lambda:True
+        self.assertEqual(spawner.npc_soft_cap,30)
+        rt.active=False
+        self.assertEqual(spawner.npc_soft_cap,15)
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(other.npc_soft_cap,15)
+
+    def test_higher_existing_max_is_preserved(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(40)
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['npc_soft_cap_before'],40)
+        self.assertEqual(spawner.npc_soft_cap,40)
+        spawner.set_npc_soft_cap_override(50)
+        self.assertEqual(spawner.npc_soft_cap,45)
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner.npc_soft_cap,45)
+
+    def test_existing_mccc_override_never_changed(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        spawner.set_npc_soft_cap_override(22)
+        start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertEqual(spawner.overrides,[22])
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner._npc_soft_cap_override,22)
+        self.assertEqual(spawner.npc_soft_cap,17)
+
+    def test_spawn_service_class_hook_conflict_is_fail_closed(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        start_temporary_school_npc_capacity(rt,spawner)
+        cls=type(spawner)
+        saved=cls.__dict__['npc_soft_cap']
+        override=property(lambda obj:16)
+        cls.npc_soft_cap=override
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],
+                         'NPC_CAP_PROPERTY_OWNER_CHANGED_REFUSED')
+        self.assertFalse(stop_temporary_school_npc_capacity(rt))
+        self.assertIs(cls.__dict__['npc_soft_cap'],override)
+        # Simulate third party unhooking to prevent leaking a test class.
+        cls.npc_soft_cap=saved
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+
+    def test_not_in_school_or_incomplete_roster_never_patches(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        desc=type(spawner).__dict__['npc_soft_cap']
+        rt.in_school=lambda:False
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'NPC_CAP_NOT_IN_SCHOOL_ZONE')
+        self.assertIs(type(spawner).__dict__['npc_soft_cap'],desc)
+        rt.in_school=lambda:True
+        rt.lesson_classes=(('1',),('9',))
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'CAP_INPUT_NOT_VERIFIED')
+        self.assertIs(type(spawner).__dict__['npc_soft_cap'],desc)
+
+    def test_native_cap_reservations_continue_accounting_under_guard(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        start_temporary_school_npc_capacity(rt,spawner)
+        spawner.add_npc_cap_modifier(3)
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['underlying_native_npc_cap'],12)
+        self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner.npc_soft_cap,12)
+        self.assertEqual(spawner.modifier_calls,[3])
+
+    def test_bouncer_observer_is_read_only_and_reports_only_staff(self):
+        from mhs_additional_native_staff import (
+            selected_staff_bouncer_snapshot)
+        rt,spawner=self.fixture(15)
+        request=types.SimpleNamespace(
+            _requested_sim_id=43,
+            _situation=types.SimpleNamespace(guid64=298096),
+            _job_type=types.SimpleNamespace(guid64=278223),
+            _status='SUBMITTED',_requires_spawning=True,
+            request_priority='VIP',_unfulfilled_index=0)
+        unrelated=types.SimpleNamespace(
+            _requested_sim_id=999,
+            _situation=types.SimpleNamespace(guid64=277733),
+            _job_type=types.SimpleNamespace(guid64=277894))
+        manager=types.SimpleNamespace(bouncer=types.SimpleNamespace(
+            _unfulfilled_requests=[[request,unrelated],[]]))
+        state=selected_staff_bouncer_snapshot(
+            manager,spawner,rt.staff_plan['selected_roles'])
+        self.assertEqual(state['npc_soft_cap'],15)
+        self.assertEqual(state['scanned_requests'],2)
+        self.assertEqual(state['selected_job_requests'][0]['sim_id'],'43')
+        self.assertEqual(len(state['selected_job_requests']),1)
+        self.assertEqual(len(manager.bouncer._unfulfilled_requests[0]),2)
+
+
 class SupplementalRuntimeTests(unittest.TestCase):
     @staticmethod
     def extracted_function():
@@ -119,29 +346,43 @@ class SupplementalRuntimeTests(unittest.TestCase):
         class Manager:
             def __init__(self):
                 self.events=[]
+                self.bouncer=types.SimpleNamespace(
+                    submit_request=lambda req:self.events.append(
+                        ('request',req._situation.guid64,
+                         req._requested_sim_id,req._job_type.guid64)))
             def get(self,situation_id):
-                return types.SimpleNamespace(guid64=278011)
+                guid={111:278011,112:298096,113:298052}.get(
+                    situation_id,278011)
+                def make_request(guest):
+                    return types.SimpleNamespace(
+                        _requested_sim_id=guest.sim_id,
+                        _job_type=guest.job_type,
+                        _situation=types.SimpleNamespace(guid64=guid))
+                return types.SimpleNamespace(
+                    guid64=guid,_create_request_from_guest_info=make_request)
             def create_situation(self,kind,guest_list=None):
                 self.events.append((kind.guid64,tuple(
                     (g.sim_id,g.job_type.guid64)
                     for g in guest_list.guest_info_gen())))
                 return 700+len(self.events)
         manager=Manager()
-        staff={
-            44:types.SimpleNamespace(sim_id=44),
-            45:types.SimpleNamespace(sim_id=45),
-            46:types.SimpleNamespace(sim_id=46),
-            47:types.SimpleNamespace(sim_id=47)}
+        staff={sid:types.SimpleNamespace(sim_id=sid)
+               for sid in (41,42,43,44,45,46,47)}
         infos={sid:types.SimpleNamespace(
             get_sim_instance=lambda s=sim:s)
             for sid,sim in staff.items()}
-        native={'custodians':(45,), 'cafeteria':(46,)}
+        native={'custodians':(45,), 'cafeteria':(46,),
+                'principal':(), 'teacher1':(41,), 'teacher2':()}
+        native_jobs=(('custodians',298096,290196),
+                     ('cafeteria',278011,278010),
+                     ('principal',298096,278223),
+                     ('teacher1',298052,277895),
+                     ('teacher2',298052,278963))
         memberships=lambda sim,mgr:{
             'available':True,
-            'jobs':[{'situation_guid':298096,'job_guid':290196}]
-                   if sim.sim_id in native['custodians'] else
-                   ([{'situation_guid':278011,'job_guid':278010}]
-                    if sim.sim_id in native['cafeteria'] else [])}
+            'jobs':[{'situation_guid':sguid,'job_guid':job}
+                    for name,sguid,job in native_jobs
+                    if sim.sim_id in native[name]]}
         services=types.SimpleNamespace(
             get_zone_situation_manager=lambda:manager,
             sim_info_manager=lambda:types.SimpleNamespace(get=infos.get),
@@ -155,26 +396,31 @@ class SupplementalRuntimeTests(unittest.TestCase):
                 get=lambda guid:types.SimpleNamespace(guid64=guid)))
         runtime=types.SimpleNamespace(
             active=True,school_ready=True,in_school=lambda:True,
-            staff_plan={'job_groups':{290196:('44','45')},
+            staff_plan={'job_groups':{277895:('41',),
+                         278963:('42',),278223:('43',),
+                         290196:('44','45')},
                         'jobs':{278010:'46'},
                         'pending_extra_staff':{'cafeteria':('47',)}},
-            staff_created={278011:111,298096:112},
+            staff_created={278011:111,298096:112,298052:113},
             staff_created_guests={
-                278011:{278010:('46',)},298096:{290196:('44','45')}},
+                278011:{278010:('46',)},
+                298096:{290196:('44','45'),278223:('43',)},
+                298052:{277895:('41',),278963:('42',)}},
             staff_extra_attempted=set(),
             staff_extra_created={},staff_extra_receipts=[],
             staff_extra_last_status=None,
             staff_pending=None,staff_pending_guests={},
-            staff_jobs={278010:types.SimpleNamespace(guid64=278010),
-                        290196:types.SimpleNamespace(guid64=290196)},
+            staff_jobs={guid:types.SimpleNamespace(guid64=guid)
+                        for guid in (278010,290196,278223,277895,278963)},
             classroom_membership={},
             previous={(Manager,'create_situation'):Manager.create_situation},
             manager_owner=Manager,guest_cls=Factory,invited='INVITED',
             bound_zone=20)
-        runtime.staff_created_guests[298096][290196]=('45',)
         env={
+            '_ea_native_cafeteria_tag':lambda:None,
             'game_clock':lambda service:{'hour':10,'minute':33},
             'services':services,'VENUE_STAFF_SITUATION':298096,
+            'CORE_SITUATION':298052,
             'CAFETERIA_STAFF_SITUATION':278011,
             'zone_schedule':lambda:(20,277657),
             'project_native_staff_guests':project_native_staff_guests,
@@ -194,16 +440,33 @@ class SupplementalRuntimeTests(unittest.TestCase):
             'situations.situation_guest_list':guest_mod,
             'sims4':sims4,
             'sims4.resources':types_mod}):
-            if role=='cafeteria':
+            if role in ('cafeteria','principal','teacher2'):
                 native['custodians']=(44,45)
+            if role in ('cafeteria','teacher2'):
+                native['principal']=(43,)
+            if role=='cafeteria':
+                native['teacher2']=(42,)
             returned=env['_maybe_additional_school_staff'](runtime)
         return returned,manager.events,runtime
 
-    def test_missing_janitor_uses_new_venue_situation_without_principal(self):
+    def test_missing_janitor_reuses_existing_venue_situation(self):
         ok,events,rt=self.exercise(1,'janitor')
         self.assertTrue(ok,rt.staff_extra_last_status)
-        self.assertEqual(events,[(298096,((44,290196),))])
-        self.assertIn('44',rt.staff_extra_created)
+        self.assertEqual(events,[('request',298096,44,290196)])
+        self.assertEqual(rt.staff_extra_created,{})
+        self.assertIn('44',rt.staff_extra_attempted)
+
+    def test_missing_principal_reuses_existing_venue_situation(self):
+        ok,events,rt=self.exercise(1,'principal')
+        self.assertTrue(ok,rt.staff_extra_last_status)
+        self.assertEqual(events,[('request',298096,43,278223)])
+        self.assertEqual(rt.staff_extra_created,{})
+
+    def test_second_teacher_reuses_original_core_situation(self):
+        ok,events,rt=self.exercise(1,'teacher2')
+        self.assertTrue(ok,rt.staff_extra_last_status)
+        self.assertEqual(events,[('request',298052,42,278963)])
+        self.assertEqual(rt.staff_extra_created,{})
 
     def test_vendor_uses_new_tend_situation_only_with_second_counter(self):
         ok,events,rt=self.exercise(2,'cafeteria')
