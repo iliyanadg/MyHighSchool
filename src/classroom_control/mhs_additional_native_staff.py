@@ -12,6 +12,10 @@ VENUE_SITUATION = 298096
 CUSTODIAN_JOB = 290196
 CAFETERIA_SITUATION = 278011
 CAFETERIA_JOB = 278010
+# EP12 native tuning: object_marketStalls_CafeteriaStation_HighSchool
+# GameObject tuning ID 277994, not the separate OBJD definition ID.
+EA_HSY_CAFETERIA_OBJECT_TUNING = 277994
+EA_HSY_CAFETERIA_TUNING_NAME = 'object_marketStalls_CafeteriaStation_HighSchool'
 
 
 def _ident(value):
@@ -65,6 +69,48 @@ def _definition_identity(obj):
     return None
 
 
+def _ea_hsy_object_tuning_identity(obj):
+    """Match the exact EA EP12 cafeteria GameObject tuning (not OBJD).
+
+    TS4 object instances can expose their tuned class via different
+    public/native links. Check only bounded known tuning metadata, never
+    equate definition.id (OBJD) to the GameObject tuning instance.
+    """
+    if obj is None:
+        return False
+    definition=getattr(obj,'definition',None)
+    candidates=[obj,type(obj),getattr(obj,'tuning',None),
+                getattr(definition,'cls',None),
+                getattr(definition,'tuned_class',None)]
+    for method in ('get_tuned_class',):
+        get=getattr(definition,method,None)
+        if callable(get):
+            try:
+                candidates.append(get())
+            except Exception:
+                pass
+    for source in candidates:
+        if source is None:
+            continue
+        for field in ('guid64','tuning_id','tuning_file_id'):
+            try:
+                guid=getattr(source,field,None)
+                if type(guid) is int and guid==EA_HSY_CAFETERIA_OBJECT_TUNING:
+                    return True
+            except Exception:
+                pass
+        for field in ('__name__','name','tuning_file_name'):
+            try:
+                label=getattr(source,field,None)
+                if isinstance(label,str) and (
+                        label==EA_HSY_CAFETERIA_TUNING_NAME or
+                        label.split('.')[-1]==EA_HSY_CAFETERIA_TUNING_NAME):
+                    return True
+            except Exception:
+                pass
+    return False
+
+
 def _school_objects(manager):
     if manager is None:
         return None
@@ -92,22 +138,31 @@ def school_cafeteria_station_probe(manager,native_station=None):
         reference_id=None
     ids=set()
     definitions=set()
+    matched_ea=set()
     for obj in items:
         oid=getattr(obj,'id',None)
         did=getattr(getattr(obj,'definition',None),'id',None)
         if type(oid) is not int or oid<=0:
             continue
+        # Prioritize exact verified EA EP12 tuning over a display name.
+        ea_tuning=_ea_hsy_object_tuning_identity(obj)
         named=_definition_identity(obj)
-        if (reference_id is not None and did==reference_id or
-                reference_id is None and named is not None):
+        if ea_tuning:
+            matched_ea.add(oid)
+        if (ea_tuning or
+                (reference_id is not None and did==reference_id) or
+                (reference_id is None and named is not None)):
             ids.add(oid)
             if type(did) is int:
                 definitions.add(did)
     return {'count':len(ids),
-            'reason':('NATIVE_STATION_DEFINITION_MATCH'
-                      if reference_id is not None
-                      else 'NAMED_CAFETERIA_STATIONS_MATCHED'
-                      if ids else 'NO_RECOGNIZED_STATIONS'),
+            'reason':('EA_HSY_TUNING_277994_MATCH'
+                      if matched_ea else 'NATIVE_STATION_DEFINITION_MATCH'
+                      if reference_id is not None else
+                      'NAMED_CAFETERIA_STATIONS_MATCHED' if ids else
+                      'NO_RECOGNIZED_STATIONS'),
+            'ea_hsy_tuning_id':EA_HSY_CAFETERIA_OBJECT_TUNING,
+            'ea_hsy_objects_found':len(matched_ea),
             'object_manager_count':len(items),
             'matched_definition_ids':sorted(definitions)[:8]}
 
