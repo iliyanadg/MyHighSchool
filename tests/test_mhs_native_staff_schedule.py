@@ -57,6 +57,31 @@ class NativeCafeteriaScheduleTests(unittest.TestCase):
         self.assertEqual(result['reason'],'NAMED_CAFETERIA_STATIONS_MATCHED')
         self.assertEqual(result['matched_definition_ids'],[19])
 
+    def test_exact_ep12_cafeteria_tuning_matches_without_readable_name(self):
+        # XML: EP12/object object_marketStalls_CafeteriaStation_HighSchool
+        # GameObject tuning GUID 277994. OBJD definition.id is different.
+        class RealHighSchoolCafeteria:
+            guid64=277994
+            def __init__(self,oid):
+                self.id=oid
+                self.definition=types.SimpleNamespace(id=891234)
+        data=[RealHighSchoolCafeteria(i) for i in (51,52,53)]
+        data.append(types.SimpleNamespace(
+            id=54,definition=types.SimpleNamespace(id=277994)))
+        probe=school_cafeteria_station_probe(
+            types.SimpleNamespace(values=lambda:data))
+        self.assertEqual(probe['count'],3)
+        self.assertEqual(probe['ea_hsy_objects_found'],3)
+        self.assertEqual(probe['reason'],'EA_HSY_TUNING_277994_MATCH')
+        self.assertEqual(probe['matched_definition_ids'],[891234])
+
+    def test_tuning_available_through_definition_cls_not_objd_id(self):
+        tuned=types.SimpleNamespace(guid64=277994)
+        sim=types.SimpleNamespace(
+            id=1,definition=types.SimpleNamespace(id=7865,cls=tuned))
+        self.assertEqual(count_verified_school_cafeteria_stations(
+            types.SimpleNamespace(values=lambda:[sim])),1)
+
     def test_university_only_stalls_and_school_desks_not_counted(self):
         manager=types.SimpleNamespace(values=lambda:[
             types.SimpleNamespace(id=1,definition=types.SimpleNamespace(
