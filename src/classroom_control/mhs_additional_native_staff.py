@@ -55,7 +55,9 @@ def _definition_identity(obj):
             except Exception:
                 pass
     text = ''.join(c.lower() for c in ' '.join(names) if c.isalnum())
-    if 'cafeteria' not in text or not ('station' in text or 'stall' in text):
+    if ('cafeteria' not in text or
+            not ('station' in text or 'stall' in text) or
+            not ('highschool' in text or 'lunchspecial' in text)):
         return None
     return key
 
@@ -90,8 +92,8 @@ def count_verified_school_cafeteria_stations(manager, native_station=None):
             object_id=getattr(obj, 'id', None)
             if type(object_id) is not int or object_id <= 0:
                 continue
-            if (ident is not None or
-                    (reference_id is not None and defined_id==reference_id)):
+            if ((reference_id is not None and defined_id==reference_id) or
+                    (reference_id is None and ident is not None)):
                 matched.add(object_id)
         return len(matched)
     except Exception:
