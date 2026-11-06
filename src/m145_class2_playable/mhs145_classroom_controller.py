@@ -643,7 +643,9 @@ class ThirteenNPCController(object):
                     'reason':reason,
                     'station_probe':station_probe})
                 del self.cafeteria_schedule_probes[:-8]
-                if reason=='NATIVE_EA_SCHEDULE_VENDOR_COUNT_ADJUSTED':
+                if reason in (
+                        'NATIVE_EA_SCHEDULE_VENDOR_COUNT_ADJUSTED',
+                        'EA_NATIVE_VENDOR_COUNT_ALREADY_SUFFICIENT'):
                     self.cafeteria_scheduled_target=adjusted[0]
                 return adjusted
             self.base_count_calls+=1
