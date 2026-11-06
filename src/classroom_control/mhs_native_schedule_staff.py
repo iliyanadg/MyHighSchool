@@ -18,7 +18,7 @@ def cafeteria_native_schedule_count(original, workers, stations):
     """
     if (type(original) is not tuple or len(original)!=2 or
             any(type(v) is not int for v in original) or
-            original!=(1,1)):
+            original[0]!=original[1] or not 1<=original[0]<=3):
         return original,'EA_VENDOR_COUNT_UNSUPPORTED'
     if (type(workers) not in (list,tuple) or not 2<=len(workers)<=3 or
             any(type(sid) is not str or not sid.isdigit() or
@@ -27,4 +27,8 @@ def cafeteria_native_schedule_count(original, workers, stations):
         return original,'NO_VALID_MULTI_VENDOR_APPOINTMENTS'
     if type(stations) is not int or stations < len(workers):
         return original,'ADDITIONAL_CAFETERIA_STATION_REQUIRED'
+    if original[0]==len(workers):
+        return original,'EA_NATIVE_VENDOR_COUNT_ALREADY_SUFFICIENT'
+    if original[0]>len(workers):
+        return original,'EA_VENDOR_COUNT_MORE_THAN_SELECTED'
     return (len(workers),len(workers)),'NATIVE_EA_SCHEDULE_VENDOR_COUNT_ADJUSTED'
