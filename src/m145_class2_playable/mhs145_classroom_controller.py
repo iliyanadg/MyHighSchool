@@ -31,7 +31,8 @@ from mhs139_ea_zerbu_adapter import install_known_whiteboard_adapter
 from mhs140_native_lesson_entry import launch_once_at_native_lesson
 from mhs148_day_trace import DayJournal, observe_student
 from mhs148_clock_and_sampling import (
-    read_live_clocks, should_capture_sim_snapshot)
+    read_live_clocks, should_capture_sim_snapshot,
+    should_capture_entry_snapshot)
 from mhs145_subject_picker_patch import (
     install_subject_picker, SUBJECT_IDS)
 from mhs147_class_timing_policy import (
@@ -287,6 +288,7 @@ class ThirteenNPCController(object):
         self.classroom_scope_last={}
         self.lesson_entry_samples=[]
         self.lesson_entry_last_ticks=None
+        self.m149_entry_snapshots_skipped=0
         self.school_staff_samples=[]
         self.school_readback_errors=[]
         self.staff_plan_loader=None
@@ -345,6 +347,7 @@ class ThirteenNPCController(object):
         self.classroom_scope_last.clear()
         self.lesson_entry_samples[:]=[]
         self.lesson_entry_last_ticks=None
+        self.m149_entry_snapshots_skipped=0
         self.school_staff_samples[:]=[]
         self.school_readback_errors[:]=[]
         self.staff_pending=None
@@ -2356,6 +2359,11 @@ def _observe_lesson_entry(runtime,event='interval'):
                 or ticks==runtime.lesson_entry_last_ticks
                 or len(runtime.lesson_entry_samples)>=64):
             return False
+        if not should_capture_entry_snapshot(
+                ticks,runtime.lesson_entry_last_ticks,
+                forced=event!='interval'):
+            runtime.m149_entry_snapshots_skipped+=1
+            return False
         from sims4.resources import Types
         traits=services.get_instance_manager(Types.TRAIT)
         trait=traits.get(CLASS1_TRAIT_ID) if traits else None
@@ -3291,6 +3299,14 @@ def _m143_write_full_report(runtime):
              'MHS_CLASSROOM_CONTROL_PRESENZE_DUE_AULE.json'),'w',
              encoding='utf-8') as output:
             json.dump(attendance,output,indent=2,ensure_ascii=False)
+        # M149: proof of presence and running actions is not proof
+        # of completed lessons. Analyze only at report time.
+        from mhs149_lesson_audit import (
+            audit_lesson_entry,audit_manual_whiteboard_choice)
+        m149_audit=audit_lesson_entry(runtime.lesson_entry_samples,groups)
+        m149_audit['playable_manual_whiteboard']=audit_manual_whiteboard_choice(
+            runtime.m140_patch_result,runtime.m145_patch_result,
+            runtime.m143_board_anchors,runtime.classroom_scope_blocked)
         # One comprehensive report: the user uploads ONE file, not four.
         from mhs_school_readback import summarize_staff_shift
         shift_verdict=summarize_staff_shift(runtime.school_staff_samples)
@@ -3301,6 +3317,7 @@ def _m143_write_full_report(runtime):
             'diagnostic_revision':'SECOND_DAY_READ_ONLY_OBSERVATIONS',
             'school_readback_errors':runtime.school_readback_errors,
             'lesson_entry_observations':runtime.lesson_entry_samples,
+            'm149_lesson_performance_audit':m149_audit,
             'school_staff':{
                 'samples':runtime.school_staff_samples,
                 'native_job_shift_verdict':shift_verdict,
@@ -3383,6 +3400,9 @@ def _m143_write_full_report(runtime):
                 'no_forced_lesson_end':True,
                 'm148_game_and_sim_clock':read_live_clocks(services),
                 'm148_poll_rate_sim_minutes':3,
+                'm149_entry_snapshot_interval_sim_minutes':6,
+                'm149_entry_snapshots_skipped':runtime.m149_entry_snapshots_skipped,
+                'm149_automation_poll_unchanged':True,
                 'm148_full_snapshot_interval_sim_minutes':15,
                 'm148_full_snapshots_skipped':runtime.m148_skipped_samples,
                 'm148_low_impact_journal_flush_every':50,

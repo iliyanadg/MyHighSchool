@@ -128,6 +128,103 @@ class TestM131(unittest.TestCase):
                              'EXISTING_PROTECTED_ACTION')
             self.assertEqual(info.received,[])
 
+    def test_m149_manual_subject_queued_never_replaced_by_auto(self):
+        # The player has clicked "Frequenta lezione" on Class2 board.
+        # A queued EA Attend takes precedence over another MHS push.
+        info=Info(9)
+        sim=Sim(info.received)
+        action=type('super_HighSchool_Active_Whiteboard_Attend_Art',
+                    (),{})()
+        class Queue:
+            running=None
+            def __iter__(self):
+                return iter((action,))
+        sim.queue=Queue()
+        info.get_sim_instance=lambda:sim
+        target=object_HighSchool_Active_Whiteboard(2)
+        outcome=queue_playable_class(
+            ({'sim_id':'9','registered_class':2,'sim_info':info},),
+            {2:[target]},object(),lambda _:'EA_CONTEXT')
+        self.assertEqual(outcome['results'][0]['reason'],
+                         'EXISTING_PROTECTED_ACTION')
+        self.assertEqual(info.received,[])
+
+    def test_m149_ea_manual_go_to_own_board_preserves_choice(self):
+        for klass,sid in ((1,1),(2,9)):
+            info=Info(sid)
+            sim=Sim(info.received)
+            target=object_HighSchool_Active_Whiteboard(klass)
+            action=type('super_HighSchool_Active_Ping_GoToObject',
+                        (),{'target':target})()
+            class Queue:
+                running=None
+                def __iter__(self):
+                    return iter((action,))
+            sim.queue=Queue()
+            info.get_sim_instance=lambda sim=sim:sim
+            result=queue_playable_class(
+                ({'sim_id':str(sid),'registered_class':klass,
+                  'sim_info':info},),
+                {klass:[target]},object(),lambda _:'EA_CONTEXT')
+            self.assertEqual(result['results'][0]['reason'],
+                             'EXISTING_NATIVE_BOARD_NAVIGATION')
+            self.assertEqual(info.received,[])
+
+    def test_m149_zerbu_board_navigation_not_replaced(self):
+        info=Info(1)
+        sim=Sim(info.received)
+        board=object_HighSchool_Active_Whiteboard(1)
+        action=type('Zerbu_GTS5_WhiteboardGotoPing',
+                    (),{'picked_object':board})()
+        class Queue:
+            running=action
+            def __iter__(self):
+                return iter((action,))
+        sim.queue=Queue()
+        info.get_sim_instance=lambda:sim
+        result=queue_playable_class(
+            ({'sim_id':'1','registered_class':1,'sim_info':info},),
+            {1:[board]},object(),lambda _:'EA_CONTEXT')
+        self.assertEqual(result['results'][0]['reason'],
+                         'EXISTING_NATIVE_BOARD_NAVIGATION')
+        self.assertEqual(info.received,[])
+
+    def test_m149_unrelated_board_ping_does_not_suppress_auto(self):
+        info=Info(9)
+        sim=Sim(info.received)
+        correct=object_HighSchool_Active_Whiteboard(2)
+        unrelated=object_HighSchool_Active_Whiteboard(1)
+        action=type('super_HighSchool_Active_Ping_GoToObject',
+                    (),{'target':unrelated})()
+        class Queue:
+            running=None
+            def __iter__(self):
+                return iter((action,))
+        sim.queue=Queue()
+        info.get_sim_instance=lambda:sim
+        result=queue_playable_class(
+            ({'sim_id':'9','registered_class':2,'sim_info':info},),
+            {2:[correct]},object(),lambda _:'EA_CONTEXT')
+        self.assertTrue(result['results'][0]['queued'])
+        self.assertIs(info.received[0][1],correct)
+
+    def test_m149_targetless_generic_ping_not_assumed_manual_board(self):
+        info=Info(9)
+        sim=Sim(info.received)
+        action=type('Zerbu_GTS5_WhiteboardGotoPing',
+                    (),{'target':None})()
+        class Queue:
+            running=None
+            def __iter__(self):
+                return iter((action,))
+        sim.queue=Queue()
+        info.get_sim_instance=lambda:sim
+        board=object_HighSchool_Active_Whiteboard(2)
+        result=queue_playable_class(
+            ({'sim_id':'9','registered_class':2,'sim_info':info},),
+            {2:[board]},object(),lambda _:'EA_CONTEXT')
+        self.assertTrue(result['results'][0]['queued'])
+
     def test_no_board_means_no_partial_player_mutation(self):
         infos=[Info(1),Info(9)]
         played=[{'sim_id':str(info.sim_id),
