@@ -35,9 +35,14 @@ def _minute(clock):
 
 
 def supplemental_staff_window(clock):
-    """Only at school, after first native staff arrival and before lunch."""
+    """After EA's first staff arrival, before lunch, with job readback.
+
+    The slot-15 report confirmed one custodial native job by 09:30, so
+    10:30 was an unnecessary delay for the second selected custodian.
+    A request can proceed only when one real staff membership is found.
+    """
     now = _minute(clock)
-    return now is not None and 10 * 60 + 30 <= now < 11 * 60 + 30
+    return now is not None and 9 * 60 + 40 <= now < 11 * 60 + 30
 
 
 def _definition_identity(obj):
