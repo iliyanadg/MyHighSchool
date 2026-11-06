@@ -238,8 +238,10 @@ def additional_staff_plan(selected, observed, pending_cafeteria,
     selected/observed map role -> sequence of Sim IDs. observed must come
     from actual EA situation jobs, never guest receipts. All selected IDs
     must have been validated during the existing per-save day preflight.
-    A second venue situation has only a janitor guest, not a principal.
-    Vendor extras require actual additional counters.
+    Missing original EA principal, second teacher and second janitor are
+    requested only in their ALREADY RUNNING native situations. Never create
+    a duplicate Core/Venue situation, which could recruit extra students or
+    overwrite correctly employed staff. Vendor extras require real counters.
     """
     if not supplemental_staff_window(clock):
         return None, 'OUTSIDE_SUPPLEMENTAL_STAFF_WINDOW'
@@ -257,6 +259,26 @@ def additional_staff_plan(selected, observed, pending_cafeteria,
             return {'role': 'custodians', 'sim_id': missing[0],
                     'situation_guid': VENUE_SITUATION,
                     'job_guid': CUSTODIAN_JOB}, 'ONE_SELECTED_CUSTODIAN_MISSING'
+
+    # Exact recovery requests stay within an existing EA school situation:
+    # the first teacher/one janitor must be observed in the corresponding
+    # original job, proving the situation has started. We never infer
+    # employment from an invitation receipt or a newly created situation.
+    for role, companion, situation_guid, job_guid in (
+            ('principal', 'custodians', VENUE_SITUATION, 278223),
+            ('teacher2', 'teacher1', 298052, 278963)):
+        ids = tuple(_ident(x) for x in selected.get(role, ()))
+        working = set(_ident(x) for x in observed.get(role, ()))
+        working.discard(None)
+        witnesses = set(_ident(x) for x in observed.get(companion, ()))
+        witnesses.discard(None)
+        if (len(ids) == 1 and ids[0] is not None and
+                ids[0] not in working and ids[0] not in tried and
+                witnesses):
+            return {'role': role, 'sim_id': ids[0],
+                    'situation_guid': situation_guid,
+                    'job_guid': job_guid}, (
+                        'SELECTED_' + role.upper() + '_MISSING_IN_NATIVE_JOB')
 
     cafeteria = tuple(_ident(x) for x in selected.get('cafeteria', ()))
     pending = tuple(_ident(x) for x in pending_cafeteria)
