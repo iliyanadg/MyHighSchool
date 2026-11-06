@@ -851,6 +851,14 @@ class ThirteenNPCController(object):
                     and guid==CAFETERIA_STAFF_SITUATION
                     and guid in self.staff_created
                     and self.cafeteria_scheduled_target>1
+                    and self.cafeteria_schedule_extra_failed):
+                # Do not let EA randomly fill a slot from an unsuccessful
+                # selected-vendor projection.
+                return None
+            if (self.active and self.school_ready and self.in_school()
+                    and guid==CAFETERIA_STAFF_SITUATION
+                    and guid in self.staff_created
+                    and self.cafeteria_scheduled_target>1
                     and not self.cafeteria_schedule_extra_failed):
                 pending=tuple(self.staff_plan.get(
                     'pending_extra_staff',{}).get('cafeteria',()))
@@ -878,15 +886,20 @@ class ThirteenNPCController(object):
                             self.staff_pending_guests={278010:(selected_sid,)}
                             self.bound_zone=zone_schedule()[0]
                             try:
-                                if 'guest_list' in kwargs:
-                                    accepted=original_create(
-                                        obj,kind,*args,
-                                        **dict(kwargs,guest_list=prepared))
-                                elif args:
-                                    accepted=original_create(
-                                        obj,kind,prepared,*args[1:],**kwargs)
-                                else:
+                                try:
+                                    if 'guest_list' in kwargs:
+                                        accepted=original_create(
+                                            obj,kind,*args,
+                                            **dict(kwargs,guest_list=prepared))
+                                    elif args:
+                                        accepted=original_create(
+                                            obj,kind,prepared,*args[1:],**kwargs)
+                                    else:
+                                        accepted=None
+                                except Exception as exc:
                                     accepted=None
+                                    self.staff_extra_last_status=(
+                                        'EA_SCHEDULE_EXTRA_'+type(exc).__name__)
                                 good=type(accepted) is int and accepted>0
                                 if good:
                                     self.staff_extra_created[selected_sid]=accepted
