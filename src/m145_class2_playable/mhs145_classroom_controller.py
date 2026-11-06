@@ -2130,7 +2130,8 @@ def _maybe_additional_school_staff(runtime):
     try:
         from mhs_additional_native_staff import (
             additional_staff_plan, supplemental_staff_window,
-            count_verified_school_cafeteria_stations)
+            count_verified_school_cafeteria_stations,
+            native_cafeteria_workstation)
         stamp=game_clock(services.time_service())
         if not supplemental_staff_window(stamp):
             return False
@@ -2166,8 +2167,13 @@ def _maybe_additional_school_staff(runtime):
                     pass
         # Only treat recognizable real stations as available work posts.
         # None prevents extra vendor creation, not the working primary.
+        native_vendor=(manager.get(
+            runtime.staff_created[CAFETERIA_STAFF_SITUATION])
+            if runtime.staff_created.get(CAFETERIA_STAFF_SITUATION) else None)
+        native_station=native_cafeteria_workstation(
+            native_vendor,services.object_manager())
         stations=count_verified_school_cafeteria_stations(
-            services.object_manager())
+            services.object_manager(),native_station)
         request,reason=additional_staff_plan(
             selected,observed,plan.get('pending_extra_staff',{}).get('cafeteria',()),
             stamp,stations,runtime.staff_extra_attempted)
