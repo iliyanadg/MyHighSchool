@@ -47,8 +47,8 @@ class SaveAsCloneTests(unittest.TestCase):
     def write_source(self,slot):
         assignments={str(sid):(1 if j<8 else 2)
                      for j,sid in enumerate(range(100,116))}
-        RosterStore(self.folder).save(slot,SchoolRoster(slot,assignments))
         SettingsStore(self.folder).save(SchoolSettings(slot,True,2))
+        RosterStore(self.folder).save(slot,SchoolRoster(slot,assignments))
         StaffStore(self.folder).save(slot,StaffRoster(slot,self.names))
         core={'cheer':'103','chess':'104','football':'105',
               'computer':'106','mean':'107'}
