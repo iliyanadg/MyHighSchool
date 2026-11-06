@@ -46,7 +46,21 @@ def refresh(reload=False):
         action,reason=session_decision(
             runtime.school_day if runtime is not None else None,
             key,settings.active,school,reload=bool(reload))
-        if action in ('STOP','RESET') and runtime is not None:
+        if (action == 'RESET' and reason == 'NEW_SCHOOL_DAY' and
+                school and runtime is not None):
+            # The hook is already owned by this controller. A school arrival
+            # on the next day must reset only its per-day receipts, not
+            # uninstall it mid-zone and require another activation from home.
+            # begin_school_day validates the saved 2x8 roster before touching
+            # any EA situation; no native situation is created or cancelled.
+            try:
+                if runtime.begin_school_day(key) is not True:
+                    raise ValueError('NEW_SCHOOL_DAY_NOT_READY')
+            except Exception as exc:
+                runtime.school_ready=False
+                _STATUS='NEW_SCHOOL_DAY_BLOCKED: '+type(exc).__name__
+                return _STATUS
+        elif action in ('STOP','RESET') and runtime is not None:
             if not runtime.stop():
                 _STATUS='RESTORE_BLOCKED: '+runtime.error
                 return _STATUS
