@@ -264,4 +264,17 @@ def summarize_staff_shift(samples):
     result['all_selected_roles_confirmed']=bool(required) and all(
         result['roles'][role]['status']=='NATIVE_JOB_MATCH_OBSERVED'
         for role in required)
+    # A morning arrival sample can precede the EA staff situation creation.
+    # Keep the historical strict across-all-samples verdict unchanged. Add a
+    # separate *operating shift* verdict, requiring four complete native-job
+    # matches for EVERY appointed role (not just presence on the lot).
+    shift=('morning_lesson','lunch_and_preparation',
+           'afternoon_lesson','school_end')
+    result['operating_shift_phases_required']=shift
+    result['all_selected_roles_confirmed_during_operating_shift']=(
+        bool(required) and all(
+            all(phase in result['roles'][role]['matching_phases']
+                for phase in shift)
+            for role in required))
+    result['arrival_before_native_jobs_not_counted_as_shift_failure']=True
     return result
