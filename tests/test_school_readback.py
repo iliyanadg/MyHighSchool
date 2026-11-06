@@ -81,6 +81,25 @@ class ReadbackTests(unittest.TestCase):
                          'NATIVE_JOB_INCONSISTENT_ACROSS_SAMPLES')
         self.assertFalse(result['all_selected_roles_confirmed'])
 
+    def test_m150_staff_operating_shift_excludes_early_arrival_false_negative(self):
+        phases=('morning_lesson','lunch_and_preparation',
+                'afternoon_lesson','school_end')
+        rows=[{'period':'arrival','complete':True,'comparison':{
+            'teacher1':{'expected':['41'],'observed':[],'matches':False}}}]
+        rows.extend({'period':phase,'complete':True,'comparison':{
+            'teacher1':{'expected':['41'],'observed':['41'],'matches':True}}}
+                    for phase in phases)
+        result=summarize_staff_shift(rows)
+        self.assertFalse(result['all_selected_roles_confirmed'])
+        self.assertTrue(result[
+            'all_selected_roles_confirmed_during_operating_shift'])
+        self.assertTrue(result[
+            'arrival_before_native_jobs_not_counted_as_shift_failure'])
+        rows[-1]['comparison']['teacher1']['matches']=False
+        negative=summarize_staff_shift(rows)
+        self.assertFalse(negative[
+            'all_selected_roles_confirmed_during_operating_shift'])
+
     def test_both_entry_windows_include_boundaries_and_reject_unknown_time(self):
         for hour, minute, expected in ((9,29,None),(9,30,'morning'),
                 (10,30,'morning'),(10,31,None),(13,30,'afternoon'),
