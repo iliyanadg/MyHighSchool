@@ -302,6 +302,9 @@ class ThirteenNPCController(object):
         self.staff_extra_created={}
         self.staff_extra_receipts=[]
         self.staff_extra_last_status=None
+        self.school_npc_cap_service=None
+        self.school_npc_cap_delta=0
+        self.school_npc_cap_state={'status':'NOT_STARTED'}
         self.cafeteria_scheduled_target=1
         self.cafeteria_schedule_probes=[]
         self.cafeteria_schedule_extra_failed=False
@@ -316,6 +319,13 @@ class ThirteenNPCController(object):
         """
         if self.school_day == key:
             return True
+        # Release any prior day/zone's additive native NPC cap budget.
+        try:
+            from mhs_additional_native_staff import (
+                stop_temporary_school_npc_capacity)
+            stop_temporary_school_npc_capacity(self)
+        except Exception:
+            pass
         slot,targets,pinned=registered_for_school_travel(self.slot)
         roster=RosterStore(FOLDER).load(slot)
         groups=tuple(tuple(str(s) for s in roster.class_members(k))
@@ -387,6 +397,15 @@ class ThirteenNPCController(object):
         self.error=''
         self.school_day=key
         self.school_ready=True
+        # Reserve EA NPC slots before the original school job list is made.
+        try:
+            from mhs_additional_native_staff import (
+                start_temporary_school_npc_capacity)
+            start_temporary_school_npc_capacity(
+                self,services.sim_spawner_service())
+        except Exception as exc:
+            self.school_npc_cap_state={
+                'status':'CAP_PREFLIGHT_'+type(exc).__name__}
         # The vanilla school schedule decides lesson preparation at ~09:30.
         # Align Class1 trait on the 08:00 school-day preflight BEFORE EA
         # creates either native classroom preparation situation. Previously
@@ -1181,6 +1200,12 @@ class ThirteenNPCController(object):
         for (owner,name),prior in self.previous.items():
             setattr(owner,name,prior)
         self.active=False
+        try:
+            from mhs_additional_native_staff import (
+                stop_temporary_school_npc_capacity)
+            stop_temporary_school_npc_capacity(self)
+        except Exception:
+            pass
         return True
 
     def native_job_status(self,sid,situation_id):
@@ -2586,6 +2611,16 @@ def _observe_school_staff(runtime,stamp,period):
         if item.get('applied') is False][-8:]
     report['native_situation_creation_acknowledged']=bool(runtime.staff_created)
     report['staff_native_job_matches_only_when_observed']=True
+    try:
+        from mhs_additional_native_staff import (
+            selected_staff_bouncer_snapshot)
+        report['native_bouncer_and_npc_capacity']=selected_staff_bouncer_snapshot(
+            services.get_zone_situation_manager(),
+            services.sim_spawner_service(),
+            runtime.staff_plan.get('selected_roles',{}))
+    except Exception as exc:
+        report['native_bouncer_and_npc_capacity']={
+            'complete':False,'reason':'PROBE_'+type(exc).__name__}
     if len(runtime.school_staff_samples)<64:
         runtime.school_staff_samples.append(report)
     return report
@@ -2710,6 +2745,13 @@ def _m141_start_watcher(runtime):
                 return
             if runtime.in_school():
                 _m141_start_trace(runtime,'school_arrival_watcher')
+            else:
+                try:
+                    from mhs_additional_native_staff import (
+                        stop_temporary_school_npc_capacity)
+                    stop_temporary_school_npc_capacity(runtime)
+                except Exception:
+                    pass
         runtime.m141_watcher_timer=alarms.add_alarm(
             runtime,clock.interval_in_sim_minutes(2),watch,repeating=True)
         if runtime.m141_watcher_timer is None:
@@ -2739,6 +2781,12 @@ def _m141_start_trace(runtime,origin='ea_event'):
         import clock
         def sample(handle):
             if not runtime.active or not runtime.in_school():
+                try:
+                    from mhs_additional_native_staff import (
+                        stop_temporary_school_npc_capacity)
+                    stop_temporary_school_npc_capacity(runtime)
+                except Exception:
+                    pass
                 if runtime.m147_trace_end is None:
                     try:
                         runtime.m147_trace_end={
@@ -3284,6 +3332,8 @@ def _m143_write_full_report(runtime):
                     for situation,roles in
                     runtime.staff_created_guests.items()},
                 'native_staff_exact_filter_hits':runtime.staff_filter_hits,
+                'temporary_school_npc_capacity':dict(
+                    runtime.school_npc_cap_state),
                 'actual_staff_still_requires_game_verification':True},
             'classroom_control':{
                 'early_class_trait_sync':runtime.m128_early_sync,
