@@ -306,6 +306,7 @@ class ThirteenNPCController(object):
         self.cafeteria_schedule_probes=[]
         self.cafeteria_schedule_extra_failed=False
         self.m128_early_sync=None
+        self.prep_trait_checked=set()
 
     def begin_school_day(self, key):
         """Reset our bookkeeping before EA's first create on a new day.
@@ -350,6 +351,7 @@ class ThirteenNPCController(object):
         self.cafeteria_schedule_probes[:]=[]
         self.cafeteria_schedule_extra_failed=False
         self.m128_early_sync=None
+        self.prep_trait_checked.clear()
         if callable(self.staff_plan_loader):
             try:
                 self.staff_plan=self.staff_plan_loader(self.slot,groups)
@@ -683,7 +685,8 @@ class ThirteenNPCController(object):
             # students/boards; synchronize the already registered 16 first.
             # A missing/invalid registry must leave original EA untouched.
             if (self.active and self.in_school() and guid in PREP_JOBS
-                    and not self.m131_sync_attempted):
+                    and guid not in self.prep_trait_checked):
+                self.prep_trait_checked.add(guid)
                 self.m131_sync_attempted=True
                 try:
                     from sims4.resources import Types
@@ -899,14 +902,19 @@ class ThirteenNPCController(object):
                                         'creation_accepted_not_proof_of_work':good,
                                         'source':'EA_NATIVE_SCHEDULE_EXTRA_COUNT',
                                         'actual_native_job_unverified':True})
-                                return accepted if accepted is not None else original_create(
-                                    obj,kind,*args,**kwargs)
+                                return accepted
                             finally:
                                 self.staff_pending=None
                                 self.staff_pending_guests.clear()
                         else:
                             self.cafeteria_schedule_extra_failed=True
                     self.staff_extra_last_status='EA_SCHEDULE_EXTRA_VENDOR_REFUSED'
+                    # Never fall back to EA random vendor recruitment after
+                    # explicitly expanding the schedule for selected workers.
+                    return None
+                # The extra EA count has no fourth registered worker.
+                # Avoid accidental duplicates when EA refreshes situations.
+                return None
             # M53 native staff mapping: original EA venue and cafeteria
             # situations only. Keep original EA list on unsupported forms,
             # multi-worker capacity, or failed eligibility; never invent
@@ -2380,6 +2388,10 @@ def _maybe_additional_school_staff(runtime):
             selected,observed,plan.get('pending_extra_staff',{}).get('cafeteria',()),
             stamp,stations,runtime.staff_extra_attempted)
         runtime.staff_extra_last_status=reason
+        if (request is not None and request['role']=='cafeteria'
+                and runtime.cafeteria_scheduled_target>1):
+            runtime.staff_extra_last_status='CAFETERIA_NATIVE_SCHEDULE_OWNS_EXTRAS'
+            return False
         if request is None:
             return False
         sguid=request['situation_guid']
@@ -2421,7 +2433,8 @@ def _maybe_additional_school_staff(runtime):
         runtime.bound_zone=zone_schedule()[0]
         try:
             situation_id=native_create(
-                manager,kind,guest_list=prepared)
+                manager,kind,guest_list=prepared,user_facing=False,
+                creation_source='MY_HIGH_SCHOOL_SELECTED_'+request['role'])
             accepted=type(situation_id) is int and situation_id>0
             if accepted:
                 runtime.staff_extra_created[sid]=situation_id
