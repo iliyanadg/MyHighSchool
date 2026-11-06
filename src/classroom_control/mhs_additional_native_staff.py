@@ -8,166 +8,188 @@ confirm both. If the situation or the workstation cannot be verified, leave
 the running school untouched. Python 3.7 compatible, no EA imports.
 """
 
-# A bounded, per-school-zone NPC soft-cap reservation. The native EA
-# Bouncer monitors SimSpawnerService.npc_soft_cap and can evict NPCs once
-# its budget is exceeded. EA's add_npc_cap_modifier SUBTRACTS the argument
-# from the actual NPC soft cap (observed in MHS report 8: +11 lowered 15
-# to 4). Use a negative modifier to raise the cap and balance it on exit.
-# Never change a permanent setting, cheat, or global override.
+# The EA SimSpawnerService.npc_soft_cap property subtracts household size
+# and the nonnegative _npc_cap_modifier from the *base/override*. The
+# add_npc_cap_modifier API reserves/removes capacity and CLAMPS NEGATIVE
+# MODIFIERS TO ZERO. It must NEVER be used to increase the zone budget.
+# Instead use EA's set_npc_soft_cap_override, and restore its old value on
+# school-zone exit. Report 9 proves the old add/remove approach emptied the
+# school (3/16 enrolled students).
 MAX_TEMPORARY_SCHOOL_NPC_CAP = 30
-MAX_SCHOOL_CAP_ADDITION = 20
-SCHOOL_NPC_HEADROOM = 6
+MAX_SCHOOL_OVERRIDE_INCREASE = 30
+MAX_SCHOOL_RAW_OVERRIDE = 100
 
 
 def school_npc_capacity_plan(npc_soft_cap, registered_students, selected_staff):
-    """Pure fail-closed plan: never modify an unknown/oversized cap.
+    """Bounded target for 16 enrolled teens and their eight selected staff.
 
-    NPC soft-cap counts NPCs, not every playable Sim. Include all selected
-    students conservatively, and reserve six spare NPC slots for EA's
-    other school/zone situations. With 16 enrolled + 8 selected workers,
-    target 30 NPCs. Do not override an already-higher MCCC cap.
+    This is an EA NPC soft cap, not a promise of 30 spawned Sims. Reserve
+    six places for other EA events/zone NPCs without replacing the roster.
     """
     if (type(npc_soft_cap) is not int or
-            npc_soft_cap < 10 or npc_soft_cap > 200 or
+            not 0 <= npc_soft_cap <= 200 or
             type(registered_students) is not int or
             registered_students != 16 or
             type(selected_staff) is not int or
             not 1 <= selected_staff <= 8):
-        return 0, 'CAP_INPUT_NOT_VERIFIED'
-    target = min(MAX_TEMPORARY_SCHOOL_NPC_CAP,
-                 registered_students + selected_staff + SCHOOL_NPC_HEADROOM)
-    required = max(0, target - npc_soft_cap)
-    if required > MAX_SCHOOL_CAP_ADDITION:
-        return 0, 'CAP_CHANGE_TOO_LARGE'
-    return required, ('CAP_ALREADY_SUFFICIENT' if required == 0
-                      else 'NATIVE_CAP_MODIFIER_ELIGIBLE')
+        return 0,'CAP_INPUT_NOT_VERIFIED'
+    required=max(0,MAX_TEMPORARY_SCHOOL_NPC_CAP-npc_soft_cap)
+    if required>MAX_SCHOOL_OVERRIDE_INCREASE:
+        return 0,'CAP_INCREASE_TOO_LARGE'
+    return required,('CAP_ALREADY_SUFFICIENT' if required==0
+                     else 'NATIVE_OVERRIDE_ELIGIBLE')
 
 
-def start_temporary_school_npc_capacity(runtime, spawner):
-    """Ensure a verified 30-NPC budget on the high-school zone.
+def _raw_school_cap(spawner):
+    """Read the EA base and private override without modifying anything."""
+    if spawner is None or not hasattr(spawner,'_npc_soft_cap_override'):
+        return None,None,'EA_CAP_OVERRIDE_FIELD_MISSING'
+    previous=getattr(spawner,'_npc_soft_cap_override')
+    if previous is not None and type(previous) is not int:
+        return None,None,'EA_CAP_OVERRIDE_NOT_INTEGER'
+    raw=(previous if previous is not None else
+         getattr(spawner,'NPC_SOFT_CAP',None))
+    if type(raw) is not int or not 0<=raw<=MAX_SCHOOL_RAW_OVERRIDE:
+        return None,None,'EA_CAP_BASE_NOT_VERIFIED'
+    return raw,previous,'EA_CAP_SOURCE_VERIFIED'
 
-    EA's modifier has reverse sign: -delta RAISES the live soft cap.
-    Call before EA schedules staff and again at school monitor intervals;
-    only top up when an external EA/CC modifier lowered the effective cap.
-    All deltas are accounted for and reversed when leaving school.
+
+def start_temporary_school_npc_capacity(runtime,spawner):
+    """Increase effective school NPC cap via EA native override ONLY.
+
+    Correct for household size and existing nonnegative reservations by
+    using the *measured* difference between current effective cap and 30.
+    A later change to the EA modifier is handled by a bounded top-up,
+    without modifying _npc_cap_modifier at all.
     """
     info=getattr(runtime,'school_npc_cap_state',None)
     if not isinstance(info,dict):
         info={}
-    if (getattr(runtime,'school_npc_cap_service',None) is not None and
-            runtime.school_npc_cap_service is not spawner):
-        info['status']='NPC_CAP_SERVICE_CHANGED_REFUSED'
+    owner=getattr(runtime,'school_npc_cap_service',None)
+    if owner is not None and owner is not spawner:
+        info['status']='CAP_SERVICE_CHANGED_REFUSED'
         runtime.school_npc_cap_state=info
         return info
 
-    registered=tuple(sid for klass in (getattr(runtime,'lesson_classes',())
-                                      or ()) for sid in klass)
-    selected=getattr(runtime,'staff_plan',{}).get('selected_roles',{})
-    staff={str(sid) for group in selected.values() for sid in group}
-    cap=getattr(spawner,'npc_soft_cap',None) if spawner is not None else None
+    registered=tuple(sid for group in (
+        getattr(runtime,'lesson_classes',()) or ()) for sid in group)
+    roles=getattr(runtime,'staff_plan',{}).get('selected_roles',{})
+    selected={str(sid) for group in roles.values() for sid in group}
+    effective=getattr(spawner,'npc_soft_cap',None) if spawner else None
     current=getattr(spawner,'number_of_npcs_instantiated',None) if spawner else None
-    delta,reason=school_npc_capacity_plan(cap,len(registered),len(staff))
-    applied=getattr(runtime,'school_npc_cap_delta',0)
-    if type(applied) is not int or not 0<=applied<=MAX_SCHOOL_CAP_ADDITION:
-        info['status']='NPC_CAP_APPLIED_DELTA_INVALID'
-        runtime.school_npc_cap_state=info
-        return info
-
-    # The first check captures the actual EA baseline. Subsequent calls
-    # refresh only current live metrics and the bounded adjustment history.
+    needed,reason=school_npc_capacity_plan(
+        effective,len(registered),len(selected))
     if 'npc_soft_cap_before' not in info:
-        info.update({'npc_soft_cap_before':cap,
+        info.update({'npc_soft_cap_before':effective,
                      'npcs_instantiated_before':current,
                      'registered_students':len(registered),
-                     'selected_staff':len(staff),
+                     'selected_staff':len(selected),
                      'target_npc_soft_cap':MAX_TEMPORARY_SCHOOL_NPC_CAP,
                      'adjustments':[]})
-    info['npc_soft_cap_current']=cap
+    info['npc_soft_cap_current']=effective
     info['npcs_instantiated_current']=current
-    info['requested_delta']=delta
-    info['total_applied_delta']=applied
-    if reason=='CAP_ALREADY_SUFFICIENT':
-        if applied==0:
-            info['status']='CAP_ALREADY_SUFFICIENT'
-        else:
-            info['status']='EA_NPC_CAP_STILL_SUFFICIENT'
-        runtime.school_npc_cap_state=info
-        return info
-    if reason!='NATIVE_CAP_MODIFIER_ELIGIBLE':
+    info['requested_delta']=needed
+    if reason!='NATIVE_OVERRIDE_ELIGIBLE':
         info['status']=reason
         runtime.school_npc_cap_state=info
         return info
-    if delta>MAX_SCHOOL_CAP_ADDITION-applied:
-        info['status']='NPC_CAP_TOPUP_BUDGET_EXCEEDED'
-        runtime.school_npc_cap_state=info
-        return info
-    modifier=getattr(spawner,'add_npc_cap_modifier',None)
-    if not callable(modifier):
-        info['status']='EA_NPC_CAP_MODIFIER_UNAVAILABLE'
+
+    raw,current_override,raw_reason=_raw_school_cap(spawner)
+    setter=getattr(spawner,'set_npc_soft_cap_override',None) if spawner else None
+    if raw_reason!='EA_CAP_SOURCE_VERIFIED' or not callable(setter):
+        info['status']=(raw_reason if raw_reason!='EA_CAP_SOURCE_VERIFIED'
+                        else 'EA_CAP_OVERRIDE_API_MISSING')
         runtime.school_npc_cap_state=info
         return info
 
-    # Never report success on an accepted API call alone. Inspect EA's
-    # actual cap; roll back exactly the new change if it did not increase.
-    try:
-        modifier(-delta)
-    except Exception as exc:
-        info['status']='EA_NPC_CAP_MODIFIER_'+type(exc).__name__
+    if owner is not None and current_override!=getattr(
+            runtime,'school_npc_cap_last_value',None):
+        info['status']='CAP_OTHER_MOD_MODIFIED_OVERRIDE_REFUSED'
         runtime.school_npc_cap_state=info
         return info
+    expected=raw+needed
+    if (expected>MAX_SCHOOL_RAW_OVERRIDE or
+            expected-raw>MAX_SCHOOL_OVERRIDE_INCREASE):
+        info['status']='CAP_OVERRIDE_OUT_OF_BOUNDS'
+        runtime.school_npc_cap_state=info
+        return info
+
+    # Save the original source exactly once. Restore to None if EA had no
+    # override; do not guess that the original base was 20 or 15.
+    original=(current_override if owner is None else
+              getattr(runtime,'school_npc_cap_original_value',None))
     try:
+        setter(expected)
         after=getattr(spawner,'npc_soft_cap',None)
-    except Exception:
+    except Exception as exc:
         after=None
-    if type(after) is int and after>=cap+delta:
+        info['status']='CAP_OVERRIDE_'+type(exc).__name__
+    if type(after) is int and after>=MAX_TEMPORARY_SCHOOL_NPC_CAP:
         runtime.school_npc_cap_service=spawner
-        runtime.school_npc_cap_delta=applied+delta
-        info['status']='EA_NPC_CAP_MODIFIER_APPLIED_AND_CONFIRMED'
+        runtime.school_npc_cap_original_value=original
+        runtime.school_npc_cap_last_value=expected
+        runtime.school_npc_cap_delta=(
+            expected-(original if original is not None else
+                      getattr(spawner,'NPC_SOFT_CAP',expected)))
+        info['status']='EA_NPC_CAP_OVERRIDE_APPLIED_AND_CONFIRMED'
         info['npc_soft_cap_after']=after
         info['npc_soft_cap_current']=after
-        info['total_applied_delta']=applied+delta
-        # Record at most one bounded entry for each genuine cap top-up.
-        if len(info['adjustments'])<MAX_SCHOOL_CAP_ADDITION:
+        info['original_raw_override']=original
+        info['active_raw_override']=expected
+        if len(info['adjustments'])<12:
             info['adjustments'].append({
-                'cap_before':cap,'added_slots':delta,'cap_after':after})
+                'npc_soft_cap_before':effective,
+                'effective_slots_added':after-effective,
+                'raw_override_after':expected})
     else:
+        # Roll back even if EA accepted the setter without raising: the
+        # getter must prove the effective budget changed as intended.
         try:
-            modifier(delta)
-            info['status']='EA_NPC_CAP_REJECTED_REVERTED'
-            info['npc_soft_cap_restored']=getattr(
-                spawner,'npc_soft_cap',None)
-        except Exception as rollback_exc:
-            # The API may have applied the original adjustment. Track it
-            # so shutdown can undo it, rather than silently leaking it.
+            setter(current_override)
+            info['status']='CAP_OVERRIDE_NOT_EFFECTIVE_REVERTED'
+        except Exception as exc:
+            # Track unknown state; never silently overwrite on exit.
             runtime.school_npc_cap_service=spawner
-            runtime.school_npc_cap_delta=applied+delta
-            info['total_applied_delta']=applied+delta
-            info['status']='CAP_ROLLBACK_'+type(rollback_exc).__name__
+            runtime.school_npc_cap_original_value=original
+            runtime.school_npc_cap_last_value=expected
+            info['status']='CAP_OVERRIDE_ROLLBACK_'+type(exc).__name__
     runtime.school_npc_cap_state=info
     return info
 
 
 def stop_temporary_school_npc_capacity(runtime):
-    """Balance only our own prior modifier, including after save travel."""
+    """Restore exactly the prior EA/MCCC override; never touch modifiers."""
     spawner=getattr(runtime,'school_npc_cap_service',None)
-    delta=getattr(runtime,'school_npc_cap_delta',0)
-    if spawner is None or type(delta) is not int or delta <= 0:
+    if spawner is None:
         return False
-    modifier=getattr(spawner,'add_npc_cap_modifier',None)
-    if not callable(modifier):
-        runtime.school_npc_cap_state['release']='EA_CAP_RELEASE_API_MISSING'
+    info=getattr(runtime,'school_npc_cap_state',None)
+    if not isinstance(info,dict):
+        info={}
+        runtime.school_npc_cap_state=info
+    original=getattr(runtime,'school_npc_cap_original_value',None)
+    last=getattr(runtime,'school_npc_cap_last_value',None)
+    if getattr(spawner,'_npc_soft_cap_override',object())!=last:
+        info['release']='CAP_OTHER_MOD_OWNS_OVERRIDE_NOT_RESTORED'
+        return False
+    setter=getattr(spawner,'set_npc_soft_cap_override',None)
+    if not callable(setter):
+        info['release']='CAP_RESTORE_API_MISSING'
         return False
     try:
-        # Balance the signed *negative* modifier applied on entry.
-        modifier(delta)
+        setter(original)
+        if getattr(spawner,'_npc_soft_cap_override',object())!=original:
+            info['release']='CAP_RESTORE_NOT_CONFIRMED'
+            return False
         runtime.school_npc_cap_service=None
         runtime.school_npc_cap_delta=0
-        runtime.school_npc_cap_state['release']='CAP_MODIFIER_RELEASED'
-        runtime.school_npc_cap_state['npc_soft_cap_restored']=getattr(
+        runtime.school_npc_cap_last_value=None
+        runtime.school_npc_cap_original_value=None
+        info['release']='CAP_ORIGINAL_OVERRIDE_RESTORED'
+        info['npc_soft_cap_restored']=getattr(
             spawner,'npc_soft_cap',None)
         return True
     except Exception as exc:
-        runtime.school_npc_cap_state['release']='CAP_RELEASE_'+type(exc).__name__
+        info['release']='CAP_RESTORE_'+type(exc).__name__
         return False
 
 
