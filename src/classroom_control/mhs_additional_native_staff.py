@@ -102,11 +102,24 @@ def start_temporary_school_npc_capacity(runtime,spawner):
         runtime.school_npc_cap_state=info
         return info
 
-    if owner is not None and current_override!=getattr(
-            runtime,'school_npc_cap_last_value',None):
-        info['status']='CAP_OTHER_MOD_MODIFIED_OVERRIDE_REFUSED'
-        runtime.school_npc_cap_state=info
-        return info
+    external_rebase=(owner is not None and current_override!=getattr(
+        runtime,'school_npc_cap_last_value',None))
+    if external_rebase:
+        # Report 10: EA (or another script) replaced the 35 raw override
+        # between 08:04 and 09:34; effective cap fell 30 -> 17 while the
+        # 16 registered students remained present. Allow up to two
+        # well-bounded school-only rebases, preserving the NEW external
+        # override as the value to restore when leaving the school.
+        rebases=info.get('external_override_rebases',0)
+        if type(rebases) is not int or not 0<=rebases<2:
+            info['status']='CAP_EXTERNAL_OVERRIDE_REBASE_LIMIT'
+            info['external_override_current']=current_override
+            runtime.school_npc_cap_state=info
+            return info
+        info['external_override_detected']=True
+        info['external_override_current']=current_override
+        info['external_override_previous_mhs']=getattr(
+            runtime,'school_npc_cap_last_value',None)
     expected=raw+needed
     if (expected>MAX_SCHOOL_RAW_OVERRIDE or
             expected-raw>MAX_SCHOOL_OVERRIDE_INCREASE):
@@ -116,7 +129,7 @@ def start_temporary_school_npc_capacity(runtime,spawner):
 
     # Save the original source exactly once. Restore to None if EA had no
     # override; do not guess that the original base was 20 or 15.
-    original=(current_override if owner is None else
+    original=(current_override if owner is None or external_rebase else
               getattr(runtime,'school_npc_cap_original_value',None))
     try:
         setter(expected)
@@ -131,7 +144,13 @@ def start_temporary_school_npc_capacity(runtime,spawner):
         runtime.school_npc_cap_delta=(
             expected-(original if original is not None else
                       getattr(spawner,'NPC_SOFT_CAP',expected)))
-        info['status']='EA_NPC_CAP_OVERRIDE_APPLIED_AND_CONFIRMED'
+        info['status']=('EA_NPC_CAP_EXTERNAL_REBASE_CONFIRMED'
+                        if external_rebase else
+                        'EA_NPC_CAP_OVERRIDE_APPLIED_AND_CONFIRMED')
+        if external_rebase:
+            info['external_override_rebases']=(
+                info.get('external_override_rebases',0)+1)
+            info['restoration_source']='LATEST_EXTERNAL_OVERRIDE'
         info['npc_soft_cap_after']=after
         info['npc_soft_cap_current']=after
         info['original_raw_override']=original
@@ -200,6 +219,11 @@ def selected_staff_bouncer_snapshot(manager, spawner, selected_roles):
     SimSpawnerService's NPC budget. Never submit/withdraw/modify a request.
     """
     result={'npc_soft_cap':getattr(spawner,'npc_soft_cap',None),
+            'npc_raw_override':getattr(
+                spawner,'_npc_soft_cap_override',None),
+            'npc_raw_base':getattr(spawner,'NPC_SOFT_CAP',None),
+            'npc_cap_reservation_modifier':getattr(
+                spawner,'_npc_cap_modifier',None),
             'npcs_instantiated':getattr(
                 spawner,'number_of_npcs_instantiated',None),
             'npcs_leaving':getattr(spawner,'number_of_npcs_leaving',None),
