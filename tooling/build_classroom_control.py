@@ -306,6 +306,7 @@ def installation_bundle(folder):
                    'docs/SECONDA_GIORNATA_DIAGNOSTICA.md',
                    'docs/COLLAUDO_PERSONALE_BETA.md',
                    'docs/COLLAUDO_PERSONALE_MULTIPLO_BETA.md',
+                   'docs/SALVA_CON_NOME_IMPORTAZIONE_SICURA.md',
                    'tooling/mod_inventory.py'):
         path=ROOT/source
         payload[path.name]=path.read_bytes()
