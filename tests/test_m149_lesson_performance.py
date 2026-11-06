@@ -20,7 +20,7 @@ def row(sid, klass, present=True, action=None):
 
 
 class M149LessonAuditTests(unittest.TestCase):
-    def test_half_as_many_heavy_entry_reads_without_touching_ea_polls(self):
+    def test_nine_minute_heavy_entry_reads_without_touching_ea_polls(self):
         # Sim ticks per minute are 1500; 3-minute automation cadence.
         ticks=[1500*(570+3*i) for i in range(21)]
         stored=[]
@@ -32,8 +32,8 @@ class M149LessonAuditTests(unittest.TestCase):
             else:
                 skipped+=1
         self.assertEqual(len(ticks),21)
-        self.assertEqual(len(stored),11)
-        self.assertEqual(skipped,10)
+        self.assertEqual(len(stored),7)
+        self.assertEqual(skipped,14)
         self.assertEqual(stored[-1],ticks[-1])
         self.assertTrue(should_capture_entry_snapshot(
             ticks[1],ticks[0],forced=True))
