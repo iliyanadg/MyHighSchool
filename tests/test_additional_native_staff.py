@@ -243,6 +243,8 @@ class SupplementalRuntimeTests(unittest.TestCase):
                 native['custodians']=(44,45)
             if role in ('cafeteria','teacher2'):
                 native['principal']=(43,)
+            if role=='cafeteria':
+                native['teacher2']=(42,)
             returned=env['_maybe_additional_school_staff'](runtime)
         return returned,manager.events,runtime
 
