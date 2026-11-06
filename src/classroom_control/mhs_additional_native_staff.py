@@ -60,11 +60,14 @@ def _definition_identity(obj):
     return key
 
 
-def count_verified_school_cafeteria_stations(manager):
-    """Conservatively count distinct high-school cafeteria station objects.
+def count_verified_school_cafeteria_stations(manager, native_station=None):
+    """Count unique real High School cafeteria counters, without guessing.
 
-    Never count menus, Sims, venue props or an untyped food counter. Unknown
-    object manager shape yields None (no extra workers created).
+    Prefer the real station being tended by EA's existing High School
+    TendObjectSituation: its actual object definition identifies matching
+    additional stations even if local game tuning names are unavailable.
+    Otherwise require recognizable cafeteria station tuning names. Unknown
+    manager API or definition cannot authorize additional vendors.
     """
     if manager is None:
         return None
@@ -72,14 +75,23 @@ def count_verified_school_cafeteria_stations(manager):
     if not callable(getter):
         return None
     try:
+        reference=getattr(native_station, 'definition', None)
+        reference_id=getattr(reference, 'id', None)
+        if type(reference_id) is not int or reference_id <= 0:
+            reference_id=None
         objects = tuple(getter())
         if len(objects) > 2000:
             return None
         matched = set()
         for obj in objects:
-            ident = _definition_identity(obj)
-            object_id = getattr(obj, 'id', None)
-            if ident is not None and type(object_id) is int and object_id > 0:
+            ident=_definition_identity(obj)
+            definition=getattr(obj,'definition',None)
+            defined_id=getattr(definition,'id',None)
+            object_id=getattr(obj, 'id', None)
+            if type(object_id) is not int or object_id <= 0:
+                continue
+            if (ident is not None or
+                    (reference_id is not None and defined_id==reference_id)):
                 matched.add(object_id)
         return len(matched)
     except Exception:
