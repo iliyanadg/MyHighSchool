@@ -165,11 +165,16 @@ def additional_staff_plan(selected, observed, pending_cafeteria,
         return None, 'PRIMARY_CAFETERIA_WORKER_NOT_IN_NATIVE_JOB'
     if type(stations) is not int:
         return None, 'CAFETERIA_STATION_COUNT_UNVERIFIED'
-    for sid in pending:
-        if sid not in served and sid not in tried:
-            if stations < len(served) + 1:
-                return None, 'ADDITIONAL_CAFETERIA_STATION_REQUIRED'
-            return {'role': 'cafeteria', 'sim_id': sid,
-                    'situation_guid': CAFETERIA_SITUATION,
-                    'job_guid': CAFETERIA_JOB}, 'SEPARATE_NATIVE_CAFETERIA_STATION'
+    for index,sid in enumerate(pending):
+        if sid in served:
+            continue
+        if any(prior not in served for prior in pending[:index]):
+            return None, 'PREVIOUS_EXTRA_CAFETERIA_WORKER_NOT_IN_NATIVE_JOB'
+        if sid in tried:
+            return None, 'EXTRA_CAFETERIA_NATIVE_JOB_PENDING_READBACK'
+        if stations < len(served) + 1:
+            return None, 'ADDITIONAL_CAFETERIA_STATION_REQUIRED'
+        return {'role': 'cafeteria', 'sim_id': sid,
+                'situation_guid': CAFETERIA_SITUATION,
+                'job_guid': CAFETERIA_JOB}, 'SEPARATE_NATIVE_CAFETERIA_STATION'
     return None, 'NO_ELIGIBLE_MISSING_NATIVE_STAFF'
