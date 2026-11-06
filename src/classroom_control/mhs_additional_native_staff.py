@@ -98,6 +98,33 @@ def count_verified_school_cafeteria_stations(manager, native_station=None):
         return None
 
 
+
+def native_cafeteria_workstation(situation, manager):
+    """Read a real native TendObjectSituation's workstation if exposed.
+
+    Each EA version can choose a different field layout. We only accept an
+    object with an actual definition/id, never a guessed tuning/Sim ID.
+    """
+    if getattr(situation, 'guid64', None) != CAFETERIA_SITUATION:
+        return None
+    for field in ('get_tend_object','get_target_object','_tend_object',
+                  'tend_object','_object_to_tend','_target_object'):
+        try:
+            value=getattr(situation,field,None)
+            if callable(value):
+                value=value()
+            if type(value) is int and manager is not None:
+                getter=getattr(manager,'get',None)
+                value=getter(value) if callable(getter) else None
+            definition=getattr(value,'definition',None)
+            if (type(getattr(definition,'id',None)) is int and
+                    type(getattr(value,'id',None)) is int):
+                return value
+        except Exception:
+            continue
+    return None
+
+
 def additional_staff_plan(selected, observed, pending_cafeteria,
                           clock, stations, already_attempted=()):
     """Return the next single exact employee; no random substitution.
