@@ -237,6 +237,66 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
         self.assertEqual(spawner.overrides,[35,38,None])
         self.assertEqual(spawner.modifier_calls,[3])
 
+    def test_report10_ea_reset_30_to_17_rebases_and_restores_17(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        first=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(first['npc_soft_cap_after'],30)
+        self.assertEqual(spawner.overrides,[35])
+        # Game report 10: EA resets the raw override after school entry,
+        # yielding only 17 available NPC slots at 09:34.
+        spawner.set_npc_soft_cap_override(22)
+        self.assertEqual(spawner.npc_soft_cap,17)
+        second=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(second['status'],
+                         'EA_NPC_CAP_EXTERNAL_REBASE_CONFIRMED')
+        self.assertEqual(second['external_override_rebases'],1)
+        self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertEqual(spawner.overrides,[35,22,35])
+        self.assertEqual(rt.school_npc_cap_original_value,22)
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner._npc_soft_cap_override,22)
+        self.assertEqual(spawner.npc_soft_cap,17)
+        self.assertEqual(spawner.modifier_calls,[])
+
+    def test_external_cap_rebase_is_bounded_twice_not_an_unlimited_war(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        start_temporary_school_npc_capacity(rt,spawner)
+        for raw in (22,23):
+            spawner.set_npc_soft_cap_override(raw)
+            result=start_temporary_school_npc_capacity(rt,spawner)
+            self.assertEqual(result['status'],
+                             'EA_NPC_CAP_EXTERNAL_REBASE_CONFIRMED')
+            self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertEqual(result['external_override_rebases'],2)
+        spawner.set_npc_soft_cap_override(21)
+        result=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(result['status'],'CAP_EXTERNAL_OVERRIDE_REBASE_LIMIT')
+        self.assertEqual(spawner._npc_soft_cap_override,21)
+        # Releasing our former override MUST leave a competing override
+        # untouched instead of forcefully restoring our stale value.
+        self.assertFalse(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner._npc_soft_cap_override,21)
+
+    def test_bouncer_capacity_probe_shows_ea_override_and_reservations(self):
+        from mhs_additional_native_staff import (
+            selected_staff_bouncer_snapshot)
+        _,spawner=self.fixture(15)
+        spawner._npc_soft_cap_override=22
+        spawner.add_npc_cap_modifier(2)
+        manager=types.SimpleNamespace(bouncer=types.SimpleNamespace(
+            _unfulfilled_requests=[[]]))
+        result=selected_staff_bouncer_snapshot(manager,spawner,{})
+        self.assertEqual(result['npc_soft_cap'],15)
+        self.assertEqual(result['npc_raw_override'],22)
+        self.assertEqual(result['npc_raw_base'],20)
+        self.assertEqual(result['npc_cap_reservation_modifier'],2)
+
     def test_third_party_override_change_not_clobbered_on_exit(self):
         from mhs_additional_native_staff import (
             start_temporary_school_npc_capacity,
