@@ -31,6 +31,32 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
             self.CLOCK,3,already_attempted=('44',))
         self.assertEqual((item['sim_id'],item['situation_guid']),('47',278011))
 
+    def test_missing_principal_and_second_teacher_use_verified_native_jobs(self):
+        selected={'custodians':('44','45'),'principal':('43',),
+                  'teacher1':('41',),'teacher2':('42',),
+                  'cafeteria':('46',)}
+        observed={'custodians':('45',),'principal':(),
+                  'teacher1':('41',),'teacher2':(),
+                  'cafeteria':('46',)}
+        expected=(('44',290196,298096),('43',278223,298096),
+                  ('42',278963,298052))
+        for count,each in enumerate(expected):
+            item,_=additional_staff_plan(selected,observed,(),
+                self.CLOCK,1,already_attempted=tuple(x[0] for x in expected[:count]))
+            self.assertEqual((item['sim_id'],item['job_guid'],
+                              item['situation_guid']),each)
+        item,_=additional_staff_plan(selected,observed,(),
+            self.CLOCK,1,already_attempted=('44','43','42'))
+        self.assertIsNone(item)
+        observed['custodians']=()
+        item,_=additional_staff_plan(selected,observed,(),
+            self.CLOCK,1,already_attempted=('44',))
+        self.assertEqual(item['role'],'teacher2')
+        observed['teacher1']=()
+        item,_=additional_staff_plan(selected,observed,(),
+            self.CLOCK,1,already_attempted=('44',))
+        self.assertIsNone(item)
+
     def test_second_and_third_vendor_require_extra_stations(self):
         sel={'custodians':(),'cafeteria':('46','47','48')}
         obs={'custodians':(),'cafeteria':('46',)}
@@ -119,29 +145,43 @@ class SupplementalRuntimeTests(unittest.TestCase):
         class Manager:
             def __init__(self):
                 self.events=[]
+                self.bouncer=types.SimpleNamespace(
+                    submit_request=lambda req:self.events.append(
+                        ('request',req._situation.guid64,
+                         req._requested_sim_id,req._job_type.guid64)))
             def get(self,situation_id):
-                return types.SimpleNamespace(guid64=278011)
+                guid={111:278011,112:298096,113:298052}.get(
+                    situation_id,278011)
+                def make_request(guest):
+                    return types.SimpleNamespace(
+                        _requested_sim_id=guest.sim_id,
+                        _job_type=guest.job_type,
+                        _situation=types.SimpleNamespace(guid64=guid))
+                return types.SimpleNamespace(
+                    guid64=guid,_create_request_from_guest_info=make_request)
             def create_situation(self,kind,guest_list=None):
                 self.events.append((kind.guid64,tuple(
                     (g.sim_id,g.job_type.guid64)
                     for g in guest_list.guest_info_gen())))
                 return 700+len(self.events)
         manager=Manager()
-        staff={
-            44:types.SimpleNamespace(sim_id=44),
-            45:types.SimpleNamespace(sim_id=45),
-            46:types.SimpleNamespace(sim_id=46),
-            47:types.SimpleNamespace(sim_id=47)}
+        staff={sid:types.SimpleNamespace(sim_id=sid)
+               for sid in (41,42,43,44,45,46,47)}
         infos={sid:types.SimpleNamespace(
             get_sim_instance=lambda s=sim:s)
             for sid,sim in staff.items()}
-        native={'custodians':(45,), 'cafeteria':(46,)}
+        native={'custodians':(45,), 'cafeteria':(46,),
+                'principal':(), 'teacher1':(41,), 'teacher2':()}
+        native_jobs=(('custodians',298096,290196),
+                     ('cafeteria',278011,278010),
+                     ('principal',298096,278223),
+                     ('teacher1',298052,277895),
+                     ('teacher2',298052,278963))
         memberships=lambda sim,mgr:{
             'available':True,
-            'jobs':[{'situation_guid':298096,'job_guid':290196}]
-                   if sim.sim_id in native['custodians'] else
-                   ([{'situation_guid':278011,'job_guid':278010}]
-                    if sim.sim_id in native['cafeteria'] else [])}
+            'jobs':[{'situation_guid':sguid,'job_guid':job}
+                    for name,sguid,job in native_jobs
+                    if sim.sim_id in native[name]]}
         services=types.SimpleNamespace(
             get_zone_situation_manager=lambda:manager,
             sim_info_manager=lambda:types.SimpleNamespace(get=infos.get),
@@ -155,27 +195,31 @@ class SupplementalRuntimeTests(unittest.TestCase):
                 get=lambda guid:types.SimpleNamespace(guid64=guid)))
         runtime=types.SimpleNamespace(
             active=True,school_ready=True,in_school=lambda:True,
-            staff_plan={'job_groups':{290196:('44','45')},
+            staff_plan={'job_groups':{277895:('41',),
+                         278963:('42',),278223:('43',),
+                         290196:('44','45')},
                         'jobs':{278010:'46'},
                         'pending_extra_staff':{'cafeteria':('47',)}},
-            staff_created={278011:111,298096:112},
+            staff_created={278011:111,298096:112,298052:113},
             staff_created_guests={
-                278011:{278010:('46',)},298096:{290196:('44','45')}},
+                278011:{278010:('46',)},
+                298096:{290196:('44','45'),278223:('43',)},
+                298052:{277895:('41',),278963:('42',)}},
             staff_extra_attempted=set(),
             staff_extra_created={},staff_extra_receipts=[],
             staff_extra_last_status=None,
             staff_pending=None,staff_pending_guests={},
-            staff_jobs={278010:types.SimpleNamespace(guid64=278010),
-                        290196:types.SimpleNamespace(guid64=290196)},
+            staff_jobs={guid:types.SimpleNamespace(guid64=guid)
+                        for guid in (278010,290196,278223,277895,278963)},
             classroom_membership={},
             previous={(Manager,'create_situation'):Manager.create_situation},
             manager_owner=Manager,guest_cls=Factory,invited='INVITED',
             bound_zone=20)
-        runtime.staff_created_guests[298096][290196]=('45',)
         env={
             '_ea_native_cafeteria_tag':lambda:None,
             'game_clock':lambda service:{'hour':10,'minute':33},
             'services':services,'VENUE_STAFF_SITUATION':298096,
+            'CORE_SITUATION':298052,
             'CAFETERIA_STAFF_SITUATION':278011,
             'zone_schedule':lambda:(20,277657),
             'project_native_staff_guests':project_native_staff_guests,
@@ -195,16 +239,31 @@ class SupplementalRuntimeTests(unittest.TestCase):
             'situations.situation_guest_list':guest_mod,
             'sims4':sims4,
             'sims4.resources':types_mod}):
-            if role=='cafeteria':
+            if role in ('cafeteria','principal','teacher2'):
                 native['custodians']=(44,45)
+            if role in ('cafeteria','teacher2'):
+                native['principal']=(43,)
             returned=env['_maybe_additional_school_staff'](runtime)
         return returned,manager.events,runtime
 
-    def test_missing_janitor_uses_new_venue_situation_without_principal(self):
+    def test_missing_janitor_reuses_existing_venue_situation(self):
         ok,events,rt=self.exercise(1,'janitor')
         self.assertTrue(ok,rt.staff_extra_last_status)
-        self.assertEqual(events,[(298096,((44,290196),))])
-        self.assertIn('44',rt.staff_extra_created)
+        self.assertEqual(events,[('request',298096,44,290196)])
+        self.assertEqual(rt.staff_extra_created,{})
+        self.assertIn('44',rt.staff_extra_attempted)
+
+    def test_missing_principal_reuses_existing_venue_situation(self):
+        ok,events,rt=self.exercise(1,'principal')
+        self.assertTrue(ok,rt.staff_extra_last_status)
+        self.assertEqual(events,[('request',298096,43,278223)])
+        self.assertEqual(rt.staff_extra_created,{})
+
+    def test_second_teacher_reuses_original_core_situation(self):
+        ok,events,rt=self.exercise(1,'teacher2')
+        self.assertTrue(ok,rt.staff_extra_last_status)
+        self.assertEqual(events,[('request',298052,42,278963)])
+        self.assertEqual(rt.staff_extra_created,{})
 
     def test_vendor_uses_new_tend_situation_only_with_second_counter(self):
         ok,events,rt=self.exercise(2,'cafeteria')
