@@ -10,7 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src/classroom_control'))
 from mhs_additional_native_staff import (
     additional_staff_plan, count_verified_school_cafeteria_stations,
-    supplemental_staff_window)
+    supplemental_staff_window, native_cafeteria_workstation)
 from mhs_native_staff_appointments import (
     project_native_staff_guests, projected_staff_ids)
 from tests.test_native_staff_appointments import GuestList, Factory
@@ -75,6 +75,16 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
         self.assertEqual(count_verified_school_cafeteria_stations(mgr),2)
         self.assertIsNone(count_verified_school_cafeteria_stations(None))
         self.assertIsNone(count_verified_school_cafeteria_stations(object()))
+        # When the game's native vendor exposes its real counter, match
+        # definition IDs even if the object definition has no readable name.
+        opaque=Definition(77,'opaque')
+        obj=item(9,opaque)
+        situation=types.SimpleNamespace(guid64=278011,
+                                         get_tend_object=lambda:obj)
+        self.assertIs(native_cafeteria_workstation(situation,mgr),obj)
+        self.assertEqual(count_verified_school_cafeteria_stations(
+            types.SimpleNamespace(get_all=lambda:[obj,item(10,opaque)]),
+            obj),2)
 
     def test_extra_guest_list_has_one_exact_employee_and_no_principal(self):
         job=types.SimpleNamespace(guid64=290196)
@@ -105,6 +115,8 @@ class SupplementalRuntimeTests(unittest.TestCase):
         class Manager:
             def __init__(self):
                 self.events=[]
+            def get(self,situation_id):
+                return types.SimpleNamespace(guid64=278011)
             def create_situation(self,kind,guest_list=None):
                 self.events.append((kind.guid64,tuple(
                     (g.sim_id,g.job_type.guid64)
