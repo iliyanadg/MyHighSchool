@@ -47,6 +47,7 @@ precedentemente funzionante. Non usare vecchi script MHS in parallelo.
 ## Documentazione
 
 - [Collaudo integrato personale e mensa](docs/COLLAUDO_PERSONALE_BETA.md)
+- [Secondo bidello e piu banconi mensa: singola prova beta](docs/COLLAUDO_PERSONALE_MULTIPLO_BETA.md)
 - [Audit e limiti](docs/AUDIT_CLASSROOM_CONTROL.md)
 - [Installazione su Mac](docs/INSTALLAZIONE_PULITA_MAC.md)
 - [Contratti EA](docs/EA_CONTRATTI_CLASSROOM_CONTROL.md)
