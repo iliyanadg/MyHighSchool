@@ -2404,7 +2404,7 @@ def _maybe_additional_school_staff(runtime):
             stamp,stations,runtime.staff_extra_attempted)
         runtime.staff_extra_last_status=reason
         if (request is not None and request['role']=='cafeteria'
-                and runtime.cafeteria_scheduled_target>1):
+                and getattr(runtime,'cafeteria_scheduled_target',1)>1):
             runtime.staff_extra_last_status='CAFETERIA_NATIVE_SCHEDULE_OWNS_EXTRAS'
             return False
         if request is None:
