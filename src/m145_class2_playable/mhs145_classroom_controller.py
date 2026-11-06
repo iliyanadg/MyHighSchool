@@ -2950,6 +2950,12 @@ def _m143_write_full_report(runtime):
                     runtime.staff_plan.get('pending_extra_staff',{}).items()},
                 'cafeteria_multiple_workers_still_not_supported':False,
                 'supplemental_staff_beta':True,
+                'cafeteria_service_mode_runtime':(
+                    'MULTIPLE_NATIVE_VENDOR_SITUATIONS_UNVERIFIED'
+                    if any(row.get('role')=='cafeteria' and
+                           row.get('creation_accepted_not_proof_of_work')
+                           for row in runtime.staff_extra_receipts)
+                    else 'ONE_NATIVE_PRIMARY_VENDOR_ONLY'),
                 'supplemental_staff_requests':list(runtime.staff_extra_receipts),
                 'supplemental_staff_created':dict(runtime.staff_extra_created),
                 'supplemental_staff_last_status':runtime.staff_extra_last_status,
