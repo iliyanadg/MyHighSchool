@@ -41,6 +41,10 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
         item,reason=additional_staff_plan(sel,obs,('47','48'),
             self.CLOCK,2)
         self.assertEqual(item['sim_id'],'47')
+        item,reason=additional_staff_plan(sel,obs,('47','48'),
+            self.CLOCK,3,already_attempted=('47',))
+        self.assertIsNone(item)
+        self.assertEqual(reason,'EXTRA_CAFETERIA_NATIVE_JOB_PENDING_READBACK')
         item,reason=additional_staff_plan(sel,
             {'cafeteria':('46','47'), 'custodians':()},
             ('47','48'),self.CLOCK,2)
