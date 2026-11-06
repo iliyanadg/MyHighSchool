@@ -634,7 +634,8 @@ class ThirteenNPCController(object):
                 selected_roles=self.staff_plan.get('selected_roles',{})
                 cafeteria=tuple(selected_roles.get('cafeteria',()))
                 station_probe=school_cafeteria_station_probe(
-                    services.object_manager())
+                    services.object_manager(),
+                    school_tag=_ea_native_cafeteria_tag())
                 adjusted,reason=cafeteria_native_schedule_count(
                     result,cafeteria,station_probe.get('count'))
                 self.cafeteria_schedule_probes.append({
@@ -2342,6 +2343,15 @@ def _observe_lesson_entry(runtime,event='interval'):
         return False
 
 
+def _ea_native_cafeteria_tag():
+    """Use EA's exact object filter: situation 278011, not a guessed name."""
+    try:
+        from sims4.tags import Tag
+        return getattr(Tag,'Func_HighSchool_Active_CafeteriaStation',None)
+    except Exception:
+        return None
+
+
 def _maybe_additional_school_staff(runtime):
     """One bounded native-situation attempt for each missing selected worker.
 
@@ -2398,7 +2408,8 @@ def _maybe_additional_school_staff(runtime):
         native_station=native_cafeteria_workstation(
             native_vendor,services.object_manager())
         stations=count_verified_school_cafeteria_stations(
-            services.object_manager(),native_station)
+            services.object_manager(),native_station,
+            _ea_native_cafeteria_tag())
         request,reason=additional_staff_plan(
             selected,observed,plan.get('pending_extra_staff',{}).get('cafeteria',()),
             stamp,stations,runtime.staff_extra_attempted)
