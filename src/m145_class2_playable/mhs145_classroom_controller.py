@@ -2372,8 +2372,12 @@ def _maybe_additional_school_staff(runtime):
             return False
         from mhs_school_readback import school_memberships
         plan=runtime.staff_plan
+        staff_groups=plan.get('job_groups',{})
         selected={
-            'custodians':tuple(plan.get('job_groups',{}).get(290196,())),
+            'teacher1':tuple(staff_groups.get(277895,())),
+            'teacher2':tuple(staff_groups.get(278963,())),
+            'principal':tuple(staff_groups.get(278223,())),
+            'custodians':tuple(staff_groups.get(290196,())),
             'cafeteria':tuple(
                 (plan.get('jobs',{}).get(278010),)
                 +tuple(plan.get('pending_extra_staff',{}).get('cafeteria',()))
@@ -2384,8 +2388,11 @@ def _maybe_additional_school_staff(runtime):
         if manager is None or info_mgr is None:
             runtime.staff_extra_last_status='NATIVE_MANAGER_UNAVAILABLE'
             return False
-        observed={'custodians':[],'cafeteria':[]}
+        observed={role:[] for role in selected}
         for role,sguid,jguid in (
+                ('teacher1',CORE_SITUATION,277895),
+                ('teacher2',CORE_SITUATION,278963),
+                ('principal',VENUE_STAFF_SITUATION,278223),
                 ('custodians',VENUE_STAFF_SITUATION,290196),
                 ('cafeteria',CAFETERIA_STAFF_SITUATION,278010)):
             for sid in selected[role]:
@@ -2426,6 +2433,65 @@ def _maybe_additional_school_staff(runtime):
         if sguid not in runtime.staff_created or sid in runtime.staff_extra_attempted:
             runtime.staff_extra_last_status='PRIMARY_NATIVE_SITUATION_REQUIRED'
             return False
+        # Recover roles in their ORIGINAL live school situation, instead
+        # of spinning up a second Core/Venue controller. EA BaseSituation
+        # exposes _create_request_from_guest_info and the native Bouncer
+        # accepts a job-specific Sim request. Never spawn, teleport or
+        # randomly replace anyone; keep the real-job readback authoritative.
+        if request['role'] != 'cafeteria':
+            if sid not in runtime.staff_created_guests.get(
+                    sguid,{}).get(job,()):
+                runtime.staff_extra_last_status='EXACT_NATIVE_GUEST_NOT_PROJECTED'
+                return False
+            original=manager.get(runtime.staff_created[sguid])
+            if (original is None or getattr(original,'guid64',None)!=sguid
+                    or job not in runtime.staff_jobs
+                    or getattr(runtime.staff_jobs[job],'guid64',None)!=job):
+                runtime.staff_extra_last_status='EXISTING_NATIVE_JOB_NOT_AVAILABLE'
+                return False
+            maker=getattr(original,'_create_request_from_guest_info',None)
+            bouncer=getattr(manager,'bouncer',None)
+            submit=getattr(bouncer,'submit_request',None)
+            factory=getattr(runtime.guest_cls,'construct_from_purpose',None)
+            if not callable(maker) or not callable(submit) or not callable(factory):
+                runtime.staff_extra_last_status='NATIVE_JOB_REQUEST_API_MISSING'
+                return False
+            try:
+                guest=factory(int(sid),runtime.staff_jobs[job],
+                              runtime.invited)
+                if (str(getattr(guest,'sim_id',None))!=sid or
+                        getattr(getattr(guest,'job_type',None),
+                                'guid64',None)!=job or
+                        getattr(guest,'accept_alternate_sim',None) is not False):
+                    runtime.staff_extra_last_status='NATIVE_JOB_GUEST_NOT_EXACT'
+                    return False
+                native_request=maker(guest)
+                if (native_request is None or
+                        str(getattr(native_request,'_requested_sim_id',None))
+                        !=sid or
+                        getattr(getattr(native_request,'_job_type',None),
+                                'guid64',None)!=job):
+                    runtime.staff_extra_last_status='NATIVE_JOB_REQUEST_NOT_EXACT'
+                    return False
+                runtime.staff_extra_attempted.add(sid)
+                # Do not submit a second invitation for a Sim already
+                # working at the target EA job; the readback above is final.
+                submit(native_request)
+                if len(runtime.staff_extra_receipts)<8:
+                    runtime.staff_extra_receipts.append({
+                        'sim_id':sid,'role':request['role'],
+                        'situation_guid':sguid,'job_guid':job,
+                        'native_situation_id':runtime.staff_created[sguid],
+                        'source':'EXISTING_EA_SITUATION_JOB_REQUEST',
+                        'submission_acknowledged_not_proof_of_work':True,
+                        'actual_native_job_unverified':True})
+                runtime.staff_extra_last_status=(
+                    'EXISTING_EA_JOB_REQUEST_SUBMITTED_UNVERIFIED')
+                return True
+            except Exception as exc:
+                runtime.staff_extra_last_status=(
+                    'EXISTING_EA_JOB_REQUEST_'+type(exc).__name__)
+                return False
         native_create=runtime.previous.get(
             (runtime.manager_owner,'create_situation'))
         if not callable(native_create):
