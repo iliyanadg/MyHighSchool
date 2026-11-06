@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'/'m148_clock'))
-from mhs149_lesson_audit import audit_lesson_entry
+from mhs149_lesson_audit import audit_lesson_entry,audit_manual_whiteboard_choice
 from mhs148_clock_and_sampling import should_capture_entry_snapshot
 
 
@@ -91,6 +91,29 @@ class M149LessonAuditTests(unittest.TestCase):
         self.assertFalse(r['all_registered_have_running_lesson_evidence'])
         self.assertEqual(
             r['periods']['morning']['class_results']['1']['running_lesson_seen'],[])
+
+    def test_manual_whiteboard_original_ea_menu_coexists_with_automation(self):
+        audit=audit_manual_whiteboard_choice(
+            {'applied':True,'variant':'ZERBU'},
+            {'applied':True,'reason':'EA_EIGHT_SUBJECTS_CLASS_PICKER_REUSED'},
+            {1:{'id':'101'},2:{'id':'202'}},67)
+        self.assertTrue(audit['manual_click_preserved_by_original_ea_menu'])
+        self.assertTrue(audit['auto_push_defers_to_existing_class_or_board_navigation'])
+        self.assertTrue(audit['ea_schedule_and_subject_availability_still_apply'])
+        self.assertFalse(audit['manual_menu_visibility_verified_in_game'])
+        self.assertEqual(audit['world_mutations'],0)
+        self.assertEqual(audit['assigned_board_ids'],{'1':'101','2':'202'})
+
+    def test_manual_mode_not_claimed_without_own_unique_boards_and_patches(self):
+        for picker,subs,boards in (
+            (None,{'applied':True},{1:{'id':'101'},2:{'id':'202'}}),
+            ({'applied':True},None,{1:{'id':'101'},2:{'id':'202'}}),
+            ({'applied':True},{'applied':True},
+             {1:{'id':'101'},2:{'id':'101'}}),
+        ):
+            audit=audit_manual_whiteboard_choice(picker,subs,boards,0)
+            self.assertFalse(audit['manual_click_preserved_by_original_ea_menu'])
+            self.assertFalse(audit['manual_menu_visibility_verified_in_game'])
 
     def test_empty_report_is_unknown_not_success(self):
         r=audit_lesson_entry([],(('1',),('2',)))
