@@ -24,8 +24,7 @@ viene riarmato dopo la fine della giornata. Durante l'intervallo
 originali, senza forzare l'uscita degli studenti o ordini di cibo.
 Sono salvaguardie; non dimostrano ancora che gli studenti mangino.
 
-La mod rimane una **beta da collaudare in gioco**, non una release
-certificata stabile.
+**Estensione personale in prova:** se il gioco assegna soltanto uno dei due\nbidelli, la mod tenta una seconda situazione EA riservata esclusivamente\nal bidello mancante. Per ogni addetto alla mensa oltre Agnes richiede un\nbancone scolastico aggiuntivo riconosciuto nel lotto; non convoca altri\naddetti quando il bancone non e verificabile. I nuovi incarichi restano\n**in beta** finche il report non conferma i job EA e il lavoro effettivo.\n\nLa mod rimane una **beta da collaudare in gioco**, non una release\ncertificata stabile.
 
 ## Scaricare una build corretta
 
