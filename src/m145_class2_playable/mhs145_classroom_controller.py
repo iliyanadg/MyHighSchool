@@ -298,6 +298,10 @@ class ThirteenNPCController(object):
         self.staff_created_guests={}
         self.staff_projection_reports=[]
         self.staff_filter_hits=0
+        self.staff_extra_attempted=set()
+        self.staff_extra_created={}
+        self.staff_extra_receipts=[]
+        self.staff_extra_last_status=None
 
     def begin_school_day(self, key):
         """Reset our bookkeeping before EA's first create on a new day.
@@ -334,6 +338,10 @@ class ThirteenNPCController(object):
         self.staff_created_guests.clear()
         self.staff_projection_reports[:]=[]
         self.staff_filter_hits=0
+        self.staff_extra_attempted.clear()
+        self.staff_extra_created.clear()
+        self.staff_extra_receipts[:]=[]
+        self.staff_extra_last_status=None
         if callable(self.staff_plan_loader):
             try:
                 self.staff_plan=self.staff_plan_loader(self.slot,groups)
@@ -2109,6 +2117,137 @@ def _observe_lesson_entry(runtime,event='interval'):
         return False
 
 
+def _maybe_additional_school_staff(runtime):
+    """One bounded native-situation attempt for each missing selected worker.
+
+    This never patches school/EA schedule tuning or overwrites the existing
+    native staff situation. Extra staff must occupy a genuine EA job; the
+    actual appointment is read back separately. On unsupported APIs the
+    original school remains untouched and the missing role remains visible.
+    """
+    if not runtime.active or not runtime.school_ready or not runtime.in_school():
+        return False
+    try:
+        from mhs_additional_native_staff import (
+            additional_staff_plan, supplemental_staff_window,
+            count_verified_school_cafeteria_stations,
+            native_cafeteria_workstation)
+        stamp=game_clock(services.time_service())
+        if not supplemental_staff_window(stamp):
+            return False
+        from mhs_school_readback import school_memberships
+        plan=runtime.staff_plan
+        selected={
+            'custodians':tuple(plan.get('job_groups',{}).get(290196,())),
+            'cafeteria':tuple(
+                (plan.get('jobs',{}).get(278010),)
+                +tuple(plan.get('pending_extra_staff',{}).get('cafeteria',()))
+            ) if plan.get('jobs',{}).get(278010) else (),
+        }
+        manager=services.get_zone_situation_manager()
+        info_mgr=services.sim_info_manager()
+        if manager is None or info_mgr is None:
+            runtime.staff_extra_last_status='NATIVE_MANAGER_UNAVAILABLE'
+            return False
+        observed={'custodians':[],'cafeteria':[]}
+        for role,sguid,jguid in (
+                ('custodians',VENUE_STAFF_SITUATION,290196),
+                ('cafeteria',CAFETERIA_STAFF_SITUATION,278010)):
+            for sid in selected[role]:
+                try:
+                    info=info_mgr.get(int(sid))
+                    sim=info.get_sim_instance() if info is not None else None
+                    memberships=school_memberships(sim,manager)
+                    if (memberships.get('available') and
+                            any(row.get('situation_guid')==sguid and
+                                row.get('job_guid')==jguid
+                                for row in memberships.get('jobs',()))):
+                        observed[role].append(str(sid))
+                except Exception:
+                    pass
+        # Only treat recognizable real stations as available work posts.
+        # None prevents extra vendor creation, not the working primary.
+        native_vendor=(manager.get(
+            runtime.staff_created[CAFETERIA_STAFF_SITUATION])
+            if runtime.staff_created.get(CAFETERIA_STAFF_SITUATION) else None)
+        native_station=native_cafeteria_workstation(
+            native_vendor,services.object_manager())
+        stations=count_verified_school_cafeteria_stations(
+            services.object_manager(),native_station)
+        request,reason=additional_staff_plan(
+            selected,observed,plan.get('pending_extra_staff',{}).get('cafeteria',()),
+            stamp,stations,runtime.staff_extra_attempted)
+        runtime.staff_extra_last_status=reason
+        if request is None:
+            return False
+        sguid=request['situation_guid']
+        job=request['job_guid']
+        sid=request['sim_id']
+        if sguid not in runtime.staff_created or sid in runtime.staff_extra_attempted:
+            runtime.staff_extra_last_status='PRIMARY_NATIVE_SITUATION_REQUIRED'
+            return False
+        native_create=runtime.previous.get(
+            (runtime.manager_owner,'create_situation'))
+        if not callable(native_create):
+            runtime.staff_extra_last_status='ORIGINAL_EA_CREATE_NOT_AVAILABLE'
+            return False
+        from situations.situation_guest_list import SituationGuestList
+        from sims4.resources import Types
+        manager_types=services.get_instance_manager(Types.SITUATION)
+        kind=manager_types.get(sguid) if manager_types else None
+        if (kind is None or getattr(kind,'guid64',None)!=sguid or
+                job not in runtime.staff_jobs or
+                getattr(runtime.staff_jobs[job],'guid64',None)!=job):
+            runtime.staff_extra_last_status='EXTRA_NATIVE_TUNING_UNAVAILABLE'
+            return False
+        prepared,projection=project_native_staff_guests(
+            SituationGuestList(invite_only=True),sguid,
+            {'jobs':{job:sid},'job_groups':{job:(sid,)},'blocked':{}},
+            runtime.staff_jobs,runtime.guest_cls,runtime.invited,
+            excluded_ids=tuple(runtime.classroom_membership))
+        if prepared is None:
+            runtime.staff_extra_last_status=projection.get(
+                'reason','EXTRA_NATIVE_GUEST_REFUSED')
+            return False
+        receipt=projected_staff_ids(projection)
+        if receipt.get(job)!=(sid,):
+            runtime.staff_extra_last_status='EXTRA_NATIVE_RECEIPT_NOT_EXACT'
+            return False
+        runtime.staff_extra_attempted.add(sid)
+        runtime.staff_pending=sguid
+        runtime.staff_pending_guests=receipt
+        runtime.bound_zone=zone_schedule()[0]
+        try:
+            situation_id=native_create(
+                manager,kind,guest_list=prepared)
+            accepted=type(situation_id) is int and situation_id>0
+            if accepted:
+                runtime.staff_extra_created[sid]=situation_id
+                existing=runtime.staff_created_guests.setdefault(sguid,{})
+                group=tuple(existing.get(job,()))
+                if sid not in group:
+                    existing[job]=group+(sid,)
+            outcome={'sim_id':sid,'role':request['role'],
+                     'situation_guid':sguid,'job_guid':job,
+                     'native_situation_id':situation_id if accepted else None,
+                     'creation_accepted_not_proof_of_work':accepted,
+                     'stations_verified':stations,
+                     'actual_native_job_unverified':True}
+            if len(runtime.staff_extra_receipts)<8:
+                runtime.staff_extra_receipts.append(outcome)
+            runtime.staff_extra_last_status=(
+                'EXTRA_NATIVE_CREATE_ACCEPTED_UNVERIFIED' if accepted
+                else 'EXTRA_NATIVE_CREATE_NOT_ACCEPTED')
+            return accepted
+        finally:
+            runtime.staff_pending=None
+            runtime.staff_pending_guests.clear()
+    except Exception as exc:
+        runtime.staff_extra_last_status=(
+            'EXTRA_STAFF_'+type(exc).__name__)
+        return False
+
+
 def _observe_school_staff(runtime,stamp,period):
     try:
         from mhs53_staff_store import StaffStore
@@ -2307,6 +2446,7 @@ def _m141_start_trace(runtime,origin='ea_event'):
                 return
             _m142_roll_period_if_due(runtime,
                                      game_clock(services.time_service()))
+            _maybe_additional_school_staff(runtime)
             _observe_lesson_entry(runtime)
             _m141_capture(runtime,'interval')
             _m147_early_playable_preparation(runtime)
@@ -2808,7 +2948,19 @@ def _m143_write_full_report(runtime):
                 'staff_pending_extra_workers':{
                     role:list(ids) for role,ids in
                     runtime.staff_plan.get('pending_extra_staff',{}).items()},
-                'cafeteria_multiple_workers_still_not_supported':True,
+                'cafeteria_multiple_workers_still_not_supported':False,
+                'supplemental_staff_beta':True,
+                'cafeteria_service_mode_runtime':(
+                    'MULTIPLE_NATIVE_VENDOR_SITUATIONS_UNVERIFIED'
+                    if any(row.get('role')=='cafeteria' and
+                           row.get('creation_accepted_not_proof_of_work')
+                           for row in runtime.staff_extra_receipts)
+                    else 'ONE_NATIVE_PRIMARY_VENDOR_ONLY'),
+                'supplemental_staff_requests':list(runtime.staff_extra_receipts),
+                'supplemental_staff_created':dict(runtime.staff_extra_created),
+                'supplemental_staff_last_status':runtime.staff_extra_last_status,
+                'supplemental_staff_created_not_proof_of_native_job':True,
+                'additional_cafeteria_requires_distinct_verified_stations':True,
                 'native_staff_projection_attempts':runtime.staff_projection_reports,
                 'native_staff_situations_created':dict(runtime.staff_created),
                 'native_staff_exact_guest_receipts':{

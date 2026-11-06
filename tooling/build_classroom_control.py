@@ -46,6 +46,7 @@ EXTRA_SOURCES = tuple(ROOT / path for path in (
     'src/classroom_control/mhs_queue_readback.py',
     'src/classroom_control/mhs_school_readback.py',
     'src/classroom_control/mhs_native_staff_appointments.py',
+    'src/classroom_control/mhs_additional_native_staff.py',
 ))
 SOURCES = tuple(MENU_SOURCES) + tuple(ATTENDANCE_SOURCES) + EXTRA_SOURCES
 EA_MODULES = frozenset((
@@ -303,6 +304,7 @@ def installation_bundle(folder):
                    'docs/VERIFICHE_CLASSROOM_CONTROL.md',
                    'docs/SECONDA_GIORNATA_DIAGNOSTICA.md',
                    'docs/COLLAUDO_PERSONALE_BETA.md',
+                   'docs/COLLAUDO_PERSONALE_MULTIPLO_BETA.md',
                    'tooling/mod_inventory.py'):
         path=ROOT/source
         payload[path.name]=path.read_bytes()
@@ -381,6 +383,8 @@ for source, destination, filename in json.loads(sys.stdin.read()):
             'staff_two_custodians_in_game_verified': False,
             'staff_multiple_cafeteria_workers_supported': False,
             'staff_cafeteria_primary_fallback_supported': True,
+            'supplemental_school_staff_native_situation_beta': True,
+            'supplemental_staff_real_job_requires_game_test': True,
             'staff_cafeteria_policy': 'FIRST_REGISTERED_NATIVE_VENDOR_ONLY_EXTRAS_PENDING',
             'staff_actual_ea_job_verified_in_game': False,
             'day_rollover_owner_preserved_in_code': True,
@@ -418,7 +422,9 @@ for source, destination, filename in json.loads(sys.stdin.read()):
         'L ingresso effettivo nel job deve ancora essere verificato nel gioco.\n'
         'Uno o due bidelli: inviti esatti per lo stesso job EA, in beta da collaudare.\n'
         'Con 2-3 addetti mensa scelti: solo il PRIMO resta al banco EA come lavoratore primario fisso; gli altri sono in attesa.\n'
-        'Due o piu addetti mensa contemporanei NON ancora supportati.\n'
+        'Addetti extra in beta: richiedono un banco mensa scolastico per ciascuno.\n'
+        'Secondo bidello e addetti extra usano situazioni EA separate, solo se verificate.\n'
+        'Presenza e vero lavoro restano DA CONFERMARE nel gioco, mai dedotti da invito.\n'
         'Per la prova usa una copia del salvataggio e leggi COLLAUDO_PERSONALE_BETA.md.\n'
         'Nuova giornata: controller conservato e monitor arrivo riarmato (da collaudare).\n'
         'Durante il pranzo i test lavagna tornano agli originali EA; nessuno spostamento forzato.\n'
