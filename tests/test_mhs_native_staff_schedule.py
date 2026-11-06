@@ -32,12 +32,16 @@ class NativeCafeteriaScheduleTests(unittest.TestCase):
 
     def test_no_extra_vendor_when_ea_own_schedule_unknown(self):
         workers=('41','42')
-        for original in ((0,0),(2,2),(1,2),(True,True),('1','1'),1):
+        for original in ((0,0),(4,4),(1,2),(True,True),('1','1'),1):
             decided,reason=cafeteria_native_schedule_count(original,workers,3)
             self.assertEqual(decided,original)
             self.assertEqual(reason,'EA_VENDOR_COUNT_UNSUPPORTED')
         self.assertEqual(cafeteria_native_schedule_count(
             (1,1),('41','41'),3)[0],(1,1))
+        self.assertEqual(cafeteria_native_schedule_count(
+            (2,2),workers,2),((2,2),'EA_NATIVE_VENDOR_COUNT_ALREADY_SUFFICIENT'))
+        self.assertEqual(cafeteria_native_schedule_count(
+            (3,3),workers,3),((3,3),'EA_VENDOR_COUNT_MORE_THAN_SELECTED'))
 
     def test_station_object_manager_values_is_used_not_only_get_all(self):
         counter=types.SimpleNamespace(id=19,name='object_CafeteriaStation_HighSchool')
