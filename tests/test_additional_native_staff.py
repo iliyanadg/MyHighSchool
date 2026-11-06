@@ -128,6 +128,91 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
         self.assertEqual(projected_staff_ids(projection),{290196:('44',)})
 
 
+class SchoolNativeNpcBudgetTests(unittest.TestCase):
+    """Contract: capped, additive, per-school-day, undone on leaving."""
+
+    @staticmethod
+    def fixture(cap=20):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity)
+        class Spawner:
+            def __init__(self, soft_cap):
+                self.npc_soft_cap=soft_cap
+                self.number_of_npcs_instantiated=18
+                self.number_of_npcs_leaving=0
+                self.calls=[]
+            def add_npc_cap_modifier(self, delta):
+                self.calls.append(delta)
+                self.npc_soft_cap+=delta
+        spawner=Spawner(cap)
+        runtime=types.SimpleNamespace(
+            lesson_classes=(tuple(str(i) for i in range(1,9)),
+                            tuple(str(i) for i in range(9,17))),
+            staff_plan={'selected_roles':{
+                'teacher1':('41',),'teacher2':('42',),
+                'principal':('43',),'custodians':('44','45'),
+                'cafeteria':('46','47','48')}},
+            school_npc_cap_service=None,school_npc_cap_delta=0,
+            school_npc_cap_state={'status':'NOT_STARTED'})
+        return runtime,spawner
+
+    def test_school_24_sims_gets_native_soft_cap_and_exact_undo(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(20)
+        result=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(result['status'],'EA_NPC_CAP_MODIFIER_APPLIED')
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(26,[6]))
+        self.assertIs(start_temporary_school_npc_capacity(rt,spawner),result)
+        self.assertEqual(spawner.calls,[6])
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(20,[6,-6]))
+        self.assertFalse(stop_temporary_school_npc_capacity(rt))
+
+    def test_existing_higher_mccc_cap_is_not_overridden(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(40)
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'CAP_ALREADY_SUFFICIENT')
+        self.assertEqual(spawner.calls,[])
+
+    def test_fail_closed_for_invalid_count_and_large_delta(self):
+        from mhs_additional_native_staff import (
+            school_npc_capacity_plan,start_temporary_school_npc_capacity)
+        self.assertEqual(school_npc_capacity_plan(10,16,8)[0],0)
+        self.assertEqual(school_npc_capacity_plan(20,15,8)[0],0)
+        rt,spawner=self.fixture(13)
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'CAP_CHANGE_TOO_LARGE')
+        self.assertEqual(spawner.calls,[])
+
+    def test_bouncer_observer_is_read_only_and_reports_only_staff(self):
+        from mhs_additional_native_staff import (
+            selected_staff_bouncer_snapshot)
+        rt,spawner=self.fixture(20)
+        request=types.SimpleNamespace(
+            _requested_sim_id=43,
+            _situation=types.SimpleNamespace(guid64=298096),
+            _job_type=types.SimpleNamespace(guid64=278223),
+            _status='SUBMITTED',_requires_spawning=True,
+            request_priority='VIP',_unfulfilled_index=0)
+        unrelated=types.SimpleNamespace(
+            _requested_sim_id=999,
+            _situation=types.SimpleNamespace(guid64=277733),
+            _job_type=types.SimpleNamespace(guid64=277894))
+        manager=types.SimpleNamespace(bouncer=types.SimpleNamespace(
+            _unfulfilled_requests=[[request,unrelated],[]]))
+        state=selected_staff_bouncer_snapshot(
+            manager,spawner,rt.staff_plan['selected_roles'])
+        self.assertEqual(state['npc_soft_cap'],20)
+        self.assertEqual(state['scanned_requests'],2)
+        self.assertEqual(state['selected_job_requests'][0]['sim_id'],'43')
+        self.assertEqual(len(state['selected_job_requests']),1)
+        self.assertEqual(len(manager.bouncer._unfulfilled_requests[0]),2)
+
+
 class SupplementalRuntimeTests(unittest.TestCase):
     @staticmethod
     def extracted_function():
