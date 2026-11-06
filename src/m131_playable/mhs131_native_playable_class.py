@@ -62,6 +62,43 @@ def find_playable_entry(groups,sim_info_manager,active_household):
     return rows
 
 
+
+def _existing_native_board_navigation(snapshot, board):
+    """Do not push an automatic class action over a board already selected.
+
+    The EA UI and Zerbu can first queue a GoToBoard/Ping rather than the
+    subject Attend interaction. Accept ONLY a real interaction targeting
+    the one positively verified enrolled-class board. A name alone is NOT
+    proof: an unrelated ping must not suppress automatic attendance.
+    Do not infer whether the queue came from a player's click or EA.
+    """
+    if not snapshot.get('available'):
+        return False
+    actions=(snapshot.get('running'),)+tuple(snapshot.get('waiting') or ())
+    for action in actions:
+        if action is None:
+            continue
+        name=type(action).__name__.lower()
+        if not any(token in name for token in (
+                'highschool_active_ping_gotoobject',
+                'zerbu_gts5_whiteboardgotoping',
+                'highschool_active_whiteboard_')):
+            continue
+        for key in ('target','picked_object'):
+            try:
+                obj=getattr(action,key,None)
+                if obj is board:
+                    return True
+                lhs=getattr(obj,'id',None)
+                rhs=getattr(board,'id',None)
+                if (type(lhs) is int and lhs>0
+                        and type(rhs) is int and lhs==rhs):
+                    return True
+            except Exception:
+                continue
+    return False
+
+
 def queue_playable_class(played,boards,affordance,context_factory):
     """Queue EA player interaction only, never cancel or teleport Sims."""
     if affordance is None:
@@ -102,6 +139,12 @@ def queue_playable_class(played,boards,affordance,context_factory):
                 if any(protected_gameplay(name) for name in names):
                     results.append({'sim_id':row['sim_id'],'queued':False,
                                     'reason':'EXISTING_PROTECTED_ACTION'})
+                    continue
+                if _existing_native_board_navigation(snapshot,target):
+                    # Honor the user's already selected native board route;
+                    # this also avoids duplicating EA/Zerbu's own navigation.
+                    results.append({'sim_id':row['sim_id'],'queued':False,
+                                    'reason':'EXISTING_NATIVE_BOARD_NAVIGATION'})
                     continue
             # Never interrupt existing school player lesson or protected needs.
             if (('HighSchool_Active_Whiteboard_' in running_name
