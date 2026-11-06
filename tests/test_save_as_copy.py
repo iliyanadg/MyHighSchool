@@ -90,7 +90,7 @@ class SaveAsCloneTests(unittest.TestCase):
         custom=SettingsStore(self.folder).path(self.target)
         Path(custom).write_bytes(b'pre-existing data must not be lost')
         before=self.state()
-        with self.assertRaisesRegex(SaveAsCopyError,'TARGET_ALREADY_HAS'):
+        with self.assertRaisesRegex(SaveAsCopyError,'TARGET_SETTINGS_INVALID'):
             import_copy(self.folder,self.source,self.target,*self.opts())
         self.assertEqual(before,self.state())
 
@@ -130,12 +130,33 @@ class SaveAsCloneTests(unittest.TestCase):
             import_copy(self.folder,self.source,self.target,*self.opts())
         self.assertFalse(any('_slot_42' in name for name in self.state()))
 
-    def test_second_copy_is_refused_and_source_does_not_change(self):
-        import_copy(self.folder,self.source,self.target,*self.opts())
+    def test_second_copy_is_idempotent_and_source_does_not_change(self):
+        first=import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertEqual(first['copied_files'],4)
         original=self.state()
-        with self.assertRaisesRegex(SaveAsCopyError,'TARGET_ALREADY_HAS'):
-            import_copy(self.folder,self.source,self.target,*self.opts())
+        second=import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertEqual(second['copied_files'],0)
+        self.assertEqual(second['unchanged_files'],4)
         self.assertEqual(original,self.state())
+
+    def test_partial_matching_target_imports_only_missing_files(self):
+        settings=SchoolSettings(self.target,True,2)
+        SettingsStore(self.folder).save(settings)
+        before=Path(SettingsStore(self.folder).path(self.target)).read_bytes()
+        result=import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertEqual((result['copied_files'],result['unchanged_files']),(3,1))
+        self.assertEqual(Path(SettingsStore(self.folder).path(self.target)).read_bytes(),
+                         before)
+        self.assertEqual(len(RosterStore(self.folder).load(self.target).assignments),16)
+
+    def test_different_existing_students_are_never_overwritten(self):
+        SettingsStore(self.folder).save(SchoolSettings(self.target,True,2))
+        other=SchoolRoster(self.target,{'100':1})
+        RosterStore(self.folder).save(self.target,other)
+        before=self.state()
+        with self.assertRaisesRegex(SaveAsCopyError,'TARGET_STUDENTS_DIFFERS'):
+            import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertEqual(self.state(),before)
 
     def test_write_failure_rolls_back_only_new_destination_files(self):
         real_open=os.open
