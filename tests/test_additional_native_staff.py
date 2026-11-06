@@ -129,13 +129,9 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
 
 
 class SchoolNativeNpcBudgetTests(unittest.TestCase):
-    """Regression tests with the ACTUAL EA soft-cap calculation.
-
-    EA SimSpawnerService.npc_soft_cap is:
-       (NPC_SOFT_CAP or _npc_soft_cap_override)
-         - floor(_npc_cap_modifier) - active_household.household_size
-    add_npc_cap_modifier cannot increase available slots: negative total
-    modifiers are CLAMPED to zero. School must use the native override.
+    """EA property contract and report 11: the external cap is repeatedly
+    reset from 35 to 22. Keep an effective zone cap >=30 without writing
+    set_npc_soft_cap_override, touching reservations, or global leakage.
     """
 
     @staticmethod
@@ -146,19 +142,18 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
                 self.household_size=5
                 self._npc_soft_cap_override=None
                 self._npc_cap_modifier=0
-                self.number_of_npcs_instantiated=0
+                self.number_of_npcs_instantiated=17
                 self.number_of_npcs_leaving=0
                 self.overrides=[]
                 self.modifier_calls=[]
             @property
             def npc_soft_cap(self):
                 from math import floor
-                base=(self.NPC_SOFT_CAP
-                      if self._npc_soft_cap_override is None else
-                      self._npc_soft_cap_override)
-                return base-floor(self._npc_cap_modifier)-self.household_size
+                raw=(self.NPC_SOFT_CAP if
+                     self._npc_soft_cap_override is None else
+                     self._npc_soft_cap_override)
+                return raw-floor(self._npc_cap_modifier)-self.household_size
             def add_npc_cap_modifier(self,value):
-                # Faithful EA behavior. This method MUST NOT be used by MHS.
                 self.modifier_calls.append(value)
                 self._npc_cap_modifier=max(0,self._npc_cap_modifier+value)
             def set_npc_soft_cap_override(self,value):
@@ -166,6 +161,7 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
                 self._npc_soft_cap_override=value
         spawner=Spawner(cap)
         runtime=types.SimpleNamespace(
+            active=True,in_school=lambda:True,
             lesson_classes=(tuple(str(i) for i in range(1,9)),
                             tuple(str(i) for i in range(9,17))),
             staff_plan={'selected_roles':{
@@ -176,171 +172,137 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
             school_npc_cap_state={'status':'NOT_STARTED'})
         return runtime,spawner
 
-    def test_report9_baseline_15_becomes_30_and_restores(self):
+    def test_school_guard_15_to_30_with_exact_getter_restoration(self):
         from mhs_additional_native_staff import (
             start_temporary_school_npc_capacity,
             stop_temporary_school_npc_capacity)
         rt,spawner=self.fixture(15)
-        result=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(result['npc_soft_cap_before'],15)
-        self.assertEqual(result['npc_soft_cap_after'],30)
-        self.assertEqual(result['status'],
-                         'EA_NPC_CAP_OVERRIDE_APPLIED_AND_CONFIRMED')
-        self.assertEqual(spawner.overrides,[35])
-        self.assertEqual(spawner.modifier_calls,[])
-        start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(spawner.overrides,[35])
-        self.assertTrue(stop_temporary_school_npc_capacity(rt))
-        self.assertEqual(spawner.npc_soft_cap,15)
-        self.assertEqual(spawner.overrides,[35,None])
-        self.assertFalse(stop_temporary_school_npc_capacity(rt))
-
-    def test_existing_higher_cap_is_not_overridden(self):
-        from mhs_additional_native_staff import (
-            start_temporary_school_npc_capacity)
-        rt,spawner=self.fixture(40)
-        result=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(result['status'],'CAP_ALREADY_SUFFICIENT')
-        self.assertEqual(spawner.overrides,[])
-
-    def test_existing_mccc_override_restores_exact_value(self):
-        from mhs_additional_native_staff import (
-            start_temporary_school_npc_capacity,
-            stop_temporary_school_npc_capacity)
-        rt,spawner=self.fixture(15)
-        spawner._npc_soft_cap_override=22  # effective 17
-        state=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(state['npc_soft_cap_before'],17)
-        self.assertEqual(spawner._npc_soft_cap_override,35)
-        self.assertTrue(stop_temporary_school_npc_capacity(rt))
-        self.assertEqual(spawner._npc_soft_cap_override,22)
-        self.assertEqual(spawner.npc_soft_cap,17)
-        self.assertEqual(spawner.modifier_calls,[])
-
-    def test_external_ea_reservation_reduces_cap_and_topup_corrects(self):
-        from mhs_additional_native_staff import (
-            start_temporary_school_npc_capacity,
-            stop_temporary_school_npc_capacity)
-        rt,spawner=self.fixture(15)
-        start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(spawner.npc_soft_cap,30)
-        spawner.add_npc_cap_modifier(3)
-        self.assertEqual(spawner.npc_soft_cap,27)
+        desc=type(spawner).__dict__['npc_soft_cap']
         state=start_temporary_school_npc_capacity(rt,spawner)
         self.assertEqual(state['status'],
-                         'EA_NPC_CAP_OVERRIDE_APPLIED_AND_CONFIRMED')
-        self.assertEqual(spawner.npc_soft_cap,30)
-        self.assertEqual(spawner.overrides,[35,38])
+                         'SCHOOL_NPC_CAP_GUARD_INSTALLED_AND_VERIFIED')
+        self.assertEqual((spawner.npc_soft_cap,state['npc_soft_cap_before']),
+                         (30,15))
+        self.assertIsNot(type(spawner).__dict__['npc_soft_cap'],desc)
+        self.assertEqual(spawner._npc_soft_cap_override,None)
+        self.assertEqual(spawner.overrides,[])
+        self.assertEqual(spawner.modifier_calls,[])
         self.assertTrue(stop_temporary_school_npc_capacity(rt))
-        # The game reservation remains, but our entire override goes away.
-        self.assertEqual(spawner.npc_soft_cap,12)
-        self.assertEqual(spawner.overrides,[35,38,None])
-        self.assertEqual(spawner.modifier_calls,[3])
+        self.assertIs(type(spawner).__dict__['npc_soft_cap'],desc)
+        self.assertEqual(spawner.npc_soft_cap,15)
+        self.assertEqual(state['release'],'EA_NATIVE_NPC_CAP_GETTER_RESTORED')
 
-    def test_report10_ea_reset_30_to_17_rebases_and_restores_17(self):
+    def test_actual_report11_external_override_22_remains_30_at_school(self):
         from mhs_additional_native_staff import (
             start_temporary_school_npc_capacity,
             stop_temporary_school_npc_capacity)
         rt,spawner=self.fixture(15)
-        first=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(first['npc_soft_cap_after'],30)
-        self.assertEqual(spawner.overrides,[35])
-        # Game report 10: EA resets the raw override after school entry,
-        # yielding only 17 available NPC slots at 09:34.
-        spawner.set_npc_soft_cap_override(22)
+        start_temporary_school_npc_capacity(rt,spawner)
+        # Reproduce repeated 30->17 from report 11. The game/mod itself
+        # changes the raw value, but our guard never writes back.
+        for value in (22,22,22,22,22):
+            spawner.set_npc_soft_cap_override(value)
+            state=start_temporary_school_npc_capacity(rt,spawner)
+            self.assertEqual(state['status'],'SCHOOL_NPC_CAP_GUARD_ACTIVE')
+            self.assertEqual(state['underlying_native_npc_cap'],17)
+            self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertEqual(spawner.overrides,[22]*5)
+        self.assertEqual(spawner.modifier_calls,[])
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
         self.assertEqual(spawner.npc_soft_cap,17)
-        second=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(second['status'],
-                         'EA_NPC_CAP_EXTERNAL_REBASE_CONFIRMED')
-        self.assertEqual(second['external_override_rebases'],1)
+        self.assertEqual(spawner._npc_soft_cap_override,22)
+
+    def test_school_guard_is_zone_and_service_scoped(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        other=type(spawner)(15)
+        start_temporary_school_npc_capacity(rt,spawner)
         self.assertEqual(spawner.npc_soft_cap,30)
-        self.assertEqual(spawner.overrides,[35,22,35])
-        self.assertEqual(rt.school_npc_cap_original_value,22)
+        self.assertEqual(other.npc_soft_cap,15)
+        rt.in_school=lambda:False
+        self.assertEqual(spawner.npc_soft_cap,15)
+        rt.in_school=lambda:True
+        self.assertEqual(spawner.npc_soft_cap,30)
+        rt.active=False
+        self.assertEqual(spawner.npc_soft_cap,15)
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(other.npc_soft_cap,15)
+
+    def test_higher_existing_max_is_preserved(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(40)
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['npc_soft_cap_before'],40)
+        self.assertEqual(spawner.npc_soft_cap,40)
+        spawner.set_npc_soft_cap_override(50)
+        self.assertEqual(spawner.npc_soft_cap,45)
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner.npc_soft_cap,45)
+
+    def test_existing_mccc_override_never_changed(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        spawner.set_npc_soft_cap_override(22)
+        start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertEqual(spawner.overrides,[22])
         self.assertTrue(stop_temporary_school_npc_capacity(rt))
         self.assertEqual(spawner._npc_soft_cap_override,22)
         self.assertEqual(spawner.npc_soft_cap,17)
-        self.assertEqual(spawner.modifier_calls,[])
 
-    def test_external_cap_rebase_is_bounded_twice_not_an_unlimited_war(self):
+    def test_spawn_service_class_hook_conflict_is_fail_closed(self):
         from mhs_additional_native_staff import (
             start_temporary_school_npc_capacity,
             stop_temporary_school_npc_capacity)
         rt,spawner=self.fixture(15)
         start_temporary_school_npc_capacity(rt,spawner)
-        for raw in (22,23):
-            spawner.set_npc_soft_cap_override(raw)
-            result=start_temporary_school_npc_capacity(rt,spawner)
-            self.assertEqual(result['status'],
-                             'EA_NPC_CAP_EXTERNAL_REBASE_CONFIRMED')
-            self.assertEqual(spawner.npc_soft_cap,30)
-        self.assertEqual(result['external_override_rebases'],2)
-        spawner.set_npc_soft_cap_override(21)
-        result=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(result['status'],'CAP_EXTERNAL_OVERRIDE_REBASE_LIMIT')
-        self.assertEqual(spawner._npc_soft_cap_override,21)
-        # Releasing our former override MUST leave a competing override
-        # untouched instead of forcefully restoring our stale value.
-        self.assertFalse(stop_temporary_school_npc_capacity(rt))
-        self.assertEqual(spawner._npc_soft_cap_override,21)
-
-    def test_bouncer_capacity_probe_shows_ea_override_and_reservations(self):
-        from mhs_additional_native_staff import (
-            selected_staff_bouncer_snapshot)
-        _,spawner=self.fixture(15)
-        spawner._npc_soft_cap_override=22
-        spawner.add_npc_cap_modifier(2)
-        manager=types.SimpleNamespace(bouncer=types.SimpleNamespace(
-            _unfulfilled_requests=[[]]))
-        result=selected_staff_bouncer_snapshot(manager,spawner,{})
-        self.assertEqual(result['npc_soft_cap'],15)
-        self.assertEqual(result['npc_raw_override'],22)
-        self.assertEqual(result['npc_raw_base'],20)
-        self.assertEqual(result['npc_cap_reservation_modifier'],2)
-
-    def test_third_party_override_change_not_clobbered_on_exit(self):
-        from mhs_additional_native_staff import (
-            start_temporary_school_npc_capacity,
-            stop_temporary_school_npc_capacity)
-        rt,spawner=self.fixture(15)
-        start_temporary_school_npc_capacity(rt,spawner)
-        spawner.set_npc_soft_cap_override(50)
-        self.assertFalse(stop_temporary_school_npc_capacity(rt))
-        self.assertEqual(spawner._npc_soft_cap_override,50)
-        self.assertEqual(rt.school_npc_cap_state['release'],
-                         'CAP_OTHER_MOD_OWNS_OVERRIDE_NOT_RESTORED')
-
-    def test_fails_closed_if_ea_override_api_is_unavailable(self):
-        from mhs_additional_native_staff import (
-            start_temporary_school_npc_capacity)
-        rt,spawner=self.fixture(15)
-        spawner.set_npc_soft_cap_override=None
+        cls=type(spawner)
+        saved=cls.__dict__['npc_soft_cap']
+        override=property(lambda obj:16)
+        cls.npc_soft_cap=override
         state=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(state['status'],'EA_CAP_OVERRIDE_API_MISSING')
-        self.assertEqual(spawner.modifier_calls,[])
+        self.assertEqual(state['status'],
+                         'NPC_CAP_PROPERTY_OWNER_CHANGED_REFUSED')
+        self.assertFalse(stop_temporary_school_npc_capacity(rt))
+        self.assertIs(cls.__dict__['npc_soft_cap'],override)
+        # Simulate third party unhooking to prevent leaking a test class.
+        cls.npc_soft_cap=saved
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
 
-    def test_wrong_ea_override_semantics_undoes_change(self):
+    def test_not_in_school_or_incomplete_roster_never_patches(self):
         from mhs_additional_native_staff import (
             start_temporary_school_npc_capacity)
         rt,spawner=self.fixture(15)
-        def no_effect(value):
-            spawner.overrides.append(value)
-        spawner.set_npc_soft_cap_override=no_effect
-        result=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(result['status'],
-                         'CAP_OVERRIDE_NOT_EFFECTIVE_REVERTED')
-        self.assertEqual(spawner.overrides,[35,None])
-        self.assertEqual(spawner.npc_soft_cap,15)
-
-    def test_invalid_roster_never_changes_capacity(self):
-        from mhs_additional_native_staff import (
-            school_npc_capacity_plan,start_temporary_school_npc_capacity)
-        self.assertEqual(school_npc_capacity_plan(15,15,8)[0],0)
-        self.assertEqual(school_npc_capacity_plan(15,16,8)[0],15)
-        rt,spawner=self.fixture(15)
+        desc=type(spawner).__dict__['npc_soft_cap']
+        rt.in_school=lambda:False
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'NPC_CAP_NOT_IN_SCHOOL_ZONE')
+        self.assertIs(type(spawner).__dict__['npc_soft_cap'],desc)
+        rt.in_school=lambda:True
         rt.lesson_classes=(('1',),('9',))
-        result=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(result['status'],'CAP_INPUT_NOT_VERIFIED')
-        self.assertEqual(spawner.overrides,[])
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'CAP_INPUT_NOT_VERIFIED')
+        self.assertIs(type(spawner).__dict__['npc_soft_cap'],desc)
+
+    def test_native_cap_reservations_continue_accounting_under_guard(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        start_temporary_school_npc_capacity(rt,spawner)
+        spawner.add_npc_cap_modifier(3)
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['underlying_native_npc_cap'],12)
+        self.assertEqual(spawner.npc_soft_cap,30)
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual(spawner.npc_soft_cap,12)
+        self.assertEqual(spawner.modifier_calls,[3])
 
     def test_bouncer_observer_is_read_only_and_reports_only_staff(self):
         from mhs_additional_native_staff import (
