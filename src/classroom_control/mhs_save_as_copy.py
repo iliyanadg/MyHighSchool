@@ -111,9 +111,9 @@ def prepare_copy(folder, source_slot, target_slot, info_manager,
         raise SaveAsCopyError('SAVE_SLOT_ID_INVALID')
     if source == target:
         raise SaveAsCopyError('SAME_SOURCE_AND_TARGET')
-    if _existing_destinations(folder, target):
-        raise SaveAsCopyError('TARGET_ALREADY_HAS_MHS_CONFIGURATION')
-
+    # A user may already have edited the copied save's school menus.
+    # We may fill ONLY missing files; existing files must match their
+    # expected cloned contents exactly or the import fails without writes.
     stores = _stores(folder)
     records = {}
     for kind, store, _ in stores:
@@ -140,20 +140,37 @@ def prepare_copy(folder, source_slot, target_slot, info_manager,
         'staff': StaffRoster(target, records['staff'].to_dict()['roles']),
         'core': CoreRoleRoster(target, dict(records['core'].roles)),
     }
-    payload = tuple((kind, _path(store, target), cloned[kind].to_json())
-                    for kind, store, _ in stores)
-    return {'source':source, 'target':target, 'payload':payload,
-            'students':16, 'staff':staff_count, 'roles':5}
+    payload=[]
+    unchanged=[]
+    for kind,store,_ in stores:
+        dest=_path(store,target)
+        expected=cloned[kind].to_json()
+        if os.path.lexists(dest):
+            if not os.path.isfile(dest) or os.path.islink(dest):
+                raise SaveAsCopyError('TARGET_' + kind.upper() + '_NOT_REGULAR')
+            try:
+                present=store.load(target)
+            except Exception:
+                raise SaveAsCopyError('TARGET_' + kind.upper() + '_INVALID')
+            if present.to_json()!=expected:
+                raise SaveAsCopyError(
+                    'TARGET_' + kind.upper() + '_DIFFERS_NO_OVERWRITE')
+            unchanged.append(kind)
+        else:
+            payload.append((kind,dest,expected))
+    return {'source':source,'target':target,'payload':tuple(payload),
+            'unchanged':tuple(unchanged),'students':16,
+            'staff':staff_count,'roles':5}
 
 
 def import_copy(folder, source_slot, target_slot, info_manager,
                 teen, human, adult_ages, active_household_ids):
-    """Create each target file exclusively; rollback only files we created.
+    """Create only missing target files; rollback only files we created.
 
-    No existing target is ever overwritten and source is never modified.
-    A crash part-way through a multi-file import can leave partial files;
-    this fails closed for subsequent imports and may be recovered manually
-    from the untouched source after inspecting those files.
+    Existing matching files remain unchanged, allowing recovery of a partly
+    initialized Save As fork; existing DIFFERENT files are never overwritten.
+    A crash part-way through a multi-file import can leave matching partial
+    files; a retry safely completes the missing ones after revalidation.
     """
     plan = prepare_copy(folder,source_slot,target_slot,info_manager,
                         teen,human,adult_ages,active_household_ids)
@@ -182,7 +199,10 @@ def import_copy(folder, source_slot, target_slot, info_manager,
                 out.write(blob)
                 out.flush()
                 os.fsync(out.fileno())
-        return {key:plan[key] for key in ('source','target','students','staff','roles')}
+        report={key:plan[key] for key in ('source','target','students','staff','roles')}
+        report['copied_files']=len(created)
+        report['unchanged_files']=len(plan['unchanged'])
+        return report
     except Exception as exc:
         for dest in reversed(created):
             try:
