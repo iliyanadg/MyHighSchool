@@ -3307,6 +3307,23 @@ def _m143_write_full_report(runtime):
         m149_audit['playable_manual_whiteboard']=audit_manual_whiteboard_choice(
             runtime.m140_patch_result,runtime.m145_patch_result,
             runtime.m143_board_anchors,runtime.classroom_scope_blocked)
+        # M150: read-only simulated 09:40 action evidence (not proof of
+        # walking/seating). Save one immutable per-slot identity baseline
+        # only when the user explicitly exports the final school report.
+        from mhs150_early_preparation import audit_940_preparation
+        from mhs150_day_continuity import snapshot as m150_snapshot, record as m150_record
+        m150_preparation=audit_940_preparation(
+            runtime.lesson_entry_samples,groups,runtime.m143_board_anchors)
+        try:
+            m150_baseline=m150_snapshot(
+                runtime.slot,runtime.school_day,groups,
+                runtime.staff_plan.get('selected_roles',{}))
+            m150_continuity=m150_record(FOLDER,m150_baseline)
+        except Exception as exc:
+            m150_continuity={'status':'BASELINE_AUDIT_'+type(exc).__name__,
+                             'compared_distinct_days':False,
+                             'game_mutations':0}
+
         # One comprehensive report: the user uploads ONE file, not four.
         from mhs_school_readback import summarize_staff_shift
         shift_verdict=summarize_staff_shift(runtime.school_staff_samples)
@@ -3318,6 +3335,8 @@ def _m143_write_full_report(runtime):
             'school_readback_errors':runtime.school_readback_errors,
             'lesson_entry_observations':runtime.lesson_entry_samples,
             'm149_lesson_performance_audit':m149_audit,
+            'm150_0940_preparation':m150_preparation,
+            'm150_next_school_day_continuity':m150_continuity,
             'school_staff':{
                 'samples':runtime.school_staff_samples,
                 'native_job_shift_verdict':shift_verdict,
@@ -3400,7 +3419,7 @@ def _m143_write_full_report(runtime):
                 'no_forced_lesson_end':True,
                 'm148_game_and_sim_clock':read_live_clocks(services),
                 'm148_poll_rate_sim_minutes':3,
-                'm149_entry_snapshot_interval_sim_minutes':6,
+                'm149_entry_snapshot_interval_sim_minutes':9,
                 'm149_entry_snapshots_skipped':runtime.m149_entry_snapshots_skipped,
                 'm149_automation_poll_unchanged':True,
                 'm148_full_snapshot_interval_sim_minutes':15,

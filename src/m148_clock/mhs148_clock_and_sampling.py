@@ -93,14 +93,14 @@ def should_capture_sim_snapshot(now_ticks,last_ticks,forced=False,
     return now_ticks-last_ticks>=min_minutes*SIM_TICKS_PER_MINUTE
 
 def should_capture_entry_snapshot(now_ticks,last_ticks,forced=False):
-    """M149: half as many detailed 16-Sim entry reads (6 vs 3 minutes).
+    """M150: one detailed 16-Sim entry read every 9 (not 3) minutes.
 
     The original three-minute EA automation poll continues unchanged.
     Forced event captures remain eligible, but the caller still deduplicates
     samples with identical ticks and bounds the total sample count.
     """
     return should_capture_sim_snapshot(
-        now_ticks,last_ticks,forced=forced,min_minutes=6)
+        now_ticks,last_ticks,forced=forced,min_minutes=9)
 
 
 def should_do_school_work(sim_clock):
