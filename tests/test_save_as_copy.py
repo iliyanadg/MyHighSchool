@@ -1,0 +1,155 @@
+"""A Save As fork can import MHS settings without replacing either EA save."""
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+ROOT=Path(__file__).resolve().parents[1]
+for directory in ('m2_registry','m53_staff','m97_core_reservations','classroom_control'):
+    sys.path.insert(0,str(ROOT/'src'/directory))
+from mhs_m2_store import RosterStore
+from mhs_m2_roster import SchoolRoster
+from mhs34_settings import SettingsStore, SchoolSettings
+from mhs53_staff_store import StaffStore, StaffRoster
+from mhs97_core_role_store import CoreRoleStore, CoreRoleRoster
+from mhs_save_as_copy import (
+    prepare_copy,import_copy,import_unique_copy,eligible_source_slots,
+    SaveAsCopyError)
+
+
+class SaveAsCloneTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.folder=self.temp.name
+        self.source='41'
+        self.target='42'
+        self.teen_ids=[str(i) for i in range(100,116)]
+        self.played=self.teen_ids[:3]
+        self.names={
+            'principal':'501','teacher1':'502','teacher2':'503',
+            'teacher3':None,'custodians':['504','505'],
+            'cafeteria':['506','507','508']}
+        self.staff_ids=list(range(501,509))
+        self.sim_infos={}
+        for sid in self.teen_ids:
+            self.sim_infos[int(sid)]=SimpleNamespace(
+                age='TEEN',species='HUMAN',is_selectable=sid in self.played)
+        for sid in self.staff_ids:
+            self.sim_infos[int(sid)]=SimpleNamespace(
+                age='ADULT',species='HUMAN',is_selectable=False)
+        self.manager=SimpleNamespace(get=self.sim_infos.get)
+        self.write_source(self.source)
+
+    def write_source(self,slot):
+        assignments={str(sid):(1 if j<8 else 2)
+                     for j,sid in enumerate(range(100,116))}
+        RosterStore(self.folder).save(slot,SchoolRoster(slot,assignments))
+        SettingsStore(self.folder).save(SchoolSettings(slot,True,2))
+        StaffStore(self.folder).save(slot,StaffRoster(slot,self.names))
+        core={'cheer':'103','chess':'104','football':'105',
+              'computer':'106','mean':'107'}
+        store=CoreRoleStore(self.folder)
+        store.save(slot,CoreRoleRoster(slot,core),store.load(slot).fingerprint())
+
+    def opts(self):
+        return (self.manager,'TEEN','HUMAN',('YOUNGADULT','ADULT','ELDER'),
+                self.played)
+
+    def state(self):
+        return {p.name:p.read_bytes() for p in Path(self.folder).glob('*.json')}
+
+    def test_full_import_preserves_all_four_registries_and_source_bytes(self):
+        before=self.state()
+        response=import_unique_copy(self.folder,self.target,*self.opts())
+        self.assertEqual(response['students'],16)
+        self.assertEqual(response['staff'],8)
+        self.assertEqual(response['roles'],5)
+        self.assertEqual(response['source'],self.source)
+        self.assertEqual(response['target'],self.target)
+        self.assertEqual(RosterStore(self.folder).load(self.target).assignments,
+                         RosterStore(self.folder).load(self.source).assignments)
+        self.assertEqual(StaffStore(self.folder).load(self.target).roles,
+                         StaffStore(self.folder).load(self.source).roles)
+        self.assertEqual(CoreRoleStore(self.folder).load(self.target).roles,
+                         CoreRoleStore(self.folder).load(self.source).roles)
+        self.assertTrue(SettingsStore(self.folder).load(self.target).active)
+        for name,blob in before.items():
+            self.assertEqual((Path(self.folder)/name).read_bytes(),blob)
+        self.assertFalse((Path(self.folder)/
+                         ('Ultima_modifica_slot_'+self.target+'.json')).exists())
+        for name in self.state():
+            if name.endswith('_slot_'+self.target+'.json'):
+                self.assertEqual(self.target,__import__('json').loads(
+                    (Path(self.folder)/name).read_text())['slot'])
+
+    def test_never_overwrite_even_partial_target(self):
+        custom=SettingsStore(self.folder).path(self.target)
+        Path(custom).write_bytes(b'pre-existing data must not be lost')
+        before=self.state()
+        with self.assertRaisesRegex(SaveAsCopyError,'TARGET_ALREADY_HAS'):
+            import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertEqual(before,self.state())
+
+    def test_source_age_and_identity_require_actual_current_sim_ids(self):
+        for field,value in (('age','ADULT'),('species','DOG')):
+            info=self.sim_infos[108]
+            old=getattr(info,field)
+            setattr(info,field,value)
+            with self.assertRaises(SaveAsCopyError):
+                prepare_copy(self.folder,self.source,self.target,*self.opts())
+            setattr(info,field,old)
+        self.sim_infos.pop(503)
+        with self.assertRaisesRegex(SaveAsCopyError,'SAVED_SIM_MISSING'):
+            prepare_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertFalse(any('_slot_42' in name for name in self.state()))
+
+    def test_unrelated_household_is_not_a_matching_source(self):
+        with self.assertRaisesRegex(SaveAsCopyError,'HOUSEHOLD_DOES_NOT_MATCH'):
+            prepare_copy(self.folder,self.source,self.target,self.manager,'TEEN',
+                         'HUMAN',('ADULT',),['999999'])
+        self.assertEqual(eligible_source_slots(self.folder,self.target,
+                self.manager,'TEEN','HUMAN',('ADULT',),['999999']),())
+
+    def test_multiple_candidates_not_guessed(self):
+        self.write_source('46')
+        found=eligible_source_slots(self.folder,self.target,*self.opts())
+        self.assertEqual(tuple(row[0] for row in found),('41','46'))
+        with self.assertRaisesRegex(SaveAsCopyError,'MULTIPLE_SOURCE_SAVES'):
+            import_unique_copy(self.folder,self.target,*self.opts())
+        report=import_copy(self.folder,'41',self.target,*self.opts())
+        self.assertEqual(report['source'],'41')
+
+    def test_incomplete_source_and_bad_core_roles_not_copied(self):
+        source=CoreRoleStore(self.folder).path(self.source)
+        os.unlink(source)
+        with self.assertRaisesRegex(SaveAsCopyError,'SOURCE_CORE_MISSING'):
+            import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertFalse(any('_slot_42' in name for name in self.state()))
+
+    def test_second_copy_is_refused_and_source_does_not_change(self):
+        import_copy(self.folder,self.source,self.target,*self.opts())
+        original=self.state()
+        with self.assertRaisesRegex(SaveAsCopyError,'TARGET_ALREADY_HAS'):
+            import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertEqual(original,self.state())
+
+    def test_write_failure_rolls_back_only_new_destination_files(self):
+        real_open=os.open
+        def inject(path,flags,*args):
+            if path.endswith('Personale_slot_42.json'):
+                raise OSError('inject disk failure')
+            return real_open(path,flags,*args)
+        before=self.state()
+        with patch('mhs_save_as_copy.os.open',side_effect=inject):
+            with self.assertRaisesRegex(SaveAsCopyError,'COPY_ABORTED_OSError'):
+                import_copy(self.folder,self.source,self.target,*self.opts())
+        self.assertEqual(before,self.state())
+        self.assertFalse(any('_slot_42' in name for name in self.state()))
+
+
+if __name__=='__main__':
+    unittest.main()
