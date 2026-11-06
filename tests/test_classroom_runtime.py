@@ -39,6 +39,7 @@ class RuntimeTests(unittest.TestCase):
         ns={'LessonRequestLedger':LessonRequestLedger,'FOLDER':'unused',
             'RosterStore':Store,'CORE_JOBS':jobs,'BASE_SITUATION':277733,
             'SCHOOL_SCHEDULES':frozenset((277657,279958)),
+            'CAFETERIA_STAFF_SITUATION':278011,
             'current_school_day':lambda slot:day[0],
             'registered_for_school_travel':lambda slot:('1',targets,pinned),
             '_m141_stop_trace':lambda runtime:None,
