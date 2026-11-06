@@ -2806,6 +2806,17 @@ def _m141_start_trace(runtime,origin='ea_event'):
                 return
             _m142_roll_period_if_due(runtime,
                                      game_clock(services.time_service()))
+            # EA/other mods may change the NPC budget later in the school
+            # day. Maintain at least 30 native NPC slots, but do not
+            # accumulate unbounded modifiers or touch non-school zones.
+            try:
+                from mhs_additional_native_staff import (
+                    start_temporary_school_npc_capacity)
+                start_temporary_school_npc_capacity(
+                    runtime,services.sim_spawner_service())
+            except Exception as exc:
+                runtime.school_npc_cap_state['monitor_error']=(
+                    'CAP_MONITOR_'+type(exc).__name__)
             _maybe_additional_school_staff(runtime)
             _observe_lesson_entry(runtime)
             _m141_capture(runtime,'interval')
