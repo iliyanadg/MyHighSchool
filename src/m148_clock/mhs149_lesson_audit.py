@@ -110,3 +110,43 @@ def audit_lesson_entry(entries,classes):
             'observed_samples':len(lags),'minimum':round(min(lags),2),
             'median':_median(lags),'maximum':round(max(lags),2)}
     return result
+
+
+def audit_manual_whiteboard_choice(picker,subjects,anchors,blocked):
+    """State native EA manual choice support without inventing a UI test.
+
+    A patched picker/subject set means eligible playable Sims can use the
+    ORIGINAL EA menu on the assigned board when the game's schedule allows.
+    Only a human clicking the pie menu can prove visibility in gameplay.
+    Never interpret these static adapter facts as a successful class.
+    """
+    picker_applied=isinstance(picker,dict) and picker.get('applied') is True
+    subjects_applied=isinstance(subjects,dict) and subjects.get('applied') is True
+    boards={}
+    if isinstance(anchors,dict):
+        for klass in (1,2):
+            item=anchors.get(klass)
+            if item is None:
+                item=anchors.get(str(klass))
+            if isinstance(item,dict):
+                board_id=item.get('id')
+                if isinstance(board_id,str) and board_id.isdigit():
+                    boards[str(klass)]=board_id
+    validated=(len(boards)==2 and
+               boards['1']!=boards['2'])
+    return {
+        'mode':'PLAYER_MANUAL_NATIVE_EA_WHITEBOARD_AND_AUTOMATIC_CLASS',
+        'ea_native_player_picker_active':picker_applied,
+        'ea_native_subject_choices_active':subjects_applied,
+        'two_distinct_assigned_boards_verified':validated,
+        'assigned_board_ids':boards,
+        'wrong_or_ambiguous_board_attempts_blocked':(
+            blocked if type(blocked) is int and blocked>=0 else None),
+        'manual_click_preserved_by_original_ea_menu':(
+            picker_applied and subjects_applied and validated),
+        'auto_push_defers_to_existing_class_or_board_navigation':True,
+        'manual_menu_visibility_verified_in_game':False,
+        'ea_schedule_and_subject_availability_still_apply':True,
+        'does_not_prove_manual_interaction_completed':True,
+        'world_mutations':0,
+    }
