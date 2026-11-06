@@ -10,8 +10,10 @@ the running school untouched. Python 3.7 compatible, no EA imports.
 
 # A bounded, per-school-zone NPC soft-cap reservation. The native EA
 # Bouncer monitors SimSpawnerService.npc_soft_cap and can evict NPCs once
-# its budget is exceeded. We use EA's additive modifier, not a permanent
-# setting/cheat or a global override; restore the exact delta on exit.
+# its budget is exceeded. EA's add_npc_cap_modifier SUBTRACTS the argument
+# from the actual NPC soft cap (observed in MHS report 8: +11 lowered 15
+# to 4). Use a negative modifier to raise the cap and balance it on exit.
+# Never change a permanent setting, cheat, or global override.
 MAX_TEMPORARY_SCHOOL_NPC_CAP = 28
 MAX_SCHOOL_CAP_ADDITION = 12
 
@@ -65,11 +67,28 @@ def start_temporary_school_npc_capacity(runtime, spawner):
             info['status']='EA_NPC_CAP_MODIFIER_UNAVAILABLE'
         else:
             try:
-                modifier(delta)
-                runtime.school_npc_cap_service=spawner
-                runtime.school_npc_cap_delta=delta
-                info['status']='EA_NPC_CAP_MODIFIER_APPLIED'
-                info['npc_soft_cap_after']=getattr(spawner,'npc_soft_cap',None)
+                # This API treats positive modifiers as REDUCTIONS.
+                # In the M148 report 8, +11 changed the cap 15 -> 4.
+                # Raise it with -delta and read the live cap immediately.
+                modifier(-delta)
+                after=getattr(spawner,'npc_soft_cap',None)
+                info['npc_soft_cap_after']=after
+                if type(after) is int and after>=cap+delta:
+                    runtime.school_npc_cap_service=spawner
+                    runtime.school_npc_cap_delta=delta
+                    info['status']='EA_NPC_CAP_MODIFIER_APPLIED_AND_CONFIRMED'
+                else:
+                    # Fail safe: reverse exactly what we requested, no
+                    # persistent cap mutation if EA's semantics change.
+                    try:
+                        modifier(delta)
+                        info['status']='EA_NPC_CAP_REJECTED_REVERTED'
+                        info['npc_soft_cap_restored']=getattr(
+                            spawner,'npc_soft_cap',None)
+                    except Exception as rollback_exc:
+                        runtime.school_npc_cap_service=spawner
+                        runtime.school_npc_cap_delta=delta
+                        info['status']='CAP_ROLLBACK_'+type(rollback_exc).__name__
             except Exception as exc:
                 info['status']='EA_NPC_CAP_MODIFIER_'+type(exc).__name__
                 # A partially applied modifier cannot be safely presumed
@@ -89,7 +108,8 @@ def stop_temporary_school_npc_capacity(runtime):
         runtime.school_npc_cap_state['release']='EA_CAP_RELEASE_API_MISSING'
         return False
     try:
-        modifier(-delta)
+        # Balance the signed *negative* modifier applied on entry.
+        modifier(delta)
         runtime.school_npc_cap_service=None
         runtime.school_npc_cap_delta=0
         runtime.school_npc_cap_state['release']='CAP_MODIFIER_RELEASED'
