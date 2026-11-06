@@ -357,6 +357,11 @@ class ThirteenNPCController(object):
         self.staff_extra_created.clear()
         self.staff_extra_receipts[:]=[]
         self.staff_extra_last_status=None
+        # Keep each school day's NPC capacity history independent. If an
+        # earlier modifier could not be released, retain its evidence and
+        # refuse a fresh unbalanced boost rather than hiding the conflict.
+        if self.school_npc_cap_service is None:
+            self.school_npc_cap_state={'status':'NOT_STARTED'}
         self.cafeteria_scheduled_target=1
         self.cafeteria_schedule_probes[:]=[]
         self.cafeteria_schedule_extra_failed=False
