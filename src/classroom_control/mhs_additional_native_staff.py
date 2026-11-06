@@ -8,6 +8,156 @@ confirm both. If the situation or the workstation cannot be verified, leave
 the running school untouched. Python 3.7 compatible, no EA imports.
 """
 
+# A bounded, per-school-zone NPC soft-cap reservation. The native EA
+# Bouncer monitors SimSpawnerService.npc_soft_cap and can evict NPCs once
+# its budget is exceeded. We use EA's additive modifier, not a permanent
+# setting/cheat or a global override; restore the exact delta on exit.
+MAX_TEMPORARY_SCHOOL_NPC_CAP = 28
+MAX_SCHOOL_CAP_ADDITION = 12
+
+
+def school_npc_capacity_plan(npc_soft_cap, registered_students, selected_staff):
+    """Pure fail-closed plan: never modify an unknown/oversized cap.
+
+    NPC soft-cap counts NPCs, not every playable Sim. Include all selected
+    students conservatively, and allow two extra slots for school routing.
+    Do not exceed the 28-NPC bound or change a higher existing MCCC setting.
+    """
+    if (type(npc_soft_cap) is not int or
+            npc_soft_cap < 12 or npc_soft_cap > 200 or
+            type(registered_students) is not int or
+            registered_students != 16 or
+            type(selected_staff) is not int or
+            not 1 <= selected_staff <= 8):
+        return 0, 'CAP_INPUT_NOT_VERIFIED'
+    target = min(MAX_TEMPORARY_SCHOOL_NPC_CAP,
+                 registered_students + selected_staff + 2)
+    required = max(0, target - npc_soft_cap)
+    if required > MAX_SCHOOL_CAP_ADDITION:
+        return 0, 'CAP_CHANGE_TOO_LARGE'
+    return required, ('CAP_ALREADY_SUFFICIENT' if required == 0
+                      else 'NATIVE_CAP_MODIFIER_ELIGIBLE')
+
+
+def start_temporary_school_npc_capacity(runtime, spawner):
+    """Raise native NPC budget at the verified high-school preflight only.
+
+    No Sim creation, teleporting or school roster change. Repeated calls
+    are idempotent. Store the service object to balance the same modifier.
+    """
+    if getattr(runtime, 'school_npc_cap_service', None) is not None:
+        return getattr(runtime, 'school_npc_cap_state', {})
+    info={'status':'NOT_APPLIED'}
+    registered=tuple(sid for klass in (getattr(runtime,'lesson_classes',())
+                                      or ()) for sid in klass)
+    selected=getattr(runtime,'staff_plan',{}).get('selected_roles',{})
+    staff={str(sid) for group in selected.values() for sid in group}
+    cap=getattr(spawner,'npc_soft_cap',None) if spawner is not None else None
+    current=getattr(spawner,'number_of_npcs_instantiated',None) if spawner else None
+    delta,reason=school_npc_capacity_plan(cap,len(registered),len(staff))
+    info.update({'status':reason,'npc_soft_cap_before':cap,
+                 'npcs_instantiated_before':current,
+                 'registered_students':len(registered),
+                 'selected_staff':len(staff),'requested_delta':delta})
+    if delta:
+        modifier=getattr(spawner,'add_npc_cap_modifier',None)
+        if not callable(modifier):
+            info['status']='EA_NPC_CAP_MODIFIER_UNAVAILABLE'
+        else:
+            try:
+                modifier(delta)
+                runtime.school_npc_cap_service=spawner
+                runtime.school_npc_cap_delta=delta
+                info['status']='EA_NPC_CAP_MODIFIER_APPLIED'
+                info['npc_soft_cap_after']=getattr(spawner,'npc_soft_cap',None)
+            except Exception as exc:
+                info['status']='EA_NPC_CAP_MODIFIER_'+type(exc).__name__
+                # A partially applied modifier cannot be safely presumed
+                # absent; never issue another unbalanced adjustment.
+    runtime.school_npc_cap_state=info
+    return info
+
+
+def stop_temporary_school_npc_capacity(runtime):
+    """Balance only our own prior modifier, including after save travel."""
+    spawner=getattr(runtime,'school_npc_cap_service',None)
+    delta=getattr(runtime,'school_npc_cap_delta',0)
+    if spawner is None or type(delta) is not int or delta <= 0:
+        return False
+    modifier=getattr(spawner,'add_npc_cap_modifier',None)
+    if not callable(modifier):
+        runtime.school_npc_cap_state['release']='EA_CAP_RELEASE_API_MISSING'
+        return False
+    try:
+        modifier(-delta)
+        runtime.school_npc_cap_service=None
+        runtime.school_npc_cap_delta=0
+        runtime.school_npc_cap_state['release']='CAP_MODIFIER_RELEASED'
+        runtime.school_npc_cap_state['npc_soft_cap_restored']=getattr(
+            spawner,'npc_soft_cap',None)
+        return True
+    except Exception as exc:
+        runtime.school_npc_cap_state['release']='CAP_RELEASE_'+type(exc).__name__
+        return False
+
+
+def selected_staff_bouncer_snapshot(manager, spawner, selected_roles):
+    """Read-only, bounded reason evidence for each selected staff request.
+
+    The original EA Bouncer exposes unfulfilled requests and native
+    SimSpawnerService's NPC budget. Never submit/withdraw/modify a request.
+    """
+    result={'npc_soft_cap':getattr(spawner,'npc_soft_cap',None),
+            'npcs_instantiated':getattr(
+                spawner,'number_of_npcs_instantiated',None),
+            'npcs_leaving':getattr(spawner,'number_of_npcs_leaving',None),
+            'selected_job_requests':[], 'complete':True}
+    expected={str(sid) for ids in selected_roles.values() for sid in ids}
+    bouncer=getattr(manager,'bouncer',None)
+    groups=getattr(bouncer,'_unfulfilled_requests',None)
+    if not isinstance(groups,(tuple,list)):
+        result['complete']=False
+        result['reason']='EA_BOUNCER_REQUESTS_NOT_READABLE'
+        return result
+    if len(groups)>200:
+        result['complete']=False
+        result['reason']='EA_BOUNCER_BUCKET_LIMIT'
+        return result
+    scanned=0
+    for bucket in groups:
+        try:
+            rows=tuple(bucket)
+        except Exception:
+            result['complete']=False
+            result['reason']='EA_BOUNCER_BUCKET_UNREADABLE'
+            return result
+        scanned+=len(rows)
+        if scanned>1200:
+            result['complete']=False
+            result['reason']='EA_BOUNCER_REQUEST_LIMIT'
+            return result
+        for req in rows:
+            sid=str(getattr(req,'_requested_sim_id',None))
+            if sid not in expected:
+                continue
+            situ=getattr(getattr(req,'_situation',None),'guid64',None)
+            job=getattr(getattr(req,'_job_type',None),'guid64',None)
+            if situ not in (298052,298096,278011):
+                continue
+            result['selected_job_requests'].append({
+                'sim_id':sid,'situation_guid':situ,'job_guid':job,
+                'status':str(getattr(req,'_status',None)),
+                'requires_spawning':getattr(req,'_requires_spawning',None),
+                'request_priority':str(getattr(req,'request_priority',None)),
+                'unfulfilled_index':getattr(req,'_unfulfilled_index',None)})
+            if len(result['selected_job_requests'])>=32:
+                result['complete']=False
+                result['reason']='MATCHED_REQUEST_LIMIT'
+                return result
+    result['scanned_requests']=scanned
+    return result
+
+
 VENUE_SITUATION = 298096
 CUSTODIAN_JOB = 290196
 CAFETERIA_SITUATION = 278011
