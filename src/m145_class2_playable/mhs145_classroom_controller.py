@@ -3301,8 +3301,12 @@ def _m143_write_full_report(runtime):
             json.dump(attendance,output,indent=2,ensure_ascii=False)
         # M149: proof of presence and running actions is not proof
         # of completed lessons. Analyze only at report time.
-        from mhs149_lesson_audit import audit_lesson_entry
+        from mhs149_lesson_audit import (
+            audit_lesson_entry,audit_manual_whiteboard_choice)
         m149_audit=audit_lesson_entry(runtime.lesson_entry_samples,groups)
+        m149_audit['playable_manual_whiteboard']=audit_manual_whiteboard_choice(
+            runtime.m140_patch_result,runtime.m145_patch_result,
+            runtime.m143_board_anchors,runtime.classroom_scope_blocked)
         # One comprehensive report: the user uploads ONE file, not four.
         from mhs_school_readback import summarize_staff_shift
         shift_verdict=summarize_staff_shift(runtime.school_staff_samples)
