@@ -82,6 +82,38 @@ class NativeCafeteriaScheduleTests(unittest.TestCase):
         self.assertEqual(count_verified_school_cafeteria_stations(
             types.SimpleNamespace(values=lambda:[sim])),1)
 
+    def test_exact_ea_station_tag_finds_real_lot_counters(self):
+        # EA situation 278011 filters object tags:
+        # Func_HighSchool_Active_CafeteriaStation.
+        tag='Func_HighSchool_Active_CafeteriaStation'
+        class Tagged:
+            def __init__(self,oid,station):
+                self.id=oid
+                self.definition=types.SimpleNamespace(id=oid+100)
+                self.station=station
+            def has_tag(self,key):
+                return key==tag and self.station
+        objects=[Tagged(1,True),Tagged(2,True),Tagged(3,True),
+                 Tagged(4,False)]
+        result=school_cafeteria_station_probe(
+            types.SimpleNamespace(values=lambda:objects),
+            school_tag=tag)
+        self.assertEqual(result['count'],3)
+        self.assertEqual(result['native_tagged_stations_found'],3)
+        self.assertEqual(result['reason'],'EA_NATIVE_STATION_TAG_MATCH')
+        self.assertTrue(result['native_tag_available'])
+
+    def test_get_tags_fallback_and_no_unknown_tag_matches(self):
+        tag=123456
+        obj=types.SimpleNamespace(
+            id=57,definition=types.SimpleNamespace(id=789),
+            get_tags=lambda:(tag,11))
+        mgr=types.SimpleNamespace(values=lambda:[obj])
+        self.assertEqual(count_verified_school_cafeteria_stations(
+            mgr,school_tag=tag),1)
+        self.assertEqual(count_verified_school_cafeteria_stations(
+            mgr,school_tag=tag+1),0)
+
     def test_university_only_stalls_and_school_desks_not_counted(self):
         manager=types.SimpleNamespace(values=lambda:[
             types.SimpleNamespace(id=1,definition=types.SimpleNamespace(
