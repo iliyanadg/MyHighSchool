@@ -173,6 +173,7 @@ class SupplementalRuntimeTests(unittest.TestCase):
             bound_zone=20)
         runtime.staff_created_guests[298096][290196]=('45',)
         env={
+            '_ea_native_cafeteria_tag':lambda:None,
             'game_clock':lambda service:{'hour':10,'minute':33},
             'services':services,'VENUE_STAFF_SITUATION':298096,
             'CAFETERIA_STAFF_SITUATION':278011,
