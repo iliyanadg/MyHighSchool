@@ -116,6 +116,25 @@ def _ea_hsy_object_tuning_identity(obj):
     return False
 
 
+def _ea_hsy_station_tag_match(obj, tag):
+    """True only for the exact tag in EA situation 278011's object filter."""
+    if tag is None or obj is None:
+        return False
+    has=getattr(obj,'has_tag',None)
+    if callable(has):
+        try:
+            return bool(has(tag))
+        except Exception:
+            pass
+    getter=getattr(obj,'get_tags',None)
+    if callable(getter):
+        try:
+            return tag in tuple(getter())
+        except Exception:
+            pass
+    return False
+
+
 def _school_objects(manager):
     if manager is None:
         return None
@@ -132,7 +151,7 @@ def _school_objects(manager):
     return None
 
 
-def school_cafeteria_station_probe(manager,native_station=None):
+def school_cafeteria_station_probe(manager,native_station=None,school_tag=None):
     """Bounded evidence for counting and later reading real EA workstations."""
     items=_school_objects(manager)
     if items is None:
@@ -144,6 +163,7 @@ def school_cafeteria_station_probe(manager,native_station=None):
     ids=set()
     definitions=set()
     matched_ea=set()
+    matched_tag=set()
     for obj in items:
         oid=getattr(obj,'id',None)
         did=getattr(getattr(obj,'definition',None),'id',None)
@@ -151,29 +171,37 @@ def school_cafeteria_station_probe(manager,native_station=None):
             continue
         # Prioritize exact verified EA EP12 tuning over a display name.
         ea_tuning=_ea_hsy_object_tuning_identity(obj)
+        ea_tag=_ea_hsy_station_tag_match(obj,school_tag)
         named=_definition_identity(obj)
         if ea_tuning:
             matched_ea.add(oid)
-        if (ea_tuning or
+        if ea_tag:
+            matched_tag.add(oid)
+        if (ea_tuning or ea_tag or
                 (reference_id is not None and did==reference_id) or
                 (reference_id is None and named is not None)):
             ids.add(oid)
             if type(did) is int:
                 definitions.add(did)
     return {'count':len(ids),
-            'reason':('EA_HSY_TUNING_277994_MATCH'
+            'reason':('EA_NATIVE_STATION_TAG_MATCH'
+                      if matched_tag else 'EA_HSY_TUNING_277994_MATCH'
                       if matched_ea else 'NATIVE_STATION_DEFINITION_MATCH'
                       if reference_id is not None else
                       'NAMED_CAFETERIA_STATIONS_MATCHED' if ids else
                       'NO_RECOGNIZED_STATIONS'),
             'ea_hsy_tuning_id':EA_HSY_CAFETERIA_OBJECT_TUNING,
             'ea_hsy_objects_found':len(matched_ea),
+            'native_tagged_stations_found':len(matched_tag),
+            'native_tag_available':school_tag is not None,
             'object_manager_count':len(items),
             'matched_definition_ids':sorted(definitions)[:8]}
 
 
-def count_verified_school_cafeteria_stations(manager,native_station=None):
-    return school_cafeteria_station_probe(manager,native_station)['count']
+def count_verified_school_cafeteria_stations(manager,native_station=None,
+                                            school_tag=None):
+    return school_cafeteria_station_probe(
+        manager,native_station,school_tag)['count']
 
 
 
