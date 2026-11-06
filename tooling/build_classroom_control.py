@@ -304,6 +304,7 @@ def installation_bundle(folder):
                    'docs/VERIFICHE_CLASSROOM_CONTROL.md',
                    'docs/SECONDA_GIORNATA_DIAGNOSTICA.md',
                    'docs/COLLAUDO_PERSONALE_BETA.md',
+                   'docs/COLLAUDO_PERSONALE_MULTIPLO_BETA.md',
                    'tooling/mod_inventory.py'):
         path=ROOT/source
         payload[path.name]=path.read_bytes()
