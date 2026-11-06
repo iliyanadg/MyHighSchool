@@ -383,6 +383,10 @@ for source, destination, filename in json.loads(sys.stdin.read()):
             'staff_cafeteria_primary_fallback_supported': True,
             'staff_cafeteria_policy': 'FIRST_REGISTERED_NATIVE_VENDOR_ONLY_EXTRAS_PENDING',
             'staff_actual_ea_job_verified_in_game': False,
+            'day_rollover_owner_preserved_in_code': True,
+            'school_arrival_watcher_rearmed_in_code': True,
+            'native_lunch_test_scope': 'VANILLA_EA_TESTS_12_00_TO_13_24',
+            'npc_lunch_behavior_in_game_verified': False,
             'resources': gate['resource_count'],
             'category_simdata_pairs': gate['category_count'],
             'sha256': hashes,
@@ -416,7 +420,9 @@ for source, destination, filename in json.loads(sys.stdin.read()):
         'Con 2-3 addetti mensa scelti: solo il PRIMO resta al banco EA come lavoratore primario fisso; gli altri sono in attesa.\n'
         'Due o piu addetti mensa contemporanei NON ancora supportati.\n'
         'Per la prova usa una copia del salvataggio e leggi COLLAUDO_PERSONALE_BETA.md.\n'
-        'La revisione diagnostica aggiunge letture per la seconda giornata.\n'
+        'Nuova giornata: controller conservato e monitor arrivo riarmato (da collaudare).\n'
+        'Durante il pranzo i test lavagna tornano agli originali EA; nessuno spostamento forzato.\n'
+        'Addetto mensa al banco e pranzo studenti NON sono ancora verificati nel gioco.\n'
         'Conservare integralmente saves e MY_HIGH_SCHOOL_M25_TEST_DATA.\n'
         'Prima di installare, inventariare e spostare le vecchie versioni MHS fuori Mods.\n'
         'Non rimuovere automaticamente altre mod o XML Injector.\n'

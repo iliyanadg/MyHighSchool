@@ -8,7 +8,8 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src/classroom_control'))
 sys.path.insert(0,str(ROOT/'src/m139_general_whiteboards'))
 sys.path.insert(0,str(ROOT/'src/m145_class2_playable'))
-from mhs_scoped_classroom import ScopedTestList, registered_board_context, install_native_board_guard
+from mhs_scoped_classroom import (ScopedTestList, registered_board_context,
+                                  install_native_board_guard, native_lunch_interval)
 from mhs139_ea_zerbu_adapter import install_known_whiteboard_adapter
 from mhs145_subject_picker_patch import install_subject_picker, SUBJECT_IDS
 from tests import test_m139_ea_zerbu_adapter as picker_fixture
@@ -135,6 +136,22 @@ class ScopeTests(unittest.TestCase):
             self.assertTrue(undo_subjects())
             self.assertTrue(undo_picker())
             self.assertIs(start.test_globals[1].test,before_picker)
+
+
+
+class NativeLunchIntervalTests(unittest.TestCase):
+    def test_midday_gap_restores_original_ea_test_dispatch(self):
+        for h, m in ((12, 0), (12, 45), (13, 24)):
+            self.assertTrue(native_lunch_interval({'hour':h, 'minute':m}))
+        for h, m in ((9, 30), (10, 15), (11, 59), (13, 25),
+                     (14, 0), (16, 0)):
+            self.assertFalse(native_lunch_interval({'hour':h, 'minute':m}))
+
+    def test_unknown_clock_does_not_guess_school_lunch(self):
+        for stamp in (None, {}, {'hour':'12','minute':0},
+                      {'hour':12,'minute':True}, {'hour':25,'minute':0},
+                      {'hour':12,'minute':60}):
+            self.assertFalse(native_lunch_interval(stamp))
 
 
 if __name__=='__main__':unittest.main()

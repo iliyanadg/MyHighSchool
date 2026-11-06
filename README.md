@@ -1,30 +1,66 @@
 # MY HIGH SCHOOL — Classroom Control
 
-Mod per The Sims 4 con Vita da Liceali: due classi da otto iscritti,
-registro e personale persistenti, integrazione con le situazioni originali EA.
+Mod per **The Sims 4: Vita da Liceali**. La versione unificata usa due
+classi da otto studenti (16 in totale), registri e personale persistenti,
+un solo controller per le situazioni EA e lavagne separate.
 
-Questo branch unifica M54 e M148 e corregge il test della lavagna degli NPC
-usando le API EA ricevute. Il primo collaudo ha osservato 8/8 in entrambe le
-aule, con ritardi ancora da diagnosticare. **La mod non è dichiarata stabile**.
-La revisione corrente aggiunge letture per la seconda giornata; il personale
-salvato nel menu non è ancora collegato al reclutamento dei ruoli EA.
+## Stato reale della beta
 
-- [Audit, correzioni ed evidenze ancora necessarie](docs/AUDIT_CLASSROOM_CONTROL.md)
-- [Installazione e inventario sicuro delle Mods su Mac](docs/INSTALLAZIONE_PULITA_MAC.md)
-- [Primo collaudo: una sola versione, due giornate EA](docs/PRIMO_COLLAUDO_CLASSROOM_CONTROL.md)
-- [Analisi dei quattro contratti EA originali](docs/EA_CONTRATTI_CLASSROOM_CONTROL.md)
-- [Esito del primo collaudo e diagnostica della seconda giornata](docs/SECONDA_GIORNATA_DIAGNOSTICA.md)
+**Collaudo in gioco del 5 novembre 2026:** osservati 8 studenti in ogni
+aula, Geoffrey Landgraab e Akira Kibo come docenti, Kai Aether preside
+e Bjorn Bjergsen e Gianluca Ferraro come bidelli contemporanei nei veri
+job EA. Non e una certificazione di funzionamento universale.
 
-Compilazione dai sorgenti con CPython 3.7:
+**Problema ancora aperto:** l'addetto mensa non e arrivato e molti
+studenti non hanno pranzato. La correzione successiva invita un
+**unico addetto principale fisso** quando il registro contiene 2–3
+addetti e segnala gli altri come in sospeso. Il servizio e il pranzo
+**devono ancora essere verificati in gioco**.
+
+**Correzioni di ciclo giornaliero:** un cambio di giorno a scuola non
+deve disinstallare il controller gia attivo. Il monitor dell'arrivo
+viene riarmato dopo la fine della giornata. Durante l'intervallo
+12:00–13:24 i test modificati delle lavagne lasciano quelli EA
+originali, senza forzare l'uscita degli studenti o ordini di cibo.
+Sono salvaguardie; non dimostrano ancora che gli studenti mangino.
+
+La mod rimane una **beta da collaudare in gioco**, non una release
+certificata stabile.
+
+## Scaricare una build corretta
+
+Per questa revisione **non usare** il vecchio
+`downloads/MHS_CLASSROOM_CONTROL.zip` presente nel repository:
+e un archivio precedente alle correzioni per il personale.
+
+Usa l'**Artifact** `MHS_CLASSROOM_CONTROL_OFFLINE_VERIFIED` del
+workflow GitHub Actions **Classroom Control unified package**
+associato al commit/PR da collaudare, soltanto se i test passano.
+
+L'Artifact genera una coppia:
+- `MHS_CLASSROOM_CONTROL.package`
+- `MHS_CLASSROOM_CONTROL.ts4script`
+
+Installa soltanto questa coppia, dopo aver fatto backup di
+`saves/`, `MY_HIGH_SCHOOL_M25_TEST_DATA/` e della build
+precedentemente funzionante. Non usare vecchi script MHS in parallelo.
+
+## Documentazione
+
+- [Collaudo integrato personale e mensa](docs/COLLAUDO_PERSONALE_BETA.md)
+- [Audit e limiti](docs/AUDIT_CLASSROOM_CONTROL.md)
+- [Installazione su Mac](docs/INSTALLAZIONE_PULITA_MAC.md)
+- [Contratti EA](docs/EA_CONTRATTI_CLASSROOM_CONTROL.md)
+
+## Build locale
+
+La compilazione degli script installabili richiede **CPython 3.7**:
 
 ```sh
+python3.7 -m unittest tests.test_classroom_bootstrap_day_rollover tests.test_scoped_classroom -v
 python3.7 -m tooling.build_classroom_control /tmp/myhighschool-build
-python3 -m unittest discover -s tests -v
 ```
 
-La build produce una sola coppia `MHS_CLASSROOM_CONTROL.package` e
-`MHS_CLASSROOM_CONTROL.ts4script`, con manifest e hash. I controlli offline
-non provano puntualità, completamento delle lezioni o compatibilità con altre mod.
-
-Non cancellare `saves/` o `MY_HIGH_SCHOOL_M25_TEST_DATA/`. Le versioni precedenti
-restano nella cronologia e nei rispettivi branch.
+Il solo successo del CI non dimostra presenza dei Sim, compimento
+delle lezioni, servizio della mensa, compatibilita Windows o
+compatibilita con mod di terze parti.
