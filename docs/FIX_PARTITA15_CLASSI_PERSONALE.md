@@ -67,3 +67,24 @@ al momento del pranzo le tre postazioni. Dopo le 15:00 creare
 Confermare i lavoratori esclusivamente in
 `school_staff.samples[].comparison`; nessuna ricevuta di invito o
 conteggio del calendario prova che siano realmente attivi.
+
+## Miglioria identificazione mensa (EP12, verifica tuning EA)
+
+Un controllo sui tuning ufficiali di *Vita da Liceali* ha identificato:
+- GameObject tuning **277994**, `object_marketStalls_CafeteriaStation_HighSchool`.
+- Situazione originale **278011**,
+  `situation_Vendor_CafeteriaStation_HighSchool`.
+- Tag esatto di ricerca delle postazioni della situazione 278011:
+  **`Func_HighSchool_Active_CafeteriaStation`**.
+
+La build riconosce prima questo tag sull'oggetto del lotto, e anche
+l'identificativo di tuning originale. I numeri delle definizioni OBJD sono
+distinti dal tuning id, per questo non devono essere confusi. Se il gioco
+non espone nessuno di questi dati, la build mantiene il blocco di sicurezza,
+conservando almeno il primo lavoratore e spiegando nel report il motivo.
+
+Nel nuovo report `school_staff.native_cafeteria_schedule_probes` include
+`native_tagged_stations_found`, `ea_hsy_objects_found` e
+`ea_hsy_tuning_id`. Sono prove del riconoscimento dei banconi, **non**
+una certificazione che 3 dipendenti lavorino contemporaneamente: questo
+si misura nei veri job di servizio EA.
