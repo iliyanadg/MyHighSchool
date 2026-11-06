@@ -61,7 +61,7 @@ class AdditionalStaffPolicyTests(unittest.TestCase):
             self.CLOCK,2)
         self.assertIsNone(item)
         self.assertEqual(reason,'PRIMARY_CAFETERIA_WORKER_NOT_IN_NATIVE_JOB')
-        for clock in (None,{}, {'hour':10,'minute':29},
+        for clock in (None,{}, {'hour':9,'minute':39},
                       {'hour':11,'minute':30}, {'hour':10,'minute':True}):
             self.assertFalse(supplemental_staff_window(clock))
 
