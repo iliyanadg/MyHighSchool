@@ -7,6 +7,24 @@ No EA implementation or user data is included here.
 """
 
 
+def native_lunch_interval(clock):
+    """Recognize the EA lunch gap without changing its situations or queues.
+
+    The original EA morning period has already started before midday, and
+    afternoon class preparation begins at 13:25. Only this verified gap gets
+    the unmodified EA classroom tests; unknown clocks keep prior behavior.
+    """
+    if not isinstance(clock, dict):
+        return False
+    hour, minute = clock.get('hour'), clock.get('minute')
+    if type(hour) is not int or type(minute) is not int:
+        return False
+    if not (0 <= hour < 24 and 0 <= minute < 60):
+        return False
+    total = hour * 60 + minute
+    return 12 * 60 <= total < 13 * 60 + 25
+
+
 class ScopedTestList(object):
     _mhs_scoped = True
 
