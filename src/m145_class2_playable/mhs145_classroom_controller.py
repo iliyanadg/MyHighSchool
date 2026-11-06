@@ -302,6 +302,11 @@ class ThirteenNPCController(object):
         self.staff_extra_created={}
         self.staff_extra_receipts=[]
         self.staff_extra_last_status=None
+        self.cafeteria_scheduled_target=1
+        self.cafeteria_schedule_probes=[]
+        self.cafeteria_schedule_extra_failed=False
+        self.m128_early_sync=None
+        self.prep_trait_checked=set()
 
     def begin_school_day(self, key):
         """Reset our bookkeeping before EA's first create on a new day.
@@ -342,6 +347,11 @@ class ThirteenNPCController(object):
         self.staff_extra_created.clear()
         self.staff_extra_receipts[:]=[]
         self.staff_extra_last_status=None
+        self.cafeteria_scheduled_target=1
+        self.cafeteria_schedule_probes[:]=[]
+        self.cafeteria_schedule_extra_failed=False
+        self.m128_early_sync=None
+        self.prep_trait_checked.clear()
         if callable(self.staff_plan_loader):
             try:
                 self.staff_plan=self.staff_plan_loader(self.slot,groups)
@@ -377,6 +387,30 @@ class ThirteenNPCController(object):
         self.error=''
         self.school_day=key
         self.school_ready=True
+        # The vanilla school schedule decides lesson preparation at ~09:30.
+        # Align Class1 trait on the 08:00 school-day preflight BEFORE EA
+        # creates either native classroom preparation situation. Previously
+        # this ran inside its create hook too late for two Class2 NPCs.
+        try:
+            from sims4.resources import Types
+            trait_manager=services.get_instance_manager(Types.TRAIT)
+            class_trait=(trait_manager.get(CLASS1_TRAIT_ID)
+                         if trait_manager is not None else None)
+            proposed=planned_changes(self.lesson_classes,
+                services.sim_info_manager(),class_trait,Age.TEEN,Species.HUMAN)
+            early_result=align_roster_trait(proposed,class_trait)
+            self.m128_early_sync={'result':early_result,
+                                  'clock':game_clock(services.time_service()),
+                                  'before_native_preparation':True}
+            self.m131_sync_result=early_result
+            self.m131_sync_attempted=bool(early_result.get('success'))
+            if not early_result.get('success'):
+                self.error='EARLY_CLASS_TRAIT_'+str(early_result.get('reason'))
+        except Exception as exc:
+            self.m128_early_sync={'result':{'success':False,
+                    'reason':'EARLY_'+type(exc).__name__},
+                'before_native_preparation':True}
+            self.m131_sync_attempted=False
         # The request ledger is shared by the normal entry and bounded retries.
         self.lesson_requests=LessonRequestLedger()
         return True
@@ -572,10 +606,12 @@ class ThirteenNPCController(object):
 
         def count(cls,data,resolver):
             result=original_count(cls,data,resolver)
+            situation_id=getattr(
+                getattr(data,'situation',None),'guid64',None)
             if (not self.active or not self.in_school()
                     or getattr(cls,'guid64',None) not in SCHOOL_SCHEDULES
-                    or getattr(getattr(data,'situation',None),'guid64',None)
-                       !=BASE_SITUATION):
+                    or situation_id not in (BASE_SITUATION,
+                                            CAFETERIA_STAFF_SITUATION)):
                 return result
             try:
                 self.begin_school_day(current_school_day(self.slot))
@@ -587,6 +623,31 @@ class ThirteenNPCController(object):
                 self.school_ready=False
                 self.error='DAY_PREFLIGHT_'+type(exc).__name__+':'+str(exc)[:100]
                 return result
+            if situation_id==CAFETERIA_STAFF_SITUATION:
+                # Ask EA's own high-school schedule for one situation per
+                # recognized real counter; EA must still create each one.
+                # The count is not a fabricated extra school controller.
+                from mhs_native_schedule_staff import (
+                    cafeteria_native_schedule_count)
+                from mhs_additional_native_staff import (
+                    school_cafeteria_station_probe)
+                selected_roles=self.staff_plan.get('selected_roles',{})
+                cafeteria=tuple(selected_roles.get('cafeteria',()))
+                station_probe=school_cafeteria_station_probe(
+                    services.object_manager())
+                adjusted,reason=cafeteria_native_schedule_count(
+                    result,cafeteria,station_probe.get('count'))
+                self.cafeteria_schedule_probes.append({
+                    'original_count':result,
+                    'result_count':adjusted,
+                    'reason':reason,
+                    'station_probe':station_probe})
+                del self.cafeteria_schedule_probes[:-8]
+                if reason in (
+                        'NATIVE_EA_SCHEDULE_VENDOR_COUNT_ADJUSTED',
+                        'EA_NATIVE_VENDOR_COUNT_ALREADY_SUFFICIENT'):
+                    self.cafeteria_scheduled_target=adjusted[0]
+                return adjusted
             self.base_count_calls+=1
             self.base_count_last=result
             # Both verified EA school schedules start with six Base slots,
@@ -626,7 +687,8 @@ class ThirteenNPCController(object):
             # students/boards; synchronize the already registered 16 first.
             # A missing/invalid registry must leave original EA untouched.
             if (self.active and self.in_school() and guid in PREP_JOBS
-                    and not self.m131_sync_attempted):
+                    and guid not in self.prep_trait_checked):
+                self.prep_trait_checked.add(guid)
                 self.m131_sync_attempted=True
                 try:
                     from sims4.resources import Types
@@ -781,6 +843,93 @@ class ThirteenNPCController(object):
                             self.lesson_pending=None
                     else:
                         self.lesson_refused+=1
+            # After EA accepted a larger cafeteria count, project the
+            # NEXT specifically selected employee into each additional
+            # native TendObjectSituation emitted by the same EA schedule.
+            # Never reuse Agnes, and never create a situation from thin air.
+            if (self.active and self.school_ready and self.in_school()
+                    and guid==CAFETERIA_STAFF_SITUATION
+                    and guid in self.staff_created
+                    and self.cafeteria_scheduled_target>1
+                    and self.cafeteria_schedule_extra_failed):
+                # Do not let EA randomly fill a slot from an unsuccessful
+                # selected-vendor projection.
+                return None
+            if (self.active and self.school_ready and self.in_school()
+                    and guid==CAFETERIA_STAFF_SITUATION
+                    and guid in self.staff_created
+                    and self.cafeteria_scheduled_target>1
+                    and not self.cafeteria_schedule_extra_failed):
+                pending=tuple(self.staff_plan.get(
+                    'pending_extra_staff',{}).get('cafeteria',()))
+                index=len(self.staff_extra_created)
+                if index<len(pending):
+                    selected_sid=str(pending[index])
+                    original_guests=kwargs.get(
+                        'guest_list',args[0] if args else None)
+                    if 'guest_list' in kwargs and args:
+                        self.cafeteria_schedule_extra_failed=True
+                    else:
+                        exact_plan={'jobs':{278010:selected_sid},
+                                    'job_groups':{278010:(selected_sid,)},
+                                    'blocked':{}}
+                        prepared,projection=project_native_staff_guests(
+                            original_guests,guid,exact_plan,self.staff_jobs,
+                            self.guest_cls,self.invited,
+                            excluded_ids=tuple(self.classroom_membership))
+                        if len(self.staff_projection_reports)<40:
+                            self.staff_projection_reports.append(projection)
+                        if (prepared is not None and
+                                projected_staff_ids(projection).get(278010)
+                                ==(selected_sid,)):
+                            self.staff_pending=guid
+                            self.staff_pending_guests={278010:(selected_sid,)}
+                            self.bound_zone=zone_schedule()[0]
+                            try:
+                                try:
+                                    if 'guest_list' in kwargs:
+                                        accepted=original_create(
+                                            obj,kind,*args,
+                                            **dict(kwargs,guest_list=prepared))
+                                    elif args:
+                                        accepted=original_create(
+                                            obj,kind,prepared,*args[1:],**kwargs)
+                                    else:
+                                        accepted=None
+                                except Exception as exc:
+                                    accepted=None
+                                    self.staff_extra_last_status=(
+                                        'EA_SCHEDULE_EXTRA_'+type(exc).__name__)
+                                good=type(accepted) is int and accepted>0
+                                if good:
+                                    self.staff_extra_created[selected_sid]=accepted
+                                    existing=self.staff_created_guests.setdefault(
+                                        guid,{})
+                                    prev=tuple(existing.get(278010,()))
+                                    existing[278010]=prev+(selected_sid,)
+                                else:
+                                    self.cafeteria_schedule_extra_failed=True
+                                if len(self.staff_extra_receipts)<8:
+                                    self.staff_extra_receipts.append({
+                                        'sim_id':selected_sid,'role':'cafeteria',
+                                        'situation_guid':guid,'job_guid':278010,
+                                        'native_situation_id':accepted if good else None,
+                                        'creation_accepted_not_proof_of_work':good,
+                                        'source':'EA_NATIVE_SCHEDULE_EXTRA_COUNT',
+                                        'actual_native_job_unverified':True})
+                                return accepted
+                            finally:
+                                self.staff_pending=None
+                                self.staff_pending_guests.clear()
+                        else:
+                            self.cafeteria_schedule_extra_failed=True
+                    self.staff_extra_last_status='EA_SCHEDULE_EXTRA_VENDOR_REFUSED'
+                    # Never fall back to EA random vendor recruitment after
+                    # explicitly expanding the schedule for selected workers.
+                    return None
+                # The extra EA count has no fourth registered worker.
+                # Avoid accidental duplicates when EA refreshes situations.
+                return None
             # M53 native staff mapping: original EA venue and cafeteria
             # situations only. Keep original EA list on unsupported forms,
             # multi-worker capacity, or failed eligibility; never invent
@@ -2254,6 +2403,10 @@ def _maybe_additional_school_staff(runtime):
             selected,observed,plan.get('pending_extra_staff',{}).get('cafeteria',()),
             stamp,stations,runtime.staff_extra_attempted)
         runtime.staff_extra_last_status=reason
+        if (request is not None and request['role']=='cafeteria'
+                and getattr(runtime,'cafeteria_scheduled_target',1)>1):
+            runtime.staff_extra_last_status='CAFETERIA_NATIVE_SCHEDULE_OWNS_EXTRAS'
+            return False
         if request is None:
             return False
         sguid=request['situation_guid']
@@ -2294,8 +2447,14 @@ def _maybe_additional_school_staff(runtime):
         runtime.staff_pending_guests=receipt
         runtime.bound_zone=zone_schedule()[0]
         try:
-            situation_id=native_create(
-                manager,kind,guest_list=prepared)
+            try:
+                situation_id=native_create(
+                    manager,kind,guest_list=prepared,user_facing=False,
+                    creation_source='MY_HIGH_SCHOOL_SELECTED_'+request['role'])
+            except TypeError:
+                # Some Sims 4 builds expose a narrower native signature.
+                situation_id=native_create(
+                    manager,kind,guest_list=prepared)
             accepted=type(situation_id) is int and situation_id>0
             if accepted:
                 runtime.staff_extra_created[sid]=situation_id
@@ -3035,6 +3194,9 @@ def _m143_write_full_report(runtime):
                 'supplemental_staff_requests':list(runtime.staff_extra_receipts),
                 'supplemental_staff_created':dict(runtime.staff_extra_created),
                 'supplemental_staff_last_status':runtime.staff_extra_last_status,
+                'native_cafeteria_scheduled_target':runtime.cafeteria_scheduled_target,
+                'native_cafeteria_schedule_probes':list(runtime.cafeteria_schedule_probes),
+                'native_cafeteria_schedule_extra_failed':runtime.cafeteria_schedule_extra_failed,
                 'supplemental_staff_created_not_proof_of_native_job':True,
                 'additional_cafeteria_requires_distinct_verified_stations':True,
                 'native_staff_projection_attempts':runtime.staff_projection_reports,
@@ -3047,6 +3209,7 @@ def _m143_write_full_report(runtime):
                 'native_staff_exact_filter_hits':runtime.staff_filter_hits,
                 'actual_staff_still_requires_game_verification':True},
             'classroom_control':{
+                'early_class_trait_sync':runtime.m128_early_sync,
                 'npc_board_guard':runtime.classroom_guard_result,
                 'scoped_test_checks':runtime.classroom_scope_checks,
                 'wrong_or_ambiguous_board_blocks':runtime.classroom_scope_blocked,

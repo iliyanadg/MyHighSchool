@@ -47,6 +47,7 @@ EXTRA_SOURCES = tuple(ROOT / path for path in (
     'src/classroom_control/mhs_school_readback.py',
     'src/classroom_control/mhs_native_staff_appointments.py',
     'src/classroom_control/mhs_additional_native_staff.py',
+    'src/classroom_control/mhs_native_schedule_staff.py',
     'src/classroom_control/mhs_save_as_copy.py',
 ))
 SOURCES = tuple(MENU_SOURCES) + tuple(ATTENDANCE_SOURCES) + EXTRA_SOURCES
@@ -307,6 +308,7 @@ def installation_bundle(folder):
                    'docs/COLLAUDO_PERSONALE_BETA.md',
                    'docs/COLLAUDO_PERSONALE_MULTIPLO_BETA.md',
                    'docs/SALVA_CON_NOME_IMPORTAZIONE_SICURA.md',
+                   'docs/FIX_PARTITA15_CLASSI_PERSONALE.md',
                    'tooling/mod_inventory.py'):
         path=ROOT/source
         payload[path.name]=path.read_bytes()

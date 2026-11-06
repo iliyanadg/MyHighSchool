@@ -37,67 +37,83 @@ def supplemental_staff_window(clock):
 
 
 def _definition_identity(obj):
-    definition = getattr(obj, 'definition', None)
-    if definition is None:
+    """Only count genuine cafeteria counter *objects* on this school lot."""
+    definition=getattr(obj,'definition',None)
+    key=getattr(definition,'id',None)
+    if type(key) is not int or key<=0:
         return None
-    key = getattr(definition, 'id', None)
-    if type(key) is not int or key <= 0:
-        return None
-    names = []
-    for entry in (definition, getattr(obj, 'tuning', None)):
+    values=[]
+    for entry in (definition,getattr(obj,'tuning',None),obj):
         if entry is None:
             continue
-        for field in ('name', '__name__', 'debug_name', 'tuning_file_name'):
+        for field in ('name','__name__','debug_name','tuning_file_name'):
             try:
-                value = getattr(entry, field, None)
-                if isinstance(value, str):
-                    names.append(value)
+                v=getattr(entry,field,None)
+                if isinstance(v,str):
+                    values.append(v)
             except Exception:
                 pass
-    text = ''.join(c.lower() for c in ' '.join(names) if c.isalnum())
-    if ('cafeteria' not in text or
-            not ('station' in text or 'stall' in text) or
-            not ('highschool' in text or 'lunchspecial' in text)):
-        return None
-    return key
+    name=''.join(c.lower() for c in ' '.join(values) if c.isalnum())
+    # EA and current HSY custom objects can omit the literal HighSchool
+    # prefix from their object definition. The station's object type is
+    # enough *inside the verified High School venue*; never count generic
+    # food service displays or university-only campus vending props.
+    if (('cafeteriastation' in name or
+         ('cafeteria' in name and 'counter' in name)) and
+            'university' not in name and 'discoveruniversity' not in name):
+        return key
+    return None
 
 
-def count_verified_school_cafeteria_stations(manager, native_station=None):
-    """Count unique real High School cafeteria counters, without guessing.
-
-    Prefer the real station being tended by EA's existing High School
-    TendObjectSituation: its actual object definition identifies matching
-    additional stations even if local game tuning names are unavailable.
-    Otherwise require recognizable cafeteria station tuning names. Unknown
-    manager API or definition cannot authorize additional vendors.
-    """
+def _school_objects(manager):
     if manager is None:
         return None
-    getter = getattr(manager, 'get_all', None)
-    if not callable(getter):
-        return None
-    try:
-        reference=getattr(native_station, 'definition', None)
-        reference_id=getattr(reference, 'id', None)
-        if type(reference_id) is not int or reference_id <= 0:
-            reference_id=None
-        objects = tuple(getter())
-        if len(objects) > 2000:
-            return None
-        matched = set()
-        for obj in objects:
-            ident=_definition_identity(obj)
-            definition=getattr(obj,'definition',None)
-            defined_id=getattr(definition,'id',None)
-            object_id=getattr(obj, 'id', None)
-            if type(object_id) is not int or object_id <= 0:
+    # Sims 4 services.object_manager() commonly exposes values(), whereas
+    # SimInfoManager exposes get_all(). Restrict to at most 2000 live objects.
+    for method in ('values','get_all'):
+        get=getattr(manager,method,None)
+        if callable(get):
+            try:
+                found=tuple(get())
+                return found if len(found)<=2000 else None
+            except Exception:
                 continue
-            if ((reference_id is not None and defined_id==reference_id) or
-                    (reference_id is None and ident is not None)):
-                matched.add(object_id)
-        return len(matched)
-    except Exception:
-        return None
+    return None
+
+
+def school_cafeteria_station_probe(manager,native_station=None):
+    """Bounded evidence for counting and later reading real EA workstations."""
+    items=_school_objects(manager)
+    if items is None:
+        return {'count':None,'reason':'OBJECT_MANAGER_UNSUPPORTED'}
+    reference=getattr(native_station,'definition',None)
+    reference_id=getattr(reference,'id',None)
+    if type(reference_id) is not int or reference_id<=0:
+        reference_id=None
+    ids=set()
+    definitions=set()
+    for obj in items:
+        oid=getattr(obj,'id',None)
+        did=getattr(getattr(obj,'definition',None),'id',None)
+        if type(oid) is not int or oid<=0:
+            continue
+        named=_definition_identity(obj)
+        if (reference_id is not None and did==reference_id or
+                reference_id is None and named is not None):
+            ids.add(oid)
+            if type(did) is int:
+                definitions.add(did)
+    return {'count':len(ids),
+            'reason':('NATIVE_STATION_DEFINITION_MATCH'
+                      if reference_id is not None
+                      else 'NAMED_CAFETERIA_STATIONS_MATCHED'
+                      if ids else 'NO_RECOGNIZED_STATIONS'),
+            'object_manager_count':len(items),
+            'matched_definition_ids':sorted(definitions)[:8]}
+
+
+def count_verified_school_cafeteria_stations(manager,native_station=None):
+    return school_cafeteria_station_probe(manager,native_station)['count']
 
 
 
