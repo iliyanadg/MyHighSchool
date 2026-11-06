@@ -121,7 +121,9 @@ def _install_school_adapters(runtime):
         from sims4.resources import Types
         from interactions import ParticipantType
         from event_testing.results import TestResult
-        from mhs_scoped_classroom import registered_board_context, install_native_board_guard
+        from mhs_scoped_classroom import (
+            registered_board_context, install_native_board_guard,
+            native_lunch_interval)
         manager=services.get_instance_manager(Types.INTERACTION)
         states=services.get_instance_manager(Types.OBJECT_STATE)
         state1=states.get(CLASS1_WHITEBOARD_TRUE) if states else None
@@ -132,6 +134,14 @@ def _install_school_adapters(runtime):
         def scope(resolver):
             if not runtime.active or not runtime.school_ready or not runtime.in_school():
                 return None
+            # The scoped classroom picker must never override EA's original
+            # interaction tests during the lunch gap. It does not cancel any
+            # class situation, move Sims, or manufacture a food interaction.
+            try:
+                if native_lunch_interval(game_clock(services.time_service())):
+                    return None
+            except Exception:
+                pass
             context=registered_board_context(resolver,ParticipantType.Actor,
                 ParticipantType.Object,runtime.classroom_membership,state1,state2)
             if context is not None:
@@ -2289,6 +2299,11 @@ def _m141_start_trace(runtime,origin='ea_event'):
                             'reason':'SCHOOL_ZONE_OR_SCHEDULE_ENDED',
                             'clock_error':type(exc).__name__}
                 _m141_stop_trace(runtime)
+                # Keep a lightweight arrival watcher for the next day.
+                # Previously the first day's trace cancelled the only
+                # watcher, so later arrivals relied solely on EA create hooks.
+                if runtime.active:
+                    _m141_start_watcher(runtime)
                 return
             _m142_roll_period_if_due(runtime,
                                      game_clock(services.time_service()))
