@@ -1262,6 +1262,82 @@ def m127arm(_connection=None):
     sims4.commands.output(arm_m127(),_connection)
 
 
+def _mhs_save_as_context():
+    """Only a confirmed real save slot can receive persistent MHS data."""
+    slot = str(current_slot(allow_travel=False))
+    zone,schedule = zone_schedule()
+    if schedule in SCHOOL_SCHEDULES:
+        raise ValueError('COPIA_DA_CASA: non modificare registri al liceo')
+    household=services.active_household()
+    if household is None:
+        raise ValueError('FAMIGLIA_ATTIVA_MANCANTE')
+    played=tuple(str(info.sim_id) for info in household.sim_info_gen()
+                 if getattr(info,'age',None)==Age.TEEN
+                 and getattr(info,'species',None)==Species.HUMAN)
+    if not played:
+        raise ValueError('ADOLESCENTE_GIOCABILE_MANCANTE')
+    return slot,services.sim_info_manager(),played
+
+
+@sims4.commands.Command('mhs148.sorgenti',
+    command_type=sims4.commands.CommandType.Live)
+def mhs148_save_sources(_connection=None):
+    """List compatible source save slots without changing anything."""
+    try:
+        from mhs_save_as_copy import eligible_source_slots
+        slot,manager,played=_mhs_save_as_context()
+        slots=eligible_source_slots(FOLDER,slot,manager,Age.TEEN,Species.HUMAN,
+                                    (Age.YOUNGADULT,Age.ADULT,Age.ELDER),played)
+        sims4.commands.output(
+            'MHS SALVA CON NOME: partita attuale={} | sorgenti compatibili={} | '
+            'nessun dato modificato'.format(
+                slot,','.join(row[0] for row in slots) or 'nessuna'),_connection)
+    except Exception as exc:
+        sims4.commands.output('MHS SALVA CON NOME: '+str(exc)[:155],_connection)
+
+
+@sims4.commands.Command('mhs148.copia',
+    command_type=sims4.commands.CommandType.Live)
+def mhs148_save_copy(_connection=None):
+    """Opt-in one-command recovery when exactly one source save matches."""
+    try:
+        from mhs_save_as_copy import import_unique_copy
+        slot,manager,played=_mhs_save_as_context()
+        report=import_unique_copy(
+            FOLDER,slot,manager,Age.TEEN,Species.HUMAN,
+            (Age.YOUNGADULT,Age.ADULT,Age.ELDER),played)
+        sims4.commands.output(
+            'MHS COPIA COMPLETATA: salvataggio {} -> {} | iscritti={} '
+            'personale={} ruoli_speciali={} | originale intatto. '
+            'Da casa esegui mhs148.arm per la prossima giornata.'.format(
+                report['source'],report['target'],report['students'],
+                report['staff'],report['roles']),_connection)
+    except Exception as exc:
+        sims4.commands.output(
+            'MHS COPIA NON ESEGUITA: {}. Nessun salvataggio EA modificato. '
+            'Se ci sono piu sorgenti, usa mhs148.sorgenti e mhs148.copia_da ID.'
+            .format(str(exc)[:155]),_connection)
+
+
+@sims4.commands.Command('mhs148.copia_da',
+    command_type=sims4.commands.CommandType.Live)
+def mhs148_save_copy_from(source_slot: int=0,_connection=None):
+    """Explicit source slot for multiple matching forked saves."""
+    try:
+        from mhs_save_as_copy import import_copy
+        slot,manager,played=_mhs_save_as_context()
+        report=import_copy(FOLDER,str(source_slot),slot,manager,
+            Age.TEEN,Species.HUMAN,(Age.YOUNGADULT,Age.ADULT,Age.ELDER),played)
+        sims4.commands.output(
+            'MHS COPIA COMPLETATA: {} -> {} | 16 studenti, {} addetti e '
+            '5 ruoli. Per attivare da casa: mhs148.arm'.format(
+                report['source'],report['target'],report['staff']),_connection)
+    except Exception as exc:
+        sims4.commands.output(
+            'MHS COPIA NON ESEGUITA: {} | originale e nuova partita '
+            'non modificati'.format(str(exc)[:180]),_connection)
+
+
 @sims4.commands.Command('mhs148.status',
     command_type=sims4.commands.CommandType.Live)
 def m127status(_connection=None):
