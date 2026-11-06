@@ -164,11 +164,11 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
         rt,spawner=self.fixture(20)
         result=start_temporary_school_npc_capacity(rt,spawner)
         self.assertEqual(result['status'],'EA_NPC_CAP_MODIFIER_APPLIED_AND_CONFIRMED')
-        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(26,[-6]))
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(30,[-10]))
         self.assertIs(start_temporary_school_npc_capacity(rt,spawner),result)
-        self.assertEqual(spawner.calls,[-6])
+        self.assertEqual(spawner.calls,[-10])
         self.assertTrue(stop_temporary_school_npc_capacity(rt))
-        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(20,[-6,6]))
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(20,[-10,10]))
         self.assertFalse(stop_temporary_school_npc_capacity(rt))
 
     def test_actual_report8_regression_15_to_4_is_prevented(self):
@@ -178,13 +178,13 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
         rt,spawner=self.fixture(15)
         # Before the correction the game received +11, causing 15 -> 4.
         result=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(result['requested_delta'],11)
+        self.assertEqual(result['requested_delta'],15)
         self.assertEqual(result['npc_soft_cap_before'],15)
-        self.assertEqual(result['npc_soft_cap_after'],26)
+        self.assertEqual(result['npc_soft_cap_after'],30)
         self.assertEqual(result['status'],'EA_NPC_CAP_MODIFIER_APPLIED_AND_CONFIRMED')
-        self.assertEqual(spawner.calls,[-11])
+        self.assertEqual(spawner.calls,[-15])
         self.assertTrue(stop_temporary_school_npc_capacity(rt))
-        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(15,[-11,11]))
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(15,[-15,15]))
 
     def test_wrong_cap_semantics_reverses_instead_of_making_stuck_lot(self):
         from mhs_additional_native_staff import (
@@ -196,7 +196,7 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
         spawner.add_npc_cap_modifier=wrong_semantics
         result=start_temporary_school_npc_capacity(rt,spawner)
         self.assertEqual(result['status'],'EA_NPC_CAP_REJECTED_REVERTED')
-        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(15,[-11,11]))
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),(15,[-15,15]))
         self.assertIsNone(rt.school_npc_cap_service)
 
     def test_existing_higher_mccc_cap_is_not_overridden(self):
@@ -210,11 +210,54 @@ class SchoolNativeNpcBudgetTests(unittest.TestCase):
     def test_fail_closed_for_invalid_count_and_large_delta(self):
         from mhs_additional_native_staff import (
             school_npc_capacity_plan,start_temporary_school_npc_capacity)
-        self.assertEqual(school_npc_capacity_plan(10,16,8)[0],0)
+        self.assertEqual(school_npc_capacity_plan(9,16,8)[0],0)
         self.assertEqual(school_npc_capacity_plan(20,15,8)[0],0)
-        rt,spawner=self.fixture(13)
+        self.assertEqual(school_npc_capacity_plan(10,16,8)[0],20)
+        rt,spawner=self.fixture(9)
         state=start_temporary_school_npc_capacity(rt,spawner)
-        self.assertEqual(state['status'],'CAP_CHANGE_TOO_LARGE')
+        self.assertEqual(state['status'],'CAP_INPUT_NOT_VERIFIED')
+        self.assertEqual(spawner.calls,[])
+
+    def test_school_cap_stays_at_30_after_external_budget_drops(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        first=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual((spawner.npc_soft_cap,rt.school_npc_cap_delta),
+                         (30,15))
+        # Simulate another EA/CC adjustment during the school day.
+        spawner.npc_soft_cap-=3
+        resumed=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual((spawner.npc_soft_cap,rt.school_npc_cap_delta),
+                         (30,18))
+        self.assertEqual(spawner.calls,[-15,-3])
+        self.assertEqual(len(resumed['adjustments']),2)
+        # Restoring our +18 must retain EA's independent -3 change.
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),
+                         (12,[-15,-3,18]))
+
+    def test_cap_topup_stops_at_budget_and_does_not_repeat(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity,
+            stop_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(15)
+        start_temporary_school_npc_capacity(rt,spawner)
+        spawner.npc_soft_cap-=7
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'NPC_CAP_TOPUP_BUDGET_EXCEEDED')
+        self.assertEqual(spawner.calls,[-15])
+        self.assertTrue(stop_temporary_school_npc_capacity(rt))
+        self.assertEqual((spawner.npc_soft_cap,spawner.calls),
+                         (8,[-15,15]))
+
+    def test_existing_exact_30_cap_no_write(self):
+        from mhs_additional_native_staff import (
+            start_temporary_school_npc_capacity)
+        rt,spawner=self.fixture(30)
+        state=start_temporary_school_npc_capacity(rt,spawner)
+        self.assertEqual(state['status'],'CAP_ALREADY_SUFFICIENT')
         self.assertEqual(spawner.calls,[])
 
     def test_bouncer_observer_is_read_only_and_reports_only_staff(self):
