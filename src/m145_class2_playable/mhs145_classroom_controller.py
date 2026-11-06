@@ -2432,9 +2432,14 @@ def _maybe_additional_school_staff(runtime):
         runtime.staff_pending_guests=receipt
         runtime.bound_zone=zone_schedule()[0]
         try:
-            situation_id=native_create(
-                manager,kind,guest_list=prepared,user_facing=False,
-                creation_source='MY_HIGH_SCHOOL_SELECTED_'+request['role'])
+            try:
+                situation_id=native_create(
+                    manager,kind,guest_list=prepared,user_facing=False,
+                    creation_source='MY_HIGH_SCHOOL_SELECTED_'+request['role'])
+            except TypeError:
+                # Some Sims 4 builds expose a narrower native signature.
+                situation_id=native_create(
+                    manager,kind,guest_list=prepared)
             accepted=type(situation_id) is int and situation_id>0
             if accepted:
                 runtime.staff_extra_created[sid]=situation_id
