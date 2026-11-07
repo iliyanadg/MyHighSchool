@@ -143,6 +143,36 @@ class RealSaveEventsTests(unittest.TestCase):
         self.assertEqual(events[0],('EA','t',(1,),{'reason':'manual'}))
         self.assertEqual(events[1],('MHS',17))
 
+    def test_two_copies_with_identical_save_titles_use_real_ea_preferred_slot(self):
+        self._save(17,'Stesso nome')
+        first=RosterStore(self.folder).load('17')
+        self.assertEqual(len(first.assignments),16)
+        # A second Save As can be named identically. Its real EA slot,
+        # NOT the old name-to-slot cache, must determine the school.
+        self._save(18,'Stesso nome')
+        self.cold_start()
+        bridge._COMMITTED_SAVE_ANCHOR=None
+        self.slot=0xffffffff
+        self.preferred=18
+        self.title='Stesso nome'
+        self.assertEqual(bridge.current_slot(allow_travel=True),'18')
+
+    def test_target_with_different_school_is_not_overwritten(self):
+        self.write_roster('17')
+        before=RosterStore(self.folder).load('17').to_json()
+        revised=dict(RosterStore(self.folder).load('17').assignments)
+        revised.pop('115')
+        revised['116']=2
+        RosterStore(self.folder).save('17',SchoolRoster('17',revised))
+        existing=RosterStore(self.folder).load('17').to_json()
+        source=save_events._snapshot_source()
+        self.assertEqual(save_events._after_save(
+            types.SimpleNamespace(slot_id=17,slot_name='Other'),source),
+            'SAVE_EVENT_FAILED_SaveAsCopyError')
+        self.assertEqual(RosterStore(self.folder).load('17').to_json(),
+                         existing)
+        self.assertNotEqual(existing,before)
+
     def test_failed_native_generator_does_not_copy_or_swallow_error(self):
         events=[]
         class DummyPersistence:
