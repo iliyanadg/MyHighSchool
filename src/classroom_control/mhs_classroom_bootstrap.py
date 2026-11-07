@@ -69,7 +69,7 @@ def refresh(reload=False):
         # do not alter non-school interactions while the owner is retained.
         # Reset native school situations ONLY when entering the new school
         # day, not while returning home from yesterday's day.
-        if (not school and runtime is not None and runtime.active and
+        elif (not school and runtime is not None and runtime.active and
                 settings.active and (
                     action in ('KEEP','START') or
                     (action=='RESET' and reason=='NEW_SCHOOL_DAY'))):
