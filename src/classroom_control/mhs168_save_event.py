@@ -163,17 +163,22 @@ def _after_save(save_game_data, source):
         bridge._CACHED_RECOVERY = False
         bridge._COMMITTED_SAVE_ANCHOR = (
             destination, id(zone), str(guid), str(household_id))
+        committed_status = _LAST_STATUS
         try:
             import mhs_classroom_bootstrap as bootstrap
             import mhs145_classroom_controller as controller
             current_zone, schedule = controller.zone_schedule()
             if (current_zone is not None and
                     schedule not in controller.SCHOOL_SCHEDULES):
-                bootstrap.refresh(reload=True)
+                status = bootstrap.refresh(reload=True)
+                if isinstance(status, str) and (
+                        'BLOCKED' in status or 'BLOCCATA' in status):
+                    committed_status += '_HOME_REFRESH_PENDING'
         except Exception:
             # Registry has been copied and identity committed; a failed
             # optional UI/controller refresh must never modify EA's save.
-            _LAST_STATUS += '_HOME_REFRESH_PENDING'
+            committed_status += '_HOME_REFRESH_PENDING'
+        _LAST_STATUS = committed_status
         return _LAST_STATUS
     except Exception as exc:
         _LAST_STATUS = 'SAVE_EVENT_FAILED_' + type(exc).__name__
