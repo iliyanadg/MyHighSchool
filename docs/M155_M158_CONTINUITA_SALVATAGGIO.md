@@ -1,4 +1,4 @@
-# M155–M159 — Continuità del salvataggio, 2 classi
+# M155–M163 — Continuità del salvataggio, 2 classi
 
 Questa revisione parte dal controller M154 e **non modifica** inviti EA, lezioni,
 lavagne, organico scolastico o capienza (due classi di otto).
@@ -28,6 +28,31 @@ lavagne, organico scolastico o capienza (due classi di otto).
    preferita, dopo tutte le convalide; non viene scelta una partita qualsiasi.
 6. Se il recupero opzionale fallisce, la mod conserva i dati preesistenti
    senza impedire il caricamento del gioco.
+
+## Ulteriori correzioni M160–M163
+
+- **M160:** una coppia GUID EA / slot numerico realmente osservato viene
+  memorizzata nel file separato `MHS_VerifiedSaveIdentity.json`.
+  Al nuovo avvio, se EA espone uno slot temporaneo, l'identità viene
+  recuperata soltanto se esiste una corrispondenza univoca di GUID,
+  famiglia e Sim del registro correntemente presenti nel salvataggio.
+  La collisione tra più slot con lo stesso GUID e nucleo resta bloccata.
+- **M161:** il monitor di arrivo scuola, già presente e leggero, riconosce
+  anche il cambio di slot quando «Salva con nome» viene fatto restando a
+  casa e richiede il ricaricamento sicuro del controller.
+- **M162:** la verifica dell'identità non richiede più che la classe sia
+  piena o la mod attiva; anche un registro temporaneamente incompleto
+  (almeno un iscritto) può essere riconosciuto dopo una chiusura.
+  **La frequenza scolastica mantiene invece i requisiti 8+8 e cinque ruoli.**
+- **M163:** gli aggiornamenti dei registri studenti, impostazioni e ruoli
+  speciali ri-verificano da casa l'attivazione del controller appena
+  sono stati salvati, senza dover cambiare lotto per riarmarlo.
+- Test in `tests/test_m160_restart_identity.py` e
+  `tests/test_m163_home_auto_rearm.py`.
+
+Il file identità è locale al Mac; non va modificato a mano. Conservare
+sempre insieme `saves` e `MY_HIGH_SCHOOL_M25_TEST_DATA`. Il solo backup dei
+file EA `.save` **non** comprende i registri esterni né i nuovi binding.
 
 ## Limiti da non nascondere
 
