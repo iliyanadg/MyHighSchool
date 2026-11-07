@@ -38,10 +38,15 @@ class M155VerifiedHomeWrites(unittest.TestCase):
                 0xFFFFFFFF, '0xdead', 721, verified_home_write=True)
         self.assertIsNone(self.guard.slot)
 
-    def test_wrong_household_cannot_write(self):
+    def test_switching_households_in_same_verified_save_keeps_registry(self):
+        self.assertEqual(self.guard.resolve(
+            0xFFFFFFFF, '0xbeef', 722, verified_home_write=True), '15')
+        self.assertEqual(self.guard.household_id, '722')
+        self.assertEqual(self.guard.slot, '15')
+
+    def test_unknown_household_change_without_home_evidence_is_blocked(self):
         with self.assertRaises(IdentityError):
-            self.guard.resolve(
-                0xFFFFFFFF, '0xbeef', 722, verified_home_write=True)
+            self.guard.resolve(0xFFFFFFFF, '0xbeef', 722, allow_travel=True)
         self.assertIsNone(self.guard.slot)
 
     def test_missing_guid_cannot_write(self):
