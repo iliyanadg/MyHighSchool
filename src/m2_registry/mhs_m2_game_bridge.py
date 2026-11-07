@@ -21,6 +21,7 @@ _SLOT_GUARD = TravelSlotGuard()
 _CACHED_RECOVERY = False
 _LAST_BOUND = None
 _LAST_SAVE_TITLE = None
+_LAST_ZONE_TOKEN = None
 
 
 def _named_slot_cache():
@@ -201,7 +202,7 @@ def current_slot(allow_travel=False):
     resolves to a separately verified roster. If two saves remain indistinct,
     fail closed; never silently mix school registries.
     """
-    global _CACHED_RECOVERY, _LAST_BOUND, _LAST_SAVE_TITLE
+    global _CACHED_RECOVERY, _LAST_BOUND, _LAST_SAVE_TITLE, _LAST_ZONE_TOKEN
     try:
         import services
         persistence = services.get_persistence_service()
@@ -215,6 +216,8 @@ def current_slot(allow_travel=False):
         household = services.active_household()
         household_id = getattr(household, 'id', None)
         real = positive_slot(slot)
+        zone_object = getattr(services, 'current_zone', lambda: None)()
+        zone_token = id(zone_object) if zone_object is not None else None
         named = _named_slot_cache() if title else None
         if named is not None and named.has_conflict(stable, title):
             raise BridgeError('Nomi di salvataggio duplicati: identita ambigua')
@@ -230,11 +233,17 @@ def current_slot(allow_travel=False):
             _CACHED_RECOVERY = False
             identity = (result, str(stable), str(household_id))
             if identity != _LAST_BOUND and _saved_roster_matches_live_game(result):
-                if _slot_cache().remember(result, stable, household_id):
-                    _LAST_BOUND = identity
-                if named is not None:
-                    named.remember(result, stable, title, household_id)
-            _LAST_SAVE_TITLE = title
+                if mapped is not None and named is not None:
+                    if named.remember(result, stable, title, household_id):
+                        _LAST_BOUND = identity
+                else:
+                    if _slot_cache().remember(result, stable, household_id):
+                        _LAST_BOUND = identity
+                    if named is not None:
+                        named.remember(result, stable, title, household_id)
+            if title is not None:
+                _LAST_SAVE_TITLE = title
+            _LAST_ZONE_TOKEN = zone_token
             return result
 
         previous_slot = None
@@ -242,7 +251,10 @@ def current_slot(allow_travel=False):
                 title != _LAST_SAVE_TITLE and _SLOT_GUARD.slot is not None):
             # Save As while EA still reports scratch: the old writable
             # anchor must NOT be reused for the newly named game save.
-            previous_slot = _SLOT_GUARD.slot
+            # A Save As does NOT reload the zone. Loading a different save
+            # normally does; never clone from that unrelated former session.
+            if zone_token is not None and zone_token == _LAST_ZONE_TOKEN:
+                previous_slot = _SLOT_GUARD.slot
             _SLOT_GUARD.reset()
             _CACHED_RECOVERY = False
             _LAST_BOUND = None
@@ -293,10 +305,13 @@ def current_slot(allow_travel=False):
             verified_home_write=verified_home_write)
         if (_CACHED_RECOVERY and verified_home_write and
                 _saved_roster_matches_live_game(result)):
-            _slot_cache().remember(result, stable, household_id)
-            if named is not None:
+            if named is None:
+                _slot_cache().remember(result, stable, household_id)
+            else:
                 named.remember(result, stable, title, household_id)
-        _LAST_SAVE_TITLE = title
+        if title is not None:
+            _LAST_SAVE_TITLE = title
+        _LAST_ZONE_TOKEN = zone_token
         return result
     except (IdentityError, ValueError, TypeError, AttributeError,
             ImportError) as exc:
