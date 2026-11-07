@@ -288,6 +288,29 @@ class DailyLifecycleTests(TestCase):
         self.assertEqual(events,['watcher'])
         self.assertIs(controller._RUNTIME,runtime)
 
+    def test_unknown_home_zone_must_never_auto_arm_at_undetected_school(self):
+        """On initial EA zone load, neither home ID nor director may be ready."""
+        services=types.ModuleType('services')
+        services.current_zone=lambda:types.SimpleNamespace(id=88)
+        controller=types.ModuleType('mhs145_classroom_controller')
+        controller._RUNTIME=None
+        controller.FOLDER='unused'
+        controller.current_slot=lambda allow_travel=False:'15'
+        controller.SettingsStore=lambda folder:types.SimpleNamespace(
+            load=lambda slot:types.SimpleNamespace(active=True))
+        controller.zone_schedule=lambda:(88,None)
+        controller.SCHOOL_SCHEDULES=frozenset((277657,279958))
+        controller.current_school_day=lambda slot:('15',7)
+        controller.arm_m127=lambda:(_ for _ in ()).throw(
+            AssertionError('No school lot may be adopted as home!'))
+        with patch.dict(sys.modules,{
+            'services':services,'mhs145_classroom_controller':controller}):
+            with patch.object(bootstrap,'_home_zone_known',return_value=None):
+                self.assertEqual(bootstrap.refresh(),
+                         'ZONE_DIRECTOR_PENDING_NO_HOME_ACTIVATION')
+        self.assertTrue(bootstrap._slot_temporarily_unverified(
+            'ZONE_DIRECTOR_PENDING_NO_HOME_ACTIVATION'))
+
     def test_readonly_audit_command_does_not_require_active_controller(self):
         source=(ROOT/'src'/'m145_class2_playable'/
                 'mhs145_classroom_controller.py').read_text()
