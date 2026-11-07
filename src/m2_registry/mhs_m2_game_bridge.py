@@ -14,11 +14,18 @@ class BridgeError(RuntimeError):
 
 from mhs56_slot_identity import (
     TravelSlotGuard, IdentityError, positive_slot, VerifiedSlotBindings,
-    synthetic_slot_for_guid)
+    synthetic_slot_for_guid, NamedSaveBindings, save_name_token,
+    synthetic_slot_for_named_save)
 
 _SLOT_GUARD = TravelSlotGuard()
 _CACHED_RECOVERY = False
 _LAST_BOUND = None
+_LAST_SAVE_TITLE = None
+
+
+def _named_slot_cache():
+    root = os.path.dirname(_slot_cache().path)
+    return NamedSaveBindings(os.path.join(root, 'MHS_VerifiedSaveNames.json'))
 
 
 def _slot_cache():
@@ -74,75 +81,127 @@ def _saved_roster_matches_live_game(slot):
 _MIGRATION_DIAGNOSTIC = 'NOT_NEEDED'
 
 
-def _adopt_legacy_school_registry(stable, household_id):
-    """Convert an already chosen legacy 2x8 roster to isolated GUID storage.
+def _is_at_home():
+    try:
+        import mhs145_classroom_controller as controller
+        zone, schedule = controller.zone_schedule()
+        return zone is not None and schedule not in controller.SCHOOL_SCHEDULES
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
 
-    Only the first verified HOME bootstrap may do this. All four original
-    JSON files remain byte-for-byte untouched. An unrelated save cannot be
-    assigned based on its display name or a guessed EA numeric slot.
+
+def _adopt_legacy_school_registry(stable, household_id,
+                                  save_title=None, previous_slot=None):
+    """Safely clone a verified school into an isolated Save As identity.
+
+    A distinct EA save title is *additional* evidence only. The four source
+    registries must pass the full live SimInfo verification, never a name-only
+    match. Two legacy slots with identical school configurations are safe
+    sources; divergent candidates cannot be chosen by filename or timestamp.
     """
     global _MIGRATION_DIAGNOSTIC
     try:
         import services
         from sims.sim_info_types import Age, Species
-        from mhs_save_as_copy import import_unique_copy, SaveAsCopyError
+        from mhs_save_as_copy import (
+            import_unique_copy, import_copy, prepare_copy, SaveAsCopyError)
         from mhs34_settings import SettingsStore
         from mhs53_staff_store import StaffStore
         from mhs97_core_role_store import CoreRoleStore
         from mhs56_slot_identity import stable_token, positive_id
+        title = save_name_token(save_title)
         if stable_token(stable) is None or positive_id(household_id) is None:
-            _MIGRATION_DIAGNOSTIC='EA_GUID_OR_HOUSEHOLD_UNAVAILABLE'
+            _MIGRATION_DIAGNOSTIC = 'EA_GUID_OR_HOUSEHOLD_UNAVAILABLE'
             return None
-        binding=_slot_cache()
-        if binding.has_identity(stable, household_id):
-            _MIGRATION_DIAGNOSTIC='AMBIGUOUS_EXISTING_BINDING'
+        binding = _slot_cache()
+        named = _named_slot_cache()
+        if title is None and binding.has_identity(stable, household_id):
+            _MIGRATION_DIAGNOSTIC = 'AMBIGUOUS_EXISTING_BINDING'
             return None
-        target=synthetic_slot_for_guid(stable)
-        folder=os.path.dirname(binding.path)
-        stores=(SettingsStore(folder),RosterStore(folder),
-                StaffStore(folder),CoreRoleStore(folder))
+        if title is not None and named.has_conflict(stable, title):
+            _MIGRATION_DIAGNOSTIC = 'DUPLICATE_SAVE_NAME_UNSAFE'
+            return None
+        target = (synthetic_slot_for_named_save(stable, title) if title
+                  else synthetic_slot_for_guid(stable))
+        folder = os.path.dirname(binding.path)
+        stores = (SettingsStore(folder), RosterStore(folder),
+                  StaffStore(folder), CoreRoleStore(folder))
         if any(os.path.lexists(store.path(target)) for store in stores):
-            # Never claim a pre-existing high-range store as another save.
-            _MIGRATION_DIAGNOSTIC='GUID_STORE_ALREADY_EXISTS_UNBOUND'
+            _MIGRATION_DIAGNOSTIC = 'TARGET_STORE_ALREADY_EXISTS_UNBOUND'
             return None
-        household=services.active_household()
-        manager=services.sim_info_manager()
+        household = services.active_household()
+        manager = services.sim_info_manager()
         if household is None or manager is None:
-            _MIGRATION_DIAGNOSTIC='EA_SIM_MANAGER_NOT_READY'
+            _MIGRATION_DIAGNOSTIC = 'EA_SIM_MANAGER_NOT_READY'
             return None
-        played=tuple(str(info.sim_id) for info in household.sim_info_gen()
-                     if getattr(info,'age',None)==Age.TEEN and
-                        getattr(info,'species',None)==Species.HUMAN)
+        played = tuple(str(info.sim_id) for info in household.sim_info_gen()
+                       if getattr(info, 'age', None) == Age.TEEN and
+                          getattr(info, 'species', None) == Species.HUMAN)
         if not played:
-            _MIGRATION_DIAGNOSTIC='NO_PLAYABLE_TEEN_FOR_SAFE_IMPORT'
+            _MIGRATION_DIAGNOSTIC = 'NO_PLAYABLE_TEEN_FOR_SAFE_IMPORT'
             return None
+        inputs = (manager, Age.TEEN, Species.HUMAN,
+                  (Age.YOUNGADULT, Age.ADULT, Age.ELDER), played)
         try:
-            report=import_unique_copy(
-                folder,target,manager,Age.TEEN,Species.HUMAN,
-                (Age.YOUNGADULT,Age.ADULT,Age.ELDER),played)
+            if previous_slot is not None:
+                # The previous active HOME session is the trustworthy source
+                # for a second or third Save As, even if other saves diverge.
+                report = import_copy(folder, previous_slot, target, *inputs)
+            elif title:
+                # M165 cache can contain two real slots for the SAME GUID.
+                # Accept them only if their *complete* school payloads are
+                # equivalent after rebinding to the new target slot.
+                sources = sorted(set(item['slot'] for item in binding._load()
+                                     if item['guid'] == stable_token(stable) and
+                                     item['household'] == str(household_id)),
+                                 key=int)
+                candidates = []
+                for source in sources:
+                    try:
+                        candidates.append(prepare_copy(
+                            folder, source, target, *inputs))
+                    except SaveAsCopyError:
+                        continue
+                if candidates:
+                    signature = candidates[0]['configuration']
+                    if any(row['configuration'] != signature
+                           for row in candidates[1:]):
+                        raise SaveAsCopyError('AMBIGUOUS_LEGACY_SAVE_AS')
+                    report = import_copy(folder, candidates[0]['source'],
+                                         target, *inputs)
+                else:
+                    report = import_unique_copy(folder, target, *inputs)
+            else:
+                report = import_unique_copy(folder, target, *inputs)
         except SaveAsCopyError as exc:
-            _MIGRATION_DIAGNOSTIC='SAFE_IMPORT_'+str(exc)[:110]
+            _MIGRATION_DIAGNOSTIC = 'SAFE_IMPORT_' + str(exc)[:110]
             return None
         if not _saved_roster_matches_live_game(target):
-            _MIGRATION_DIAGNOSTIC='IMPORTED_ROSTER_NOT_IN_EA_SAVE'
+            _MIGRATION_DIAGNOSTIC = 'IMPORTED_ROSTER_NOT_IN_EA_SAVE'
             return None
-        if not binding.remember(target,stable,household_id):
-            _MIGRATION_DIAGNOSTIC='VERIFIED_BINDING_DISK_WRITE_FAILED'
+        if title:
+            remembered = named.remember(target, stable, title, household_id)
+        else:
+            remembered = binding.remember(target, stable, household_id)
+        if not remembered:
+            _MIGRATION_DIAGNOSTIC = 'VERIFIED_BINDING_DISK_WRITE_FAILED'
             return None
-        _MIGRATION_DIAGNOSTIC='IMPORTED_FROM_'+report['source']
+        _MIGRATION_DIAGNOSTIC = 'IMPORTED_FROM_' + report['source']
         return target
     except Exception as exc:
-        _MIGRATION_DIAGNOSTIC='UNEXPECTED_'+type(exc).__name__
+        _MIGRATION_DIAGNOSTIC = 'UNEXPECTED_' + type(exc).__name__
         return None
 
 
 def current_slot(allow_travel=False):
-    """Resolve the real EA save, or a uniquely validated prior binding.
+    """Resolve the active EA save, including *distinctly named* Save As forks.
 
-    Binding is created only when EA supplied the real numeric slot in an
-    earlier session, and live registered Sim IDs still match exactly.
+    The normal numerical EA slot remains preferred when it can be observed.
+    If EA exposes a scratch slot after a cold restart, the exact EA save name
+    resolves to a separately verified roster. If two saves remain indistinct,
+    fail closed; never silently mix school registries.
     """
-    global _CACHED_RECOVERY, _LAST_BOUND
+    global _CACHED_RECOVERY, _LAST_BOUND, _LAST_SAVE_TITLE
     try:
         import services
         persistence = services.get_persistence_service()
@@ -150,45 +209,68 @@ def current_slot(allow_travel=False):
             raise BridgeError('Servizio EA del salvataggio non disponibile')
         proto = persistence.get_save_slot_proto_buff()
         slot = getattr(proto, 'slot_id', None)
+        title = save_name_token(getattr(proto, 'slot_name', None))
         getter = getattr(persistence, 'get_save_slot_proto_guid', None)
         stable = getter() if callable(getter) else None
         household = services.active_household()
         household_id = getattr(household, 'id', None)
         real = positive_slot(slot)
+        named = _named_slot_cache() if title else None
+        if named is not None and named.has_conflict(stable, title):
+            raise BridgeError('Nomi di salvataggio duplicati: identita ambigua')
+
         if real is not None:
+            # An already named, separately validated store may be synthetic.
+            # Keep using it even when the EA proto briefly exposes a number.
+            mapped = named.unique(stable, title) if named else None
+            if mapped is not None and _saved_roster_matches_live_game(mapped):
+                result = _SLOT_GUARD.resolve(mapped, stable, household_id)
+            else:
+                result = _SLOT_GUARD.resolve(real, stable, household_id)
             _CACHED_RECOVERY = False
-            result = _SLOT_GUARD.resolve(real, stable, household_id)
             identity = (result, str(stable), str(household_id))
             if identity != _LAST_BOUND and _saved_roster_matches_live_game(result):
                 if _slot_cache().remember(result, stable, household_id):
                     _LAST_BOUND = identity
+                if named is not None:
+                    named.remember(result, stable, title, household_id)
+            _LAST_SAVE_TITLE = title
             return result
 
-        # A cold start is accepted only if a REAL slot was previously
-        # observed for exactly this stable EA save GUID and household.
+        previous_slot = None
+        if (title is not None and _LAST_SAVE_TITLE is not None and
+                title != _LAST_SAVE_TITLE and _SLOT_GUARD.slot is not None):
+            # Save As while EA still reports scratch: the old writable
+            # anchor must NOT be reused for the newly named game save.
+            previous_slot = _SLOT_GUARD.slot
+            _SLOT_GUARD.reset()
+            _CACHED_RECOVERY = False
+            _LAST_BOUND = None
+
         if _SLOT_GUARD.slot is None:
-            binding=_slot_cache()
-            candidate = binding.unique(stable, household_id)
+            binding = _slot_cache()
+            candidate = named.unique(stable, title) if named else None
+            # A named binding exists but belongs to another set of Sims:
+            # do not fallback to an older unrelated registry.
+            if candidate is not None and not _saved_roster_matches_live_game(candidate):
+                raise BridgeError('Registro del salvataggio non corrispondente')
+            if candidate is None and not title:
+                candidate = binding.unique(stable, household_id)
             if candidate is not None and _saved_roster_matches_live_game(candidate):
                 _SLOT_GUARD.resolve(candidate, stable, household_id)
                 _CACHED_RECOVERY = True
-            elif candidate is None and not binding.has_identity(stable,household_id):
-                # Migration of pre-M160 saves: only from a HOME lot, and
-                # only after verifying all 16 existing students/staff/Core
-                # identities in the current EA save. The source JSON stays
-                # untouched and the new GUID store is independent.
-                try:
-                    import mhs145_classroom_controller as controller
-                    zone,schedule=controller.zone_schedule()
-                    home=(zone is not None and
-                          schedule not in controller.SCHOOL_SCHEDULES)
-                except (ImportError, AttributeError, TypeError, ValueError):
-                    home=False
-                if home:
-                    candidate=_adopt_legacy_school_registry(stable,household_id)
-                    if candidate is not None:
-                        _SLOT_GUARD.resolve(candidate,stable,household_id)
-                        _CACHED_RECOVERY=True
+            elif _is_at_home():
+                if title is not None:
+                    # Even an old M165 cache with slots 10 AND 16 can be
+                    # recovered when their rosters are exactly equivalent.
+                    candidate = _adopt_legacy_school_registry(
+                        stable, household_id, title, previous_slot)
+                elif not binding.has_identity(stable, household_id):
+                    candidate = _adopt_legacy_school_registry(stable,
+                                                                household_id)
+                if candidate is not None:
+                    _SLOT_GUARD.resolve(candidate, stable, household_id)
+                    _CACHED_RECOVERY = True
 
         verified_home_write = False
         try:
@@ -211,10 +293,16 @@ def current_slot(allow_travel=False):
             verified_home_write=verified_home_write)
         if (_CACHED_RECOVERY and verified_home_write and
                 _saved_roster_matches_live_game(result)):
-            # User may switch household within the same verified save.
-            # Remember its new household only after the same GUID and
-            # controller/home context were positively validated.
             _slot_cache().remember(result, stable, household_id)
+            if named is not None:
+                named.remember(result, stable, title, household_id)
+        _LAST_SAVE_TITLE = title
+        return result
+    except (IdentityError, ValueError, TypeError, AttributeError,
+            ImportError) as exc:
+        raise BridgeError('Slot EA non verificato: {}'.format(str(exc)[:125]))
+
+cache().remember(result, stable, household_id)
         return result
     except (IdentityError, ValueError, TypeError, AttributeError,
             ImportError) as exc:
