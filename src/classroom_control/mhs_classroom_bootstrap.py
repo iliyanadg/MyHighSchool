@@ -5,6 +5,7 @@ Use the same zone-loaded hook already exercised by the project's M55 code.
 Loading directly into an ongoing school day refuses installation.
 """
 _STATUS='NOT_INITIALIZED'
+_SAVE_AS_STATUS='NOT_CHECKED'
 _HOOK=None
 
 
@@ -72,7 +73,7 @@ def _recover_save_as_at_home(controller, slot, school):
 
 
 def refresh(reload=False):
-    global _STATUS
+    global _STATUS,_SAVE_AS_STATUS
     try:
         import services
         import mhs145_classroom_controller as controller
@@ -84,7 +85,12 @@ def refresh(reload=False):
         # On an empty real Save As target, inherit an unambiguous source
         # before reading settings. Never infer slot from an EA scratch ID.
         if runtime is None or runtime.slot != slot:
-            _recover_save_as_at_home(controller,slot,school)
+            try:
+                _SAVE_AS_STATUS=_recover_save_as_at_home(controller,slot,school)
+            except Exception as exc:
+                # Save As recovery is optional; an unexpected problem must
+                # not disable an existing valid registry or EA game session.
+                _SAVE_AS_STATUS='ERROR_'+type(exc).__name__
         settings=controller.SettingsStore(controller.FOLDER).load(slot)
         key=controller.current_school_day(slot)
         if runtime is not None and runtime.slot!=slot:
