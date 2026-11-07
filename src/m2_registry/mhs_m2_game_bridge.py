@@ -317,12 +317,6 @@ def current_slot(allow_travel=False):
             ImportError) as exc:
         raise BridgeError('Slot EA non verificato: {}'.format(str(exc)[:125]))
 
-cache().remember(result, stable, household_id)
-        return result
-    except (IdentityError, ValueError, TypeError, AttributeError,
-            ImportError) as exc:
-        raise BridgeError('Slot EA non verificato: {}'.format(str(exc)[:125]))
-
 def slot_identity_status():
     """Read-only identity diagnostic, independent from the game's UI."""
     guard = _SLOT_GUARD
