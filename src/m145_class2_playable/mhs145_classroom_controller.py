@@ -242,6 +242,9 @@ class ThirteenNPCController(object):
         self.m143_direct_reports=[]
         self.m143_board_anchors=None
         self.m143_policy_log=set()
+        self.m151_npc_attempts={}
+        self.m151_npc_accepted=set()
+        self.m151_npc_reports=[]
         self.m147_anchors_status=None
         self.m147_preclass_attempted=set()
         self.m147_preclass_reports=[]
@@ -346,6 +349,9 @@ class ThirteenNPCController(object):
         self.classroom_scope_blocked=0
         self.classroom_scope_last.clear()
         self.lesson_entry_samples[:]=[]
+        self.m151_npc_attempts.clear()
+        self.m151_npc_accepted.clear()
+        self.m151_npc_reports[:]=[]
         self.lesson_entry_last_ticks=None
         self.m149_entry_snapshots_skipped=0
         self.school_staff_samples[:]=[]
@@ -2834,6 +2840,7 @@ def _m141_start_trace(runtime,origin='ea_event'):
             _observe_lesson_entry(runtime)
             _m141_capture(runtime,'interval')
             _m147_early_playable_preparation(runtime)
+            _m151_npc_football_preclass(runtime)
             _m142_retry_playables(runtime)
             _m143_direct_attend(runtime)
         handle=alarms.add_alarm(
@@ -2947,6 +2954,48 @@ def _queued_action_names(sim):
     # journal's separate list of genuinely pending actions.
     return (snapshot['queued_names']+snapshot['active_parent_names']
             if snapshot['available'] else None)
+
+
+def _m151_npc_football_preclass(runtime):
+    """Let EA test a bounded NPC class request instead of forced routing."""
+    if not runtime.active or not runtime.in_school():
+        return False
+    try:
+        stamp=game_clock(services.time_service())
+        if stamp.get('hour')!=9 or not 35<=stamp.get('minute',-1)<=49:
+            return False
+        if not ((runtime.m140_patch_result or {}).get('applied') and
+                (runtime.classroom_guard_result or {}).get('applied')):
+            return False
+        if str(current_slot(allow_travel=True))!=runtime.slot:
+            return False
+        groups=tuple(tuple(str(s) for s in
+            RosterStore(FOLDER).load(runtime.slot).class_members(k))
+            for k in (1,2))
+        if groups!=runtime.lesson_classes:
+            return False
+        boards,status=_m131_state_evidence()
+        if status!='TWO_VALIDATED_EA_CLASS_BOARDS':
+            return False
+        from mhs151_npc_football_bridge import attempt_football_npcs
+        from mhs_school_readback import school_memberships
+        from sims4.resources import Types
+        from interactions.context import InteractionContext
+        from interactions.priority import Priority
+        manager=services.get_instance_manager(Types.INTERACTION)
+        affordance=manager.get(297779) if manager else None
+        if getattr(affordance,'guid64',None)!=297779:
+            return False
+        return attempt_football_npcs(
+            runtime,stamp,services.sim_info_manager(),
+            services.get_zone_situation_manager(),affordance,boards,
+            queue_snapshot,school_memberships,
+            lambda sim: InteractionContext(
+                sim,InteractionContext.SOURCE_SCRIPT_WITH_USER_INTENT,
+                Priority.High))
+    except Exception as exc:
+        runtime.m141_last_tick_error='M151_NPC_'+type(exc).__name__
+        return False
 
 
 def _m142_retry_playables(runtime):
@@ -3337,6 +3386,12 @@ def _m143_write_full_report(runtime):
             'm149_lesson_performance_audit':m149_audit,
             'm150_0940_preparation':m150_preparation,
             'm150_next_school_day_continuity':m150_continuity,
+            'm151_npc_football_preclass':{
+                'requests':runtime.m151_npc_reports,
+                'accepted_sims':sorted(runtime.m151_npc_accepted),
+                'original_ea_npc_test_required':True,
+                'no_direct_action_cancellation':True,
+                'queued_not_proof_of_physical_attendance':True},
             'school_staff':{
                 'samples':runtime.school_staff_samples,
                 'native_job_shift_verdict':shift_verdict,
