@@ -211,6 +211,38 @@ class SaveAsCloneTests(unittest.TestCase):
             again=_recover_save_as_at_home(controller,self.target,False)
             self.assertEqual(again,'TARGET_ALREADY_CONFIGURED')
 
+    def test_m159_same_session_save_as_prefers_previous_active_slot(self):
+        from mhs_classroom_bootstrap import _recover_save_as_at_home
+        from types import ModuleType
+        from unittest.mock import patch
+        import sys
+        self.write_source('46')
+        different=dict(self.names)
+        different['principal']='509'
+        self.sim_infos[509]=SimpleNamespace(
+            age='ADULT',species='HUMAN',is_selectable=False)
+        StaffStore(self.folder).save('46',StaffRoster('46',different))
+        game_services=ModuleType('services')
+        game_services.active_household=lambda: SimpleNamespace(
+            sim_info_gen=lambda: (SimpleNamespace(
+                sim_id=int(s),age='TEEN',species='HUMAN') for s in self.played))
+        game_services.sim_info_manager=lambda:self.manager
+        kinds=ModuleType('sims.sim_info_types')
+        kinds.Age=SimpleNamespace(TEEN='TEEN',YOUNGADULT='YOUNGADULT',
+                                  ADULT='ADULT',ELDER='ELDER')
+        kinds.Species=SimpleNamespace(HUMAN='HUMAN')
+        sims=ModuleType('sims')
+        sims.sim_info_types=kinds
+        controller=SimpleNamespace(FOLDER=self.folder,SettingsStore=SettingsStore)
+        with patch.dict(sys.modules,{'services':game_services,'sims':sims,
+                                     'sims.sim_info_types':kinds}):
+            result=_recover_save_as_at_home(
+                controller,self.target,False,previous_slot='41')
+        self.assertEqual(result,'IMPORTED_FROM_41')
+        self.assertEqual(
+            StaffStore(self.folder).load(self.target).roles,
+            StaffStore(self.folder).load('41').roles)
+
     def test_m156_auto_import_refuses_school_or_ambiguous_sources(self):
         from mhs_classroom_bootstrap import _recover_save_as_at_home
         controller=SimpleNamespace(FOLDER=self.folder,SettingsStore=SettingsStore)
