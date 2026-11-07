@@ -55,6 +55,7 @@ EXTRA_SOURCES = tuple(ROOT / path for path in (
     'src/classroom_control/mhs_additional_native_staff.py',
     'src/classroom_control/mhs_native_schedule_staff.py',
     'src/classroom_control/mhs_save_as_copy.py',
+    'src/classroom_control/mhs168_save_event.py',
 ))
 SOURCES = tuple(MENU_SOURCES) + tuple(ATTENDANCE_SOURCES) + EXTRA_SOURCES
 EA_MODULES = frozenset((
