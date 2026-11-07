@@ -3587,6 +3587,50 @@ def m143_report(_connection=None):
             _connection)
 
 
+@sims4.commands.Command('mhs.continuita',
+    command_type=sims4.commands.CommandType.Live)
+def mhs_auto_continuity_status(_connection=None):
+    """Read-only persistent saved setup and runtime; works even if inactive.
+
+    This command does not arm a school controller, create EA situations,
+    write JSON, affect career prompts or change any selected Sim.
+    """
+    owner=_RUNTIME
+    active=(owner is not None and owner.active)
+    try:
+        from mhs_m2_game_bridge import slot_identity_status
+        from mhs53_staff_store import StaffStore
+        slot=str(current_slot(allow_travel=True))
+        settings=SettingsStore(FOLDER).load(slot)
+        saved=RosterStore(FOLDER).load(slot)
+        sizes=tuple(len(saved.class_members(k)) for k in (1,2))
+        staff=StaffStore(FOLDER).load(slot)
+        roles=getattr(staff,'roles',{})
+        selected=sum(
+            len(v) if isinstance(v,(list,tuple)) else int(v is not None)
+            for k,v in roles.items() if k in (
+                'principal','teacher1','teacher2','custodians','cafeteria'))
+        core=CoreRoleStore(FOLDER).load(slot)
+        specials=len(core.chosen())
+        same_runtime=bool(active and str(owner.slot)==slot)
+        clock=current_school_day(slot)
+        sims4.commands.output(
+            'MHS CONTINUITA: slot={} | attiva_impostazioni={} | '
+            'aule={}+{} | personale={}/8 | speciali={}/5 | '
+            'controller={} | giorno_sim={} | fonte={}'.format(
+                slot,settings.active,sizes[0],sizes[1],
+                selected,specials,
+                'ATTIVO' if same_runtime else
+                ('DIVERSA_PARTITA' if active else 'NON_ATTIVO'),
+                clock[1],slot_identity_status()),_connection)
+    except Exception as exc:
+        sims4.commands.output(
+            'MHS CONTINUITA: controller={} | '
+            'lettura_sicura_non_disponibile={}: {}'.format(
+                'ATTIVO' if active else 'NON_ATTIVO',
+                type(exc).__name__,str(exc)[:150]),_connection)
+
+
 @sims4.commands.Command('mhs148.compat',
     command_type=sims4.commands.CommandType.Live)
 def m145_compat(_connection=None):
