@@ -126,7 +126,7 @@ class RealSaveEventsTests(unittest.TestCase):
                 return 'EA_SAVED'
         cls=DummyPersistence
         with patch.object(save_events,'_snapshot_source',
-                          return_value=('10',id(self.zone))), \\
+                          return_value=('10',id(self.zone))), \
              patch.object(save_events,'_after_save',
                           side_effect=lambda d,s:events.append(('MHS',d.slot_id))):
             self.assertTrue(save_events.install(cls))
@@ -150,7 +150,7 @@ class RealSaveEventsTests(unittest.TestCase):
                 yield 'saving'
                 raise RuntimeError('EA_SAVE_FAILED')
         with patch.object(save_events,'_snapshot_source',
-                          return_value=('10',id(self.zone))), \\
+                          return_value=('10',id(self.zone))), \
              patch.object(save_events,'_after_save',
                           side_effect=lambda *args: events.append(args)):
             save_events.install(DummyPersistence)
