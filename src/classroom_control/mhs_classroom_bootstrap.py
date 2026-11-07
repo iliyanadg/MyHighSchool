@@ -26,7 +26,7 @@ def settings_message(status):
             'le modifiche al gruppo scolastico valgono dalla prossima giornata.')
 
 
-def _recover_save_as_at_home(controller, slot, school):
+def _recover_save_as_at_home(controller, slot, school, previous_slot=None):
     """Auto-inherit four registries after Save As only with one exact match.
 
     This runs only for a real, verified EA slot. The import is transactional,
@@ -38,7 +38,8 @@ def _recover_save_as_at_home(controller, slot, school):
     from mhs56_slot_identity import positive_slot
     if positive_slot(slot) is None:
         return 'UNVERIFIED_SLOT'
-    from mhs_save_as_copy import import_unique_copy, SaveAsCopyError
+    from mhs_save_as_copy import (
+        import_unique_copy, import_copy, SaveAsCopyError)
     from mhs_m2_store import RosterStore
     from mhs53_staff_store import StaffStore
     from mhs97_core_role_store import CoreRoleStore
@@ -63,10 +64,21 @@ def _recover_save_as_at_home(controller, slot, school):
     if not played:
         return 'NO_PLAYABLE_TEEN'
     try:
-        report = import_unique_copy(
-            controller.FOLDER, slot, services.sim_info_manager(),
-            Age.TEEN, Species.HUMAN, (Age.YOUNGADULT, Age.ADULT, Age.ELDER),
-            played)
+        inputs=(services.sim_info_manager(), Age.TEEN, Species.HUMAN,
+                (Age.YOUNGADULT, Age.ADULT, Age.ELDER), played)
+        # After Save As within this very game session, the currently armed
+        # controller supplies the original source slot exactly. Its source
+        # still must pass all Sim and target validation before any write.
+        if previous_slot is not None and str(previous_slot)!=str(slot):
+            try:
+                report=import_copy(
+                    controller.FOLDER,str(previous_slot),slot,*inputs)
+            except SaveAsCopyError:
+                # A changed slot need not mean Save As (it could be another
+                # loaded save). Do not force or overwrite this candidate.
+                report=import_unique_copy(controller.FOLDER,slot,*inputs)
+        else:
+            report=import_unique_copy(controller.FOLDER,slot,*inputs)
     except SaveAsCopyError as exc:
         return 'SKIPPED_' + str(exc)[:100]
     return 'IMPORTED_FROM_' + report['source']
@@ -86,7 +98,9 @@ def refresh(reload=False):
         # before reading settings. Never infer slot from an EA scratch ID.
         if runtime is None or runtime.slot != slot:
             try:
-                _SAVE_AS_STATUS=_recover_save_as_at_home(controller,slot,school)
+                _SAVE_AS_STATUS=_recover_save_as_at_home(
+                    controller,slot,school,
+                    previous_slot=runtime.slot if runtime is not None else None)
             except Exception as exc:
                 # Save As recovery is optional; an unexpected problem must
                 # not disable an existing valid registry or EA game session.
