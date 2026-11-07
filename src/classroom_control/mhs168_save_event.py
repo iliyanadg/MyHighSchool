@@ -50,16 +50,25 @@ def _snapshot_source():
             return None
         live_runtime = controller._RUNTIME
         candidates = []
-        # The last completed EA save is more authoritative than the
-        # classroom controller, which may still reference the previous
-        # Save As source until its optional home refresh has completed.
+        # A previous game's household may share Sim IDs with a Save As
+        # clone. Runtime/guard are trustworthy only in their own EA zone.
+        persistence = services.get_persistence_service()
+        getter = getattr(persistence,'get_save_slot_proto_guid',None)
+        guid = str(getter()) if callable(getter) else None
+        household = services.active_household()
+        household_id = str(getattr(household,'id',None))
         committed = bridge._COMMITTED_SAVE_ANCHOR
-        if committed is not None and committed[1] == id(zone):
+        if (committed is not None and committed[1] == id(zone)
+                and committed[2] == guid
+                and committed[3] == household_id):
             candidates.append(str(committed[0]))
-        if bridge._SLOT_GUARD.slot is not None:
-            candidates.append(str(bridge._SLOT_GUARD.slot))
-        if live_runtime is not None and live_runtime.active:
-            candidates.append(str(live_runtime.slot))
+        if (bridge._LAST_ZONE_TOKEN == id(zone)
+                and bridge._SLOT_GUARD.stable_guid == guid
+                and bridge._SLOT_GUARD.household_id == household_id):
+            if bridge._SLOT_GUARD.slot is not None:
+                candidates.append(str(bridge._SLOT_GUARD.slot))
+            if live_runtime is not None and live_runtime.active:
+                candidates.append(str(live_runtime.slot))
         # If an existing session was loaded without an armed controller,
         # try its verified save identity. This never creates a new registry.
         try:
