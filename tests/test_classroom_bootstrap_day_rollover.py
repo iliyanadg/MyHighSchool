@@ -16,7 +16,8 @@ import mhs_classroom_bootstrap as bootstrap
 
 class DailyLifecycleTests(TestCase):
     def run_refresh(self, old_day, new_day, reload=False, invalid=False,
-                    at_school=True, settings_active=True, slot='1'):
+                    at_school=True, settings_active=True, slot='1',
+                    never_entered_school=False):
         events = []
         runtime = types.SimpleNamespace(
             slot='1', school_day=('1', old_day), active=True,
@@ -34,6 +35,8 @@ class DailyLifecycleTests(TestCase):
             return True
         runtime.begin_school_day = begin
         runtime.stop = stop
+        if never_entered_school:
+            runtime.school_day=None
 
         class Store:
             def __init__(self, folder):
@@ -111,12 +114,11 @@ class DailyLifecycleTests(TestCase):
 
     def test_first_arm_home_without_school_session_is_kept(self):
         result, events, controller, runtime = self.run_refresh(
-            5,5,at_school=False)
-        runtime.school_day=None
-        # Explicitly re-enter refresh with a controller never used at school:
-        # this is already a verified active MHS instance, not a new save.
-        # The previous call has already proven no destructive stop.
+            5,5,at_school=False,never_entered_school=True)
         self.assertEqual(result,'HOME_SESSION_STANDBY_NEXT_SCHOOL_DAY')
+        self.assertEqual(events,[('watcher',None)])
+        self.assertIsNone(runtime.school_day)
+        self.assertIs(controller._RUNTIME,runtime)
         self.assertTrue(runtime.active)
 
     def test_disabled_management_still_stops_controller(self):
