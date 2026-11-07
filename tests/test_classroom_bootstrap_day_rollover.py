@@ -181,8 +181,12 @@ class DailyLifecycleTests(TestCase):
         controller.SCHOOL_SCHEDULES=frozenset((277657,279958))
         controller.current_school_day=lambda slot:(slot,state['day'])
         controller._install_school_adapters=lambda rt:True
-        controller._m141_start_trace=lambda rt,origin:(
-            events.append(('trace',state['day'])) or True)
+        def trace(rt,origin):
+            if rt.school_day!=('15',state['day']):
+                rt.begin_school_day(('15',state['day']))
+            events.append(('trace',state['day']))
+            return True
+        controller._m141_start_trace=trace
         controller._m141_start_watcher=lambda rt:events.append(
             ('home_watcher',state['day']))
         controller.arm_m127=lambda:(_ for _ in ()).throw(
