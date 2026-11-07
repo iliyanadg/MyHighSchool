@@ -6,6 +6,92 @@ Loading directly into an ongoing school day refuses installation.
 """
 _STATUS='NOT_INITIALIZED'
 _HOOK=None
+_HOME_RETRY_HANDLE=None
+_HOME_RETRY_ZONE=None
+_HOME_RETRY_ATTEMPTS=0
+_MAX_HOME_RETRY_ATTEMPTS=10
+
+
+def _slot_temporarily_unverified(status):
+    """Retry only transient EA save-identity reads, never invalid rosters."""
+    value=str(status).lower()
+    return ('activation_blocked:' in value and
+            ('slot ea non verificato' in value or
+             'id salvataggio temporaneo' in value or
+             'servizio ea del salvataggio non disponibile' in value))
+
+
+def _home_zone_known(zone):
+    """Do not start a fresh MHS controller on a school lot with no director.
+
+    A known household residence is authoritative when EA exposes it.
+    Unknown home metadata is not treated as proof of a foreign lot.
+    """
+    try:
+        import services
+        household=services.active_household()
+        home=getattr(household,'home_zone_id',None)
+        actual=getattr(zone,'id',None)
+        if home is not None and actual is not None:
+            return str(home)==str(actual)
+    except Exception:
+        pass
+    return None
+
+
+def _cancel_home_retry():
+    global _HOME_RETRY_HANDLE,_HOME_RETRY_ZONE,_HOME_RETRY_ATTEMPTS
+    handle=_HOME_RETRY_HANDLE
+    _HOME_RETRY_HANDLE=None
+    _HOME_RETRY_ZONE=None
+    _HOME_RETRY_ATTEMPTS=0
+    if handle is not None:
+        try:
+            import alarms
+            alarms.cancel_alarm(handle)
+        except Exception:
+            pass
+
+
+def _schedule_home_retry(zone):
+    """Bounded, home-only second chance when EA exposes a scratch slot.
+
+    Never write enrollment, never synthesize EA career or school situations.
+    The underlying verified-save checks still decide whether to activate.
+    """
+    global _HOME_RETRY_HANDLE,_HOME_RETRY_ZONE,_HOME_RETRY_ATTEMPTS
+    if _home_zone_known(zone) is False:
+        return False
+    if _HOME_RETRY_HANDLE is not None and _HOME_RETRY_ZONE is zone:
+        return True
+    _cancel_home_retry()
+    try:
+        import alarms
+        import clock
+        import services
+        _HOME_RETRY_ZONE=zone
+        def poll(handle):
+            global _HOME_RETRY_ATTEMPTS
+            if _HOME_RETRY_HANDLE is not handle:
+                return
+            if (services.current_zone() is not zone or
+                    _home_zone_known(zone) is False):
+                _cancel_home_retry()
+                return
+            _HOME_RETRY_ATTEMPTS+=1
+            status=refresh()
+            if (not _slot_temporarily_unverified(status) or
+                    _HOME_RETRY_ATTEMPTS>=_MAX_HOME_RETRY_ATTEMPTS):
+                _cancel_home_retry()
+        _HOME_RETRY_HANDLE=alarms.add_alarm(
+            zone,clock.interval_in_sim_minutes(2),poll,repeating=True)
+        if _HOME_RETRY_HANDLE is None:
+            _cancel_home_retry()
+            return False
+        return True
+    except Exception:
+        _cancel_home_retry()
+        return False
 
 
 def settings_message(status):
@@ -36,6 +122,22 @@ def refresh(reload=False):
         runtime=controller._RUNTIME
         zone,schedule=controller.zone_schedule()
         school=schedule in controller.SCHOOL_SCHEDULES
+        # A new school zone can have no EA director schedule yet at the
+        # screen-loaded callback. Treat this as pending, not as HOME:
+        # otherwise arm_m127() would bind the school zone as home_zone and
+        # subsequent school days would never recognize the venue.
+        if not school and schedule is None:
+            residence=_home_zone_known(services.current_zone())
+            outside_original_home=(runtime is not None and
+                                   getattr(runtime,'home_zone',None) is not None
+                                   and str(zone)!=str(runtime.home_zone))
+            if residence is False or outside_original_home:
+                if runtime is not None and runtime.active:
+                    controller._m141_start_watcher(runtime)
+                    _STATUS='NON_HOME_ZONE_STANDBY'
+                else:
+                    _STATUS='ZONE_DIRECTOR_PENDING_NO_HOME_ACTIVATION'
+                return _STATUS
         key=controller.current_school_day(slot)
         if runtime is not None and runtime.slot!=slot:
             if not runtime.stop():
@@ -132,9 +234,17 @@ def install(zone_class=None):
             return True
         def loaded(zone,*args,**kwargs):
             result=original(zone,*args,**kwargs)
+            _cancel_home_retry()
             status=refresh()
-            if isinstance(status,str) and any(word in status for word in (
-                    'BLOCKED','NON ATTIVA','BLOCCATA','REQUIRES_HOME')):
+            # The first callback can precede availability of EA's real save
+            # slot at home. Retry read-only, bounded and on this same zone.
+            # Suppress the misleading 'unsupported rules' toast while EA
+            # is still exposing a temporary identity.
+            transient=_slot_temporarily_unverified(status)
+            retry=(_schedule_home_retry(zone) if transient else False)
+            if (not retry and isinstance(status,str) and
+                    any(word in status for word in (
+                        'BLOCKED','NON ATTIVA','BLOCCATA','REQUIRES_HOME'))):
                 try:
                     from mhs34_settings_ui import _settings_notice
                     _settings_notice('MY HIGH SCHOOL',settings_message(status))
