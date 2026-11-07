@@ -20,6 +20,29 @@ concurrency:
   group: classroom-control-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
+  continuity_diagnostics:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Capture reproducible continuity test output
+        shell: bash
+        run: |
+          set +e
+          python -m unittest tests.test_m155_verified_home_writes tests.test_save_as_copy tests.test_classroom_bootstrap_day_rollover tests.test_m153_return_home_slot_continuity -v > continuity-test-output.txt 2>&1
+          rc=$?
+          cat continuity-test-output.txt
+          echo "TEST_EXIT_CODE=$rc" >> continuity-test-output.txt
+          exit "$rc"
+      - name: Upload failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MHS_CONTINUITY_TEST_DIAGNOSTICS
+          path: continuity-test-output.txt
+          if-no-files-found: error
   build:
     runs-on: ubuntu-22.04
     steps:
