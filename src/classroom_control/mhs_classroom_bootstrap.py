@@ -137,6 +137,14 @@ def refresh(reload=False):
                 _SAVE_AS_STATUS=_recover_save_as_at_home(
                     controller,slot,school,
                     previous_slot=runtime.slot if runtime is not None else None)
+                if _SAVE_AS_STATUS.startswith('IMPORTED_FROM_'):
+                    # Save As can expose a real slot only briefly. Once all
+                    # four registries exist, persist its displayed EA name
+                    # alongside the verified slot for later cold restarts.
+                    try:
+                        controller.current_slot(allow_travel=True)
+                    except Exception:
+                        pass
             except Exception as exc:
                 # Save As recovery is optional; an unexpected problem must
                 # not disable an existing valid registry or EA game session.

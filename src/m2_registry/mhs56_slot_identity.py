@@ -220,3 +220,126 @@ class VerifiedSlotBindings(object):
         except OSError:
             return False
         return True
+
+
+# M166: EA Save As copies may share the same GUID and active household.
+# A *distinct displayed save name* is extra evidence. Never use the title
+# as the sole authorization to import another school's roster: the import
+# must validate all student, staff, and five Core assignments against EA.
+def save_name_token(raw):
+    if not isinstance(raw, str):
+        return None
+    title = raw.strip()
+    if not title or len(title) > 256 or '\\x00' in title:
+        return None
+    return title
+
+
+def synthetic_slot_for_named_save(raw_guid, raw_name):
+    import hashlib
+    guid = stable_token(raw_guid)
+    title = save_name_token(raw_name)
+    if guid is None or title is None:
+        return None
+    digest = hashlib.sha256(('MHS-NAMED-SAVE-v1:' + guid + ':' + title)
+                            .encode('utf-8')).hexdigest()
+    return str(0x80000000 + (int(digest[:8], 16) % 0x7FFFFFFE))
+
+
+class NamedSaveBindings(object):
+    """Separate safe, name-scoped cache; never changes the M160 binding file.
+
+    The name disambiguates observed Save As copies sharing an EA GUID, but
+    two copies with identical names and identical GUIDs cannot be separated
+    without a real slot observation. Never silently choose one of those.
+    """
+    VERSION = 1
+
+    def __init__(self, path):
+        self.path = path
+
+    def _load(self):
+        import os
+        import json
+        if not os.path.isfile(self.path) or os.path.islink(self.path):
+            return ()
+        try:
+            if os.path.getsize(self.path) > 65536:
+                return ()
+            with open(self.path, 'r', encoding='utf-8') as handle:
+                obj = json.load(handle)
+            if (type(obj) is not dict or
+                    set(obj) != set(('version', 'bindings')) or
+                    obj['version'] != self.VERSION or
+                    type(obj['bindings']) is not list or
+                    len(obj['bindings']) > 256):
+                return ()
+            entries = []
+            for entry in obj['bindings']:
+                if (type(entry) is not dict or
+                        set(entry) != set(('guid','title','slot','household')) or
+                        stable_token(entry['guid']) != entry['guid'] or
+                        save_name_token(entry['title']) != entry['title'] or
+                        positive_slot(entry['slot']) != entry['slot'] or
+                        positive_id(entry['household']) != entry['household']):
+                    return ()
+                entries.append(entry)
+            return tuple(entries)
+        except (OSError, UnicodeError, ValueError, TypeError):
+            return ()
+
+    def unique(self, guid, title):
+        guid, title = stable_token(guid), save_name_token(title)
+        if guid is None or title is None:
+            return None
+        matches = set(entry['slot'] for entry in self._load()
+                      if entry['guid'] == guid and entry['title'] == title)
+        return next(iter(matches)) if len(matches) == 1 else None
+
+    def has_conflict(self, guid, title):
+        guid, title = stable_token(guid), save_name_token(title)
+        matches = set(entry['slot'] for entry in self._load()
+                      if entry['guid'] == guid and entry['title'] == title)
+        return len(matches) > 1
+
+    def remember(self, slot, guid, title, household):
+        import os
+        import json
+        import tempfile
+        slot, guid = positive_slot(slot), stable_token(guid)
+        title, household = save_name_token(title), positive_id(household)
+        if slot is None or guid is None or title is None or household is None:
+            return False
+        old = list(self._load())
+        matching = [entry for entry in old
+                    if entry['guid'] == guid and entry['title'] == title]
+        if any(entry['slot'] != slot for entry in matching):
+            # Never alias differently stored copies under the same title.
+            return False
+        new = {'slot':slot,'guid':guid,'title':title,'household':household}
+        if new in old:
+            return True
+        if len(old) >= 256:
+            return False
+        old.append(new)
+        folder = os.path.dirname(os.path.abspath(self.path))
+        try:
+            if not os.path.isdir(folder):
+                os.makedirs(folder)
+            if os.path.islink(self.path):
+                return False
+            fd, tmp = tempfile.mkstemp(prefix='.mhs_named_',suffix='.tmp',
+                                       dir=folder)
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as out:
+                    json.dump({'version':self.VERSION,'bindings':old}, out,
+                              sort_keys=True, indent=2)
+                    out.flush()
+                    os.fsync(out.fileno())
+                os.replace(tmp, self.path)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            return True
+        except OSError:
+            return False
