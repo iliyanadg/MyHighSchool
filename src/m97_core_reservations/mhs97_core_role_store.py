@@ -160,4 +160,9 @@ class CoreRoleStore(object):
         finally:
             if temp is not None and os.path.exists(temp):
                 os.unlink(temp)
+        try:
+            from mhs_classroom_bootstrap import registry_changed_at_home
+            registry_changed_at_home()
+        except ImportError:
+            pass
         return True
