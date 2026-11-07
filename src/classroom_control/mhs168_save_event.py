@@ -50,10 +50,16 @@ def _snapshot_source():
             return None
         live_runtime = controller._RUNTIME
         candidates = []
-        if live_runtime is not None and live_runtime.active:
-            candidates.append(str(live_runtime.slot))
+        # The last completed EA save is more authoritative than the
+        # classroom controller, which may still reference the previous
+        # Save As source until its optional home refresh has completed.
+        committed = bridge._COMMITTED_SAVE_ANCHOR
+        if committed is not None and committed[1] == id(zone):
+            candidates.append(str(committed[0]))
         if bridge._SLOT_GUARD.slot is not None:
             candidates.append(str(bridge._SLOT_GUARD.slot))
+        if live_runtime is not None and live_runtime.active:
+            candidates.append(str(live_runtime.slot))
         # If an existing session was loaded without an armed controller,
         # try its verified save identity. This never creates a new registry.
         try:
