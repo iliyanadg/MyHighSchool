@@ -10,9 +10,9 @@
 4. **Prestazioni:** misurare entrambi gli orologi (interfaccia e simulazione); distinguere il carico diagnostico da ritardi causati dal gioco/altre mod. Ridurre scansioni passive, NON le richieste EA delle lezioni. Con un divario di 30–43 minuti non è corretto dichiarare garantita l'entrata entro le 09:40 visualizzate.
 5. **Regressione:** nessun NPC non iscritto, nessuna sostituzione casuale, nessun evento vanilla rotto, compatibilità con gli adattatori EA/Zerbu, funzionamento su Mac e test Windows ancora da eseguire.
 
-## B. Classi 3 e 4 — sviluppo effettivo, non pulsanti vuoti
+## B. Classe 3 — sviluppo effettivo, non pulsanti vuoti
 
-Il controller convalidato usa esattamente **due** situazioni native di lezione e due lavagne EA esclusive. Il registro/il menu storico ammette al massimo tre classi, ma questo NON prova che una terza lezione separata funzioni. È vietato presentare la terza o la quarta classe come pronta finché non esistono test per **quattro** aule con 1 docente e 8–10 adolescenti ciascuna, situazione di lezione autonoma, orari EA compatibili e politica di capienza verificata. Conservare la possibilità di scegliere 2, 3 o 4 classi e mostrare soltanto quelle realmente supportate. Durante la migrazione, l'attuale salvataggio 2×8 deve restare utilizzabile.
+Il controller convalidato usa esattamente **due** situazioni native di lezione e due lavagne EA esclusive. Il registro/il menu storico ammette al massimo tre classi, ma questo NON prova che una terza lezione separata funzioni. È vietato presentare la terza classe come pronta finché non esistono test per **tre**** aule con 1 docente e 8–10 adolescenti ciascuna, situazione di lezione autonoma, orari EA compatibili e politica di capienza verificata. Conservare la possibilità di scegliere 2 o 3 classi e mostrare soltanto quelle realmente supportate. Durante la migrazione, l'attuale salvataggio 2×8 deve restare utilizzabile.
 
 ## C. Creare Sim dal menu
 
