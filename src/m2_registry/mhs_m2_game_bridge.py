@@ -117,9 +117,16 @@ def current_slot(allow_travel=False):
                   _saved_roster_matches_live_game(_SLOT_GUARD.slot))))
         except (ImportError, AttributeError, TypeError, ValueError):
             verified_home_write = False
-        return _SLOT_GUARD.resolve(
+        result = _SLOT_GUARD.resolve(
             slot, stable, household_id, allow_travel=allow_travel,
             verified_home_write=verified_home_write)
+        if (_CACHED_RECOVERY and verified_home_write and
+                _saved_roster_matches_live_game(result)):
+            # User may switch household within the same verified save.
+            # Remember its new household only after the same GUID and
+            # controller/home context were positively validated.
+            _slot_cache().remember(result, stable, household_id)
+        return result
     except (IdentityError, ValueError, TypeError, AttributeError,
             ImportError) as exc:
         raise BridgeError('Slot EA non verificato: {}'.format(str(exc)[:125]))
