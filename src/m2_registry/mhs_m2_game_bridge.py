@@ -223,6 +223,53 @@ def current_slot(allow_travel=False):
             raise BridgeError('Nomi di salvataggio duplicati: identita ambigua')
 
         if real is not None:
+            # M167: Save As has no zone transition. EA can expose the new
+            # slot and title before its usual 2-minute school watcher runs.
+            # Menu _test() reads settings immediately; copy the four
+            # registries synchronously while we still have a verified source.
+            # Otherwise the player briefly sees "Attiva MY HIGH SCHOOL"
+            # because SettingsStore.load(new_slot) is empty.
+            same_home_session = bool(
+                zone_token is not None and zone_token == _LAST_ZONE_TOKEN
+                and _is_at_home())
+            old_title = _LAST_SAVE_TITLE
+            source = None
+            if (same_home_session and old_title is not None and title is not None
+                    and _SLOT_GUARD.stable_guid == str(stable)
+                    and _SLOT_GUARD.household_id == str(household_id)):
+                if _LAST_BOUND is not None and (
+                        _LAST_BOUND[1:] == (str(stable), str(household_id))):
+                    source = _LAST_BOUND[0]
+                elif _SLOT_GUARD.slot is not None:
+                    source = _SLOT_GUARD.slot
+                if title != old_title and source is not None:
+                    if str(real) == str(source):
+                        # Title changed first; do not attach the NEW name
+                        # to OLD data or allow edits into the original save.
+                        raise BridgeError(
+                            'Salva con nome in corso: slot EA non ancora cambiato')
+                    if not _saved_roster_matches_live_game(source):
+                        raise BridgeError(
+                            'Salva con nome: registro sorgente non verificato')
+                    try:
+                        import mhs145_classroom_controller as controller
+                        import mhs_classroom_bootstrap as bootstrap
+                        copied = bootstrap._recover_save_as_at_home(
+                            controller, real, False, previous_slot=source)
+                    except Exception as exc:
+                        raise BridgeError(
+                            'Copia automatica: ' + type(exc).__name__)
+                    if (copied != 'TARGET_ALREADY_CONFIGURED' and
+                            not str(copied).startswith('IMPORTED_FROM_')):
+                        raise BridgeError(
+                            'Copia automatica non completata: ' +
+                            str(copied)[:80])
+                elif title == old_title and source is not None and (
+                        str(real) != str(source)):
+                    # EA may update the numeric ID before the save title.
+                    # Do not bind the old title to a newly created slot.
+                    raise BridgeError(
+                        'Identita salvataggio in aggiornamento: riprova dopo il salvataggio')
             # An already named, separately validated store may be synthetic.
             # Keep using it even when the EA proto briefly exposes a number.
             mapped = named.unique(stable, title) if named else None
