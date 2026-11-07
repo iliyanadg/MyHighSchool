@@ -297,7 +297,9 @@ class DailyLifecycleTests(TestCase):
         tree=ast.parse(source)
         node=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
                   and n.name=='mhs_auto_continuity_status')
-        body=ast.get_source_segment(source,node)
+        start=source.index('def mhs_auto_continuity_status(')
+        end=source.index("@sims4.commands.Command('mhs148.compat'",start)
+        body=source[start:end]
         self.assertIn("current_slot(allow_travel=True)",body)
         for forbidden in ('.save(','.set_active(','.stop(','.install(',
                           'begin_school_day(','create_situation('):
