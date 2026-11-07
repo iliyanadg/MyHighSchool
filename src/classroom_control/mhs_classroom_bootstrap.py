@@ -127,7 +127,9 @@ def refresh(reload=False):
         # otherwise arm_m127() would bind the school zone as home_zone and
         # subsequent school days would never recognize the venue.
         if not school and schedule is None:
-            residence=_home_zone_known(services.current_zone())
+            current_zone=getattr(services,'current_zone',None)
+            residence=_home_zone_known(
+                current_zone() if callable(current_zone) else None)
             outside_original_home=(runtime is not None and
                                    getattr(runtime,'home_zone',None) is not None
                                    and str(zone)!=str(runtime.home_zone))
