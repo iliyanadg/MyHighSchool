@@ -7,6 +7,7 @@ Loading directly into an ongoing school day refuses installation.
 _STATUS='NOT_INITIALIZED'
 _SAVE_AS_STATUS='NOT_CHECKED'
 _HOOK=None
+_REGISTRY_REFRESH_BUSY=False
 
 
 def settings_message(status):
@@ -82,6 +83,32 @@ def _recover_save_as_at_home(controller, slot, school, previous_slot=None):
     except SaveAsCopyError as exc:
         return 'SKIPPED_' + str(exc)[:100]
     return 'IMPORTED_FROM_' + report['source']
+
+
+def registry_changed_at_home():
+    """Recheck automatic readiness after a committed user menu edit.
+
+    Without this callback, a session that was inactive while 7/8 students
+    or incomplete Core roles were being edited would stay inactive until
+    another lot-loading screen, even after all requirements became valid.
+    """
+    global _REGISTRY_REFRESH_BUSY
+    if _REGISTRY_REFRESH_BUSY:
+        return False
+    try:
+        import mhs145_classroom_controller as controller
+        zone, schedule=controller.zone_schedule()
+        if zone is None or schedule in controller.SCHOOL_SCHEDULES:
+            return False
+        _REGISTRY_REFRESH_BUSY=True
+        refresh()
+        return True
+    except Exception:
+        # A storage write has already succeeded; never report it as failed
+        # just because game bootstrap is not ready to (re)arm.
+        return False
+    finally:
+        _REGISTRY_REFRESH_BUSY=False
 
 
 def refresh(reload=False):
