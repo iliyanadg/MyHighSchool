@@ -42,7 +42,7 @@ def current_slot(allow_travel=False):
         # EA can expose its temporary travel slot even after reaching HOME.
         # Only a currently running and previously verified HOME controller
         # may reuse its exact bound identity for a menu write.
-        if not allow_travel and positive_slot(slot) is None:
+        if positive_slot(slot) is None:
             try:
                 import mhs145_classroom_controller as controller
                 runtime = controller._RUNTIME
