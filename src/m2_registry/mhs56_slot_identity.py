@@ -44,6 +44,22 @@ def positive_slot(raw):
     return None
 
 
+def synthetic_slot_for_guid(raw):
+    """Reserved high-range store key for a stable EA Save ID.
+
+    No file can be selected by filename or the temporary EA slot number.
+    A synthetic key is used only after validating/copying the exact live
+    2x8 roster into a new, isolated four-file MHS data set.
+    """
+    import hashlib
+    stable=stable_token(raw)
+    if stable is None:
+        return None
+    bits=int(hashlib.sha256(
+        ('MHS-GUID-STORE-v1:' + stable).encode('utf-8')).hexdigest()[:8],16)
+    return str(0x80000000 + (bits % 0x7FFFFFFE))
+
+
 class TravelSlotGuard(object):
     def __init__(self):
         self.slot = None
@@ -159,6 +175,12 @@ class VerifiedSlotBindings(object):
         matches=set(item['slot'] for item in self._load()
                     if item['guid']==guid and item['household']==household)
         return next(iter(matches)) if len(matches)==1 else None
+
+    def has_identity(self, guid, household):
+        guid=stable_token(guid)
+        household=positive_id(household)
+        return any(item['guid']==guid and item['household']==household
+                   for item in self._load())
 
     def remember(self, slot, guid, household):
         """Durably store only a live EA slot after caller validates its roster."""
