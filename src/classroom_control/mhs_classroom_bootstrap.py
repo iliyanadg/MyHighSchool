@@ -60,6 +60,22 @@ def refresh(reload=False):
                 runtime.school_ready=False
                 _STATUS='NEW_SCHOOL_DAY_BLOCKED: '+type(exc).__name__
                 return _STATUS
+        # M154: a genuine EA zone load at HOME is not a request to disable
+        # the already verified MHS session. Preserve controller ownership,
+        # saved roster and its single school-arrival watcher across the
+        # school -> home -> next school-day sequence. M153's verified slot
+        # anchor is required above; changed saves/households fail closed.
+        # Class adapters remain scoped by runtime.in_school() and therefore
+        # do not alter non-school interactions while the owner is retained.
+        # Reset native school situations ONLY when entering the new school
+        # day, not while returning home from yesterday's day.
+        if (not school and runtime is not None and runtime.active and
+                settings.active and (
+                    action in ('KEEP','START') or
+                    (action=='RESET' and reason=='NEW_SCHOOL_DAY'))):
+            controller._m141_start_watcher(runtime)
+            _STATUS='HOME_SESSION_STANDBY_NEXT_SCHOOL_DAY'
+            return _STATUS
         elif action in ('STOP','RESET') and runtime is not None:
             if not runtime.stop():
                 _STATUS='RESTORE_BLOCKED: '+runtime.error
@@ -85,7 +101,9 @@ def refresh(reload=False):
             controller._m141_start_trace(runtime,'unified_zone_loaded')
             _STATUS='SCHOOL_SESSION_ACTIVE'
             return _STATUS
-        # At home remove school-global adapters and re-read saved enrollment.
+        # At home, only a disabled/changed/reloaded session removes the old
+        # scoped EA adapters; a verified active session remains ready for
+        # the next school day, without touching saved enrollment.
         # A fresh controller's hook ownership is transactional and unique.
         if runtime is not None:
             if not runtime.stop():
