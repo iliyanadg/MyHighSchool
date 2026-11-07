@@ -124,5 +124,35 @@ class BridgeColdStartTests(unittest.TestCase):
         self.assertEqual(self.binding.unique(self.guid,722),'15')
 
 
+class PartialRosterRecognitionTests(unittest.TestCase):
+    def test_disabled_school_with_partial_roster_keeps_save_identity(self):
+        import sys
+        from mhs_m2_store import RosterStore
+        from mhs_m2_roster import SchoolRoster
+        from mhs34_settings import SettingsStore, SchoolSettings
+        with tempfile.TemporaryDirectory() as folder:
+            SettingsStore(folder).save(SchoolSettings('15',False,2))
+            RosterStore(folder).save('15',SchoolRoster('15',
+                {'100':1,'101':2}))
+            cache=VerifiedSlotBindings(str(
+                Path(folder) / 'MHS_VerifiedSaveIdentity.json'))
+            services=types.ModuleType('services')
+            services.sim_info_manager=lambda:types.SimpleNamespace(
+                get=lambda sid:types.SimpleNamespace(
+                    age='TEEN',species='HUMAN') if sid in (100,101)
+                    else None)
+            sims=types.ModuleType('sims')
+            kinds=types.ModuleType('sims.sim_info_types')
+            kinds.Age=types.SimpleNamespace(TEEN='TEEN')
+            kinds.Species=types.SimpleNamespace(HUMAN='HUMAN')
+            sims.sim_info_types=kinds
+            with patch.object(bridge,'_slot_cache',lambda:cache), \
+                 patch.dict(sys.modules,{'services':services,
+                                         'sims':sims,
+                                         'sims.sim_info_types':kinds}):
+                self.assertTrue(bridge._saved_roster_matches_live_game('15'))
+
+
+
 if __name__ == '__main__':
     unittest.main()
