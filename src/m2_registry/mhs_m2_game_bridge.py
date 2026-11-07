@@ -248,7 +248,7 @@ def current_slot(allow_travel=False):
                 # still show the prior slot/title for a short period.
                 return committed_slot
             _COMMITTED_SAVE_ANCHOR = None
-        if named is not None and named.has_conflict(stable, title):
+        if real is None and named is not None and named.has_conflict(stable, title):
             raise BridgeError('Nomi di salvataggio duplicati: identita ambigua')
 
         if real is not None:
@@ -302,7 +302,15 @@ def current_slot(allow_travel=False):
             # An already named, separately validated store may be synthetic.
             # Keep using it even when the EA proto briefly exposes a number.
             mapped = named.unique(stable, title) if named else None
-            if mapped is not None and _saved_roster_matches_live_game(mapped):
+            # A real slot recorded by EA (live or preferred_manual_slot_id)
+            # takes precedence whenever it owns a validated school registry.
+            # A title cache could otherwise steal Save As #2 if the
+            # copies happen to have the SAME name and the SAME Sim IDs.
+            # Use the older name mapping only as a migration fallback when
+            # the actual EA slot has no configured school.
+            if _saved_roster_matches_live_game(real):
+                result = _SLOT_GUARD.resolve(real, stable, household_id)
+            elif mapped is not None and _saved_roster_matches_live_game(mapped):
                 result = _SLOT_GUARD.resolve(mapped, stable, household_id)
             else:
                 result = _SLOT_GUARD.resolve(real, stable, household_id)
