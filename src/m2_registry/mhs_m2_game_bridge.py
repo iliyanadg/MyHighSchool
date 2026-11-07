@@ -13,7 +13,8 @@ class BridgeError(RuntimeError):
 
 
 from mhs56_slot_identity import (
-    TravelSlotGuard, IdentityError, positive_slot, VerifiedSlotBindings)
+    TravelSlotGuard, IdentityError, positive_slot, VerifiedSlotBindings,
+    synthetic_slot_for_guid)
 
 _SLOT_GUARD = TravelSlotGuard()
 _CACHED_RECOVERY = False
@@ -70,6 +71,71 @@ def _saved_roster_matches_live_game(slot):
 
 
 
+_MIGRATION_DIAGNOSTIC = 'NOT_NEEDED'
+
+
+def _adopt_legacy_school_registry(stable, household_id):
+    """Convert an already chosen legacy 2x8 roster to isolated GUID storage.
+
+    Only the first verified HOME bootstrap may do this. All four original
+    JSON files remain byte-for-byte untouched. An unrelated save cannot be
+    assigned based on its display name or a guessed EA numeric slot.
+    """
+    global _MIGRATION_DIAGNOSTIC
+    try:
+        import services
+        from sims.sim_info_types import Age, Species
+        from mhs_save_as_copy import import_unique_copy, SaveAsCopyError
+        from mhs34_settings import SettingsStore
+        from mhs53_staff_store import StaffStore
+        from mhs97_core_role_store import CoreRoleStore
+        from mhs56_slot_identity import stable_token, positive_id
+        if stable_token(stable) is None or positive_id(household_id) is None:
+            _MIGRATION_DIAGNOSTIC='EA_GUID_OR_HOUSEHOLD_UNAVAILABLE'
+            return None
+        binding=_slot_cache()
+        if binding.has_identity(stable, household_id):
+            _MIGRATION_DIAGNOSTIC='AMBIGUOUS_EXISTING_BINDING'
+            return None
+        target=synthetic_slot_for_guid(stable)
+        folder=os.path.dirname(binding.path)
+        stores=(SettingsStore(folder),RosterStore(folder),
+                StaffStore(folder),CoreRoleStore(folder))
+        if any(os.path.lexists(store.path(target)) for store in stores):
+            # Never claim a pre-existing high-range store as another save.
+            _MIGRATION_DIAGNOSTIC='GUID_STORE_ALREADY_EXISTS_UNBOUND'
+            return None
+        household=services.active_household()
+        manager=services.sim_info_manager()
+        if household is None or manager is None:
+            _MIGRATION_DIAGNOSTIC='EA_SIM_MANAGER_NOT_READY'
+            return None
+        played=tuple(str(info.sim_id) for info in household.sim_info_gen()
+                     if getattr(info,'age',None)==Age.TEEN and
+                        getattr(info,'species',None)==Species.HUMAN)
+        if not played:
+            _MIGRATION_DIAGNOSTIC='NO_PLAYABLE_TEEN_FOR_SAFE_IMPORT'
+            return None
+        try:
+            report=import_unique_copy(
+                folder,target,manager,Age.TEEN,Species.HUMAN,
+                (Age.YOUNGADULT,Age.ADULT,Age.ELDER),played)
+        except SaveAsCopyError as exc:
+            _MIGRATION_DIAGNOSTIC='SAFE_IMPORT_'+str(exc)[:110]
+            return None
+        if not _saved_roster_matches_live_game(target):
+            _MIGRATION_DIAGNOSTIC='IMPORTED_ROSTER_NOT_IN_EA_SAVE'
+            return None
+        if not binding.remember(target,stable,household_id):
+            _MIGRATION_DIAGNOSTIC='VERIFIED_BINDING_DISK_WRITE_FAILED'
+            return None
+        _MIGRATION_DIAGNOSTIC='IMPORTED_FROM_'+report['source']
+        return target
+    except Exception as exc:
+        _MIGRATION_DIAGNOSTIC='UNEXPECTED_'+type(exc).__name__
+        return None
+
+
 def current_slot(allow_travel=False):
     """Resolve the real EA save, or a uniquely validated prior binding.
 
@@ -101,10 +167,28 @@ def current_slot(allow_travel=False):
         # A cold start is accepted only if a REAL slot was previously
         # observed for exactly this stable EA save GUID and household.
         if _SLOT_GUARD.slot is None:
-            candidate = _slot_cache().unique(stable, household_id)
+            binding=_slot_cache()
+            candidate = binding.unique(stable, household_id)
             if candidate is not None and _saved_roster_matches_live_game(candidate):
                 _SLOT_GUARD.resolve(candidate, stable, household_id)
                 _CACHED_RECOVERY = True
+            elif candidate is None and not binding.has_identity(stable,household_id):
+                # Migration of pre-M160 saves: only from a HOME lot, and
+                # only after verifying all 16 existing students/staff/Core
+                # identities in the current EA save. The source JSON stays
+                # untouched and the new GUID store is independent.
+                try:
+                    import mhs145_classroom_controller as controller
+                    zone,schedule=controller.zone_schedule()
+                    home=(zone is not None and
+                          schedule not in controller.SCHOOL_SCHEDULES)
+                except (ImportError, AttributeError, TypeError, ValueError):
+                    home=False
+                if home:
+                    candidate=_adopt_legacy_school_registry(stable,household_id)
+                    if candidate is not None:
+                        _SLOT_GUARD.resolve(candidate,stable,household_id)
+                        _CACHED_RECOVERY=True
 
         verified_home_write = False
         try:
@@ -140,10 +224,11 @@ def slot_identity_status():
     """Read-only identity diagnostic, independent from the game's UI."""
     guard = _SLOT_GUARD
     return ('Fonte slot: {} | slot verificato: {} | guid ancorato: {} '
-            '| nucleo ancorato: {}'.format(
+            '| nucleo ancorato: {} | recupero: {}'.format(
                 guard.last_source, guard.slot or 'no',
                 'si' if guard.stable_guid is not None else 'no',
-                'si' if guard.household_id is not None else 'no'))
+                'si' if guard.household_id is not None else 'no',
+                _MIGRATION_DIAGNOSTIC))
 
 
 def teenager_checker(sim_id):
