@@ -83,7 +83,8 @@ def refresh(reload=False):
         school=schedule in controller.SCHOOL_SCHEDULES
         # On an empty real Save As target, inherit an unambiguous source
         # before reading settings. Never infer slot from an EA scratch ID.
-        _recover_save_as_at_home(controller,slot,school)
+        if runtime is None or runtime.slot != slot:
+            _recover_save_as_at_home(controller,slot,school)
         settings=controller.SettingsStore(controller.FOLDER).load(slot)
         key=controller.current_school_day(slot)
         if runtime is not None and runtime.slot!=slot:
