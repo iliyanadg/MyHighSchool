@@ -157,6 +157,17 @@ class RealSaveEventsTests(unittest.TestCase):
         self.title='Stesso nome'
         self.assertEqual(bridge.current_slot(allow_travel=True),'18')
 
+    def test_second_copy_uses_latest_committed_save_even_if_controller_is_stale(self):
+        self._save(17, 'Copia 1')
+        controller = sys.modules['mhs145_classroom_controller']
+        controller._RUNTIME = types.SimpleNamespace(active=True, slot='10')
+        captured = save_events._snapshot_source()
+        self.assertEqual(captured[0], '17')
+        self._save(18, 'Copia 2')
+        self.assertEqual(
+            RosterStore(self.folder).load('18').assignments,
+            RosterStore(self.folder).load('17').assignments)
+
     def test_target_with_different_school_is_not_overwritten(self):
         self.write_roster('17')
         before=RosterStore(self.folder).load('17').to_json()
