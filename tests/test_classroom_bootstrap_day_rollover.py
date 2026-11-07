@@ -288,6 +288,21 @@ class DailyLifecycleTests(TestCase):
         self.assertEqual(events,['watcher'])
         self.assertIs(controller._RUNTIME,runtime)
 
+    def test_readonly_audit_command_does_not_require_active_controller(self):
+        source=(ROOT/'src'/'m145_class2_playable'/
+                'mhs145_classroom_controller.py').read_text()
+        self.assertIn("'mhs.continuita'",source)
+        self.assertIn('def mhs_auto_continuity_status(',source)
+        import ast
+        tree=ast.parse(source)
+        node=next(n for n in tree.body if isinstance(n,ast.FunctionDef)
+                  and n.name=='mhs_auto_continuity_status')
+        body=ast.get_source_segment(source,node)
+        self.assertIn("current_slot(allow_travel=True)",body)
+        for forbidden in ('.save(','.set_active(','.stop(','.install(',
+                          'begin_school_day(','create_situation('):
+            self.assertNotIn(forbidden,body)
+
     def test_invalid_next_day_fails_closed_without_stopping_ea_hooks(self):
         result, events, controller, runtime = self.run_refresh(
             5, 6, invalid=True)
