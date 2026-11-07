@@ -9,8 +9,7 @@ from mhs151_npc_school_priority import (
 from mhs151_npc_football_bridge import attempt_football_npcs
 
 
-class Football:
-    __name__='throwFootballMixers_Idle_Y'
+Football=type('throwFootballMixers_Idle_Y',(),{})
 
 
 class Sim:
