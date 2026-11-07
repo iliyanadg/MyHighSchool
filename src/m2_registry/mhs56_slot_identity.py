@@ -55,7 +55,8 @@ class TravelSlotGuard(object):
         self.slot = self.stable_guid = self.household_id = None
         self.last_source = 'unbound'
 
-    def resolve(self, raw_slot, stable_guid, household_id, allow_travel=False):
+    def resolve(self, raw_slot, stable_guid, household_id, allow_travel=False,
+                verified_home_write=False):
         current = positive_slot(raw_slot)
         stable = stable_token(stable_guid)
         household = positive_id(household_id)
@@ -71,7 +72,10 @@ class TravelSlotGuard(object):
             self.last_source = 'live_proto'
             return current
 
-        if not allow_travel:
+        # Only the caller can verify that a live, already armed controller
+        # belongs to the same HOME session. A scratch ID alone is never a
+        # writable identity, including at first startup or after Save As.
+        if not allow_travel and not verified_home_write:
             self.last_source = 'blocked_write_scratch'
             raise IdentityError('ID salvataggio temporaneo: modifiche bloccate')
 
@@ -96,5 +100,6 @@ class TravelSlotGuard(object):
             self.last_source = 'household_mismatch'
             raise IdentityError('Nucleo attivo diverso; nessun registro letto')
 
-        self.last_source = 'verified_zone_travel'
+        self.last_source = ('verified_home_write' if verified_home_write and
+                            not allow_travel else 'verified_zone_travel')
         return self.slot
