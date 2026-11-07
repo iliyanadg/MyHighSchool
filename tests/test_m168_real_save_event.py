@@ -100,6 +100,17 @@ class RealSaveEventsTests(unittest.TestCase):
         self.preferred = 16
         self.assertEqual(bridge.current_slot(allow_travel=True),'16')
 
+    def test_newly_loaded_save_does_not_use_prior_zones_guard(self):
+        # The original and its Save As clone share all EA Sim IDs.
+        # The prior school's guard could otherwise appear valid while
+        # actually belonging to another loaded save.
+        self.zone = object()
+        self.slot = 16
+        self.title = 'Cloned save'
+        captured=save_events._snapshot_source()
+        self.assertIsNotNone(captured)
+        self.assertEqual(captured[0], '16')
+
     def test_different_zone_aborts_copy(self):
         before=save_events._snapshot_source()
         self.zone=object()
