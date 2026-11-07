@@ -17,6 +17,15 @@ def settings_message(status):
         return 'Gestione disattivata. Iscrizioni e personale sono conservati.'
     if 'ACTIVATION_REQUIRES_HOME' in text:
         return 'Attiva la gestione da casa: la giornata scolastica in corso resta invariata.'
+    if 'Slot EA non verificato' in text:
+        # Show the real prerequisite instead of the vague EA warning.
+        try:
+            from mhs_m2_game_bridge import slot_identity_status
+            details=slot_identity_status()
+        except Exception:
+            details='identita non disponibile'
+        return ('MY HIGH SCHOOL non avviata: identita del salvataggio '
+                'non recuperata automaticamente. ' + details)[:245]
     if 'BLOCKED' in text or 'NON ATTIVA' in text or 'BLOCCATA' in text:
         if any(code in text for code in ('CORE','EIGHT','classi','Registro')):
             return ('Frequenza non attivata. Completa due classi da otto studenti '
