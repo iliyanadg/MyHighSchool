@@ -99,6 +99,13 @@ class RosterStore(object):
                 'after_sha256': hashlib.sha256(after.encode('utf-8')).hexdigest()
             }, sort_keys=True))
         self._atomic_write(target, after)
+        # Only after the atomic commit: recheck the existing controller
+        # when this edit completes the 2x8 roster at home.
+        try:
+            from mhs_classroom_bootstrap import registry_changed_at_home
+            registry_changed_at_home()
+        except ImportError:
+            pass
         return target
 
     def undo_last(self, slot):
