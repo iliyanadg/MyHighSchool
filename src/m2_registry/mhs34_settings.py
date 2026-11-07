@@ -91,6 +91,11 @@ class SettingsStore(object):
                     os.unlink(temp)
         except OSError:
             raise SettingsError('Impostazioni non salvate: errore disco')
+        try:
+            from mhs_classroom_bootstrap import registry_changed_at_home
+            registry_changed_at_home()
+        except ImportError:
+            pass
         return True
 
     def set_active(self,slot,active):

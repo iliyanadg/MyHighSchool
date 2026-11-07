@@ -5,7 +5,9 @@ Use the same zone-loaded hook already exercised by the project's M55 code.
 Loading directly into an ongoing school day refuses installation.
 """
 _STATUS='NOT_INITIALIZED'
+_SAVE_AS_STATUS='NOT_CHECKED'
 _HOOK=None
+_REGISTRY_REFRESH_BUSY=False
 
 
 def settings_message(status):
@@ -15,6 +17,15 @@ def settings_message(status):
         return 'Gestione disattivata. Iscrizioni e personale sono conservati.'
     if 'ACTIVATION_REQUIRES_HOME' in text:
         return 'Attiva la gestione da casa: la giornata scolastica in corso resta invariata.'
+    if 'Slot EA non verificato' in text:
+        # Show the real prerequisite instead of the vague EA warning.
+        try:
+            from mhs_m2_game_bridge import slot_identity_status
+            details=slot_identity_status()
+        except Exception:
+            details='identita non disponibile'
+        return ('MY HIGH SCHOOL non avviata: identita del salvataggio '
+                'non recuperata automaticamente. ' + details)[:245]
     if 'BLOCKED' in text or 'NON ATTIVA' in text or 'BLOCCATA' in text:
         if any(code in text for code in ('CORE','EIGHT','classi','Registro')):
             return ('Frequenza non attivata. Completa due classi da otto studenti '
@@ -25,17 +36,112 @@ def settings_message(status):
             'le modifiche al gruppo scolastico valgono dalla prossima giornata.')
 
 
+def _recover_save_as_at_home(controller, slot, school, previous_slot=None):
+    """Auto-inherit four registries after Save As only with one exact match.
+
+    This runs only for a real, verified EA slot. The import is transactional,
+    never overwrites existing different data and refuses ambiguous sources.
+    A missing match leaves the target untouched and inactive.
+    """
+    if school:
+        return 'NOT_HOME'
+    from mhs56_slot_identity import positive_slot
+    if positive_slot(slot) is None:
+        return 'UNVERIFIED_SLOT'
+    from mhs_save_as_copy import (
+        import_unique_copy, import_copy, SaveAsCopyError)
+    from mhs_m2_store import RosterStore
+    from mhs53_staff_store import StaffStore
+    from mhs97_core_role_store import CoreRoleStore
+    from sims.sim_info_types import Age, Species
+    import os
+    paths = (
+        controller.SettingsStore(controller.FOLDER).path(slot),
+        RosterStore(controller.FOLDER).path(slot),
+        StaffStore(controller.FOLDER).path(slot),
+        CoreRoleStore(controller.FOLDER).path(slot))
+    # Even a partially configured save must not be silently replaced or
+    # inherited from an unrelated slot. Explicit recovery remains available.
+    if any(os.path.lexists(p) for p in paths):
+        return 'TARGET_ALREADY_CONFIGURED'
+    import services
+    household = services.active_household()
+    if household is None:
+        return 'HOUSEHOLD_NOT_READY'
+    played = tuple(str(info.sim_id) for info in household.sim_info_gen()
+                   if getattr(info, 'age', None) == Age.TEEN
+                   and getattr(info, 'species', None) == Species.HUMAN)
+    if not played:
+        return 'NO_PLAYABLE_TEEN'
+    try:
+        inputs=(services.sim_info_manager(), Age.TEEN, Species.HUMAN,
+                (Age.YOUNGADULT, Age.ADULT, Age.ELDER), played)
+        # After Save As within this very game session, the currently armed
+        # controller supplies the original source slot exactly. Its source
+        # still must pass all Sim and target validation before any write.
+        if previous_slot is not None and str(previous_slot)!=str(slot):
+            try:
+                report=import_copy(
+                    controller.FOLDER,str(previous_slot),slot,*inputs)
+            except SaveAsCopyError:
+                # A changed slot need not mean Save As (it could be another
+                # loaded save). Do not force or overwrite this candidate.
+                report=import_unique_copy(controller.FOLDER,slot,*inputs)
+        else:
+            report=import_unique_copy(controller.FOLDER,slot,*inputs)
+    except SaveAsCopyError as exc:
+        return 'SKIPPED_' + str(exc)[:100]
+    return 'IMPORTED_FROM_' + report['source']
+
+
+def registry_changed_at_home():
+    """Recheck automatic readiness after a committed user menu edit.
+
+    Without this callback, a session that was inactive while 7/8 students
+    or incomplete Core roles were being edited would stay inactive until
+    another lot-loading screen, even after all requirements became valid.
+    """
+    global _REGISTRY_REFRESH_BUSY
+    if _REGISTRY_REFRESH_BUSY:
+        return False
+    try:
+        import mhs145_classroom_controller as controller
+        zone, schedule=controller.zone_schedule()
+        if zone is None or schedule in controller.SCHOOL_SCHEDULES:
+            return False
+        _REGISTRY_REFRESH_BUSY=True
+        refresh()
+        return True
+    except Exception:
+        # A storage write has already succeeded; never report it as failed
+        # just because game bootstrap is not ready to (re)arm.
+        return False
+    finally:
+        _REGISTRY_REFRESH_BUSY=False
+
+
 def refresh(reload=False):
-    global _STATUS
+    global _STATUS,_SAVE_AS_STATUS
     try:
         import services
         import mhs145_classroom_controller as controller
         from mhs_school_session import session_decision
         slot=str(controller.current_slot(allow_travel=True))
-        settings=controller.SettingsStore(controller.FOLDER).load(slot)
         runtime=controller._RUNTIME
         zone,schedule=controller.zone_schedule()
         school=schedule in controller.SCHOOL_SCHEDULES
+        # On an empty real Save As target, inherit an unambiguous source
+        # before reading settings. Never infer slot from an EA scratch ID.
+        if runtime is None or runtime.slot != slot:
+            try:
+                _SAVE_AS_STATUS=_recover_save_as_at_home(
+                    controller,slot,school,
+                    previous_slot=runtime.slot if runtime is not None else None)
+            except Exception as exc:
+                # Save As recovery is optional; an unexpected problem must
+                # not disable an existing valid registry or EA game session.
+                _SAVE_AS_STATUS='ERROR_'+type(exc).__name__
+        settings=controller.SettingsStore(controller.FOLDER).load(slot)
         key=controller.current_school_day(slot)
         if runtime is not None and runtime.slot!=slot:
             if not runtime.stop():
