@@ -50,6 +50,7 @@ EXTRA_SOURCES = tuple(ROOT / path for path in (
     'src/classroom_control/mhs150_day_continuity.py',
     'src/classroom_control/mhs151_npc_school_priority.py',
     'src/classroom_control/mhs151_npc_football_bridge.py',
+    'src/classroom_control/mhs152_staff_scan_policy.py',
     'src/classroom_control/mhs_native_staff_appointments.py',
     'src/classroom_control/mhs_additional_native_staff.py',
     'src/classroom_control/mhs_native_schedule_staff.py',
