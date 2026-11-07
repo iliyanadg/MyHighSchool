@@ -96,9 +96,15 @@ class TravelSlotGuard(object):
             self.last_source = 'household_temporarily_missing'
             raise IdentityError('Famiglia attiva EA non ancora caricata')
         if household != self.household_id:
-            self.reset()
-            self.last_source = 'household_mismatch'
-            raise IdentityError('Nucleo attivo diverso; nessun registro letto')
+            if verified_home_write:
+                # Same already verified save GUID and active HOME controller:
+                # changing played household does not create a new EA save.
+                # This is not permitted on a cold start or at school.
+                self.household_id = household
+            else:
+                self.reset()
+                self.last_source = 'household_mismatch'
+                raise IdentityError('Nucleo attivo diverso; nessun registro letto')
 
         self.last_source = ('verified_home_write' if verified_home_write and
                             not allow_travel else 'verified_zone_travel')
