@@ -12,21 +12,66 @@ class BridgeError(RuntimeError):
     pass
 
 
-from mhs56_slot_identity import TravelSlotGuard, IdentityError, positive_slot
+from mhs56_slot_identity import (
+    TravelSlotGuard, IdentityError, positive_slot, VerifiedSlotBindings)
 
 _SLOT_GUARD = TravelSlotGuard()
+_CACHED_RECOVERY = False
+_LAST_BOUND = None
+
+
+def _slot_cache():
+    root = os.path.join(os.path.expanduser('~'), 'Documents',
+        'Electronic Arts', 'The Sims 4', 'MY_HIGH_SCHOOL_M25_TEST_DATA')
+    return VerifiedSlotBindings(os.path.join(
+        root, 'MHS_VerifiedSaveIdentity.json'))
+
+
+def _saved_roster_matches_live_game(slot):
+    """Read-only check before trusting a cached EA GUID across restarts."""
+    try:
+        import services
+        from sims.sim_info_types import Age, Species
+        from mhs34_settings import SettingsStore
+        from mhs97_core_role_store import CoreRoleStore
+        folder = os.path.dirname(_slot_cache().path)
+        settings = SettingsStore(folder).load(slot)
+        if not settings.active or settings.class_count != 2:
+            return False
+        roster = RosterStore(folder).load(slot)
+        groups = tuple(tuple(str(s) for s in roster.class_members(i))
+                       for i in (1,2))
+        ids = groups[0] + groups[1]
+        if (len(groups[0]) != 8 or len(groups[1]) != 8 or
+                len(set(ids)) != 16):
+            return False
+        core = CoreRoleStore(folder).load(slot)
+        if (not core.complete or
+                not set(core.chosen().values()) <= set(ids)):
+            return False
+        manager = services.sim_info_manager()
+        getter = getattr(manager, 'get', None)
+        if not callable(getter):
+            return False
+        for sid in ids:
+            info = getter(int(sid))
+            if (info is None or
+                    getattr(info, 'age', None) != Age.TEEN or
+                    getattr(info, 'species', None) != Species.HUMAN):
+                return False
+        return True
+    except Exception:
+        return False
+
 
 
 def current_slot(allow_travel=False):
-    """Resolve a verified per-save slot; scratch fallback is READ-ONLY.
+    """Resolve the real EA save, or a uniquely validated prior binding.
 
-    EA persistence.get_save_slot_proto_guid() remains stable through scratch
-    travel (the same source used by Lot51 Core Context.save_slot_id).
-    We bind this stable identifier to the last REAL slot observed in the
-    SAME session and household. The stable GUID is NOT treated as a slot
-    number. Only read-only menu and transient school attendance may pass
-    allow_travel=True. Enrollment/staff/settings writes keep the strict gate.
+    Binding is created only when EA supplied the real numeric slot in an
+    earlier session, and live registered Sim IDs still match exactly.
     """
+    global _CACHED_RECOVERY, _LAST_BOUND
     try:
         import services
         persistence = services.get_persistence_service()
@@ -38,30 +83,46 @@ def current_slot(allow_travel=False):
         stable = getter() if callable(getter) else None
         household = services.active_household()
         household_id = getattr(household, 'id', None)
+        real = positive_slot(slot)
+        if real is not None:
+            _CACHED_RECOVERY = False
+            result = _SLOT_GUARD.resolve(real, stable, household_id)
+            identity = (result, str(stable), str(household_id))
+            if identity != _LAST_BOUND and _saved_roster_matches_live_game(result):
+                if _slot_cache().remember(result, stable, household_id):
+                    _LAST_BOUND = identity
+            return result
+
+        # A cold start is accepted only if a REAL slot was previously
+        # observed for exactly this stable EA save GUID and household.
+        if _SLOT_GUARD.slot is None:
+            candidate = _slot_cache().unique(stable, household_id)
+            if candidate is not None and _saved_roster_matches_live_game(candidate):
+                _SLOT_GUARD.resolve(candidate, stable, household_id)
+                _CACHED_RECOVERY = True
+
         verified_home_write = False
-        # EA can expose its temporary travel slot even after reaching HOME.
-        # Only a currently running and previously verified HOME controller
-        # may reuse its exact bound identity for a menu write.
-        if positive_slot(slot) is None:
-            try:
-                import mhs145_classroom_controller as controller
-                runtime = controller._RUNTIME
-                zone, schedule = controller.zone_schedule()
-                verified_home_write = bool(
-                    zone is not None and
-                    schedule not in controller.SCHOOL_SCHEDULES and
-                    runtime is not None and runtime.active and
-                    not runtime.in_school() and
-                    runtime.slot == _SLOT_GUARD.slot)
-            except (ImportError, AttributeError, TypeError, ValueError):
-                verified_home_write = False
+        try:
+            import mhs145_classroom_controller as controller
+            runtime = controller._RUNTIME
+            zone, schedule = controller.zone_schedule()
+            at_home = (zone is not None and
+                       schedule not in controller.SCHOOL_SCHEDULES)
+            verified_home_write = bool(
+                at_home and _SLOT_GUARD.slot is not None and
+                ((runtime is not None and runtime.active and
+                  not runtime.in_school() and
+                  runtime.slot == _SLOT_GUARD.slot) or
+                 (_CACHED_RECOVERY and
+                  _saved_roster_matches_live_game(_SLOT_GUARD.slot))))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            verified_home_write = False
         return _SLOT_GUARD.resolve(
             slot, stable, household_id, allow_travel=allow_travel,
             verified_home_write=verified_home_write)
     except (IdentityError, ValueError, TypeError, AttributeError,
             ImportError) as exc:
         raise BridgeError('Slot EA non verificato: {}'.format(str(exc)[:125]))
-
 
 def slot_identity_status():
     """Read-only identity diagnostic, independent from the game's UI."""
