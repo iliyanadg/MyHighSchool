@@ -234,6 +234,13 @@ def refresh(reload=False):
 def install(zone_class=None):
     """Preserve the original method/result and avoid duplicate hook install."""
     global _HOOK,_STATUS
+    # Save As is a PersistenceService event, not a zone transition. Install
+    # the transaction observer before a player can open Save/Save As.
+    try:
+        import mhs168_save_event
+        mhs168_save_event.install()
+    except ImportError:
+        pass
     try:
         if zone_class is None:
             from zone import Zone
