@@ -154,5 +154,36 @@ class PartialRosterRecognitionTests(unittest.TestCase):
 
 
 
+    def test_aging_student_does_not_erase_save_identity(self):
+        from mhs_m2_store import RosterStore
+        from mhs_m2_roster import SchoolRoster
+        from mhs34_settings import SettingsStore, SchoolSettings
+        with tempfile.TemporaryDirectory() as folder:
+            SettingsStore(folder).save(SchoolSettings('15',True,2))
+            RosterStore(folder).save('15',SchoolRoster('15',
+                {'100':1,'101':1,'102':2,'103':2}))
+            cache=VerifiedSlotBindings(str(
+                Path(folder) / 'MHS_VerifiedSaveIdentity.json'))
+            services=types.ModuleType('services')
+            def lookup(sid):
+                if sid == 103:
+                    return None
+                return types.SimpleNamespace(
+                    age=('ADULT' if sid == 100 else 'TEEN'),
+                    species='HUMAN')
+            services.sim_info_manager=lambda:types.SimpleNamespace(get=lookup)
+            sims=types.ModuleType('sims')
+            kinds=types.ModuleType('sims.sim_info_types')
+            kinds.Age=types.SimpleNamespace(TEEN='TEEN')
+            kinds.Species=types.SimpleNamespace(HUMAN='HUMAN')
+            sims.sim_info_types=kinds
+            with patch.object(bridge,'_slot_cache',lambda:cache), \
+                 patch.dict(sys.modules,{'services':services,
+                                         'sims':sims,
+                                         'sims.sim_info_types':kinds}):
+                self.assertTrue(bridge._saved_roster_matches_live_game('15'))
+
+
+
 if __name__ == '__main__':
     unittest.main()
