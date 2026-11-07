@@ -54,6 +54,35 @@ Il file identità è locale al Mac; non va modificato a mano. Conservare
 sempre insieme `saves` e `MY_HIGH_SCHOOL_M25_TEST_DATA`. Il solo backup dei
 file EA `.save` **non** comprende i registri esterni né i nuovi binding.
 
+## M165 — Recupero automatico dei salvataggi preesistenti
+
+La M164 non poteva recuperare un salvataggio più vecchio se non esisteva
+ancora `MHS_VerifiedSaveIdentity.json`: al primo riavvio con ID EA temporaneo
+mostrava `M142 NON ATTIVA: BridgeError ... modifiche bloccate`.
+La M165 introduce l'inizializzazione automatica **soltanto da casa**:
+
+- Richiede GUID EA valido, famiglia attiva e un adolescente giocabile
+  iscritto nel registro sorgente.
+- Verifica che nel salvataggio esistano tutti i 16 Sim registrati e gli
+  incarichi/personale richiesti dal formato precedente.
+- Quando c'è un'unica configurazione compatibile (o più configurazioni
+  perfettamente identiche), copia in modo atomico i quattro registri in
+  un nuovo spazio dati derivato deterministicamente dal GUID EA.
+- Conserva i registri originali, senza sovrascriverli, e registra il
+  nuovo riferimento per i riavvii successivi.
+- Se le configurazioni divergono, l'ID manca o la copia non è sicura,
+  non seleziona un registro a caso. La notifica ora include una diagnosi
+  leggibile invece di dire genericamente che le regole EA non sono supportate.
+
+**Cautela su Salva con nome:** i Save ID EA possono essere condivisi tra
+copie dello stesso salvataggio. Se il numero di slot non è visibile,
+il GUID da solo non distingue necessariamente due copie. La separazione
+totale resta subordinata alla verifica dello slot reale; non dichiarare
+questa situazione già certificata.
+
+Test aggiunti in `tests/test_save_as_copy.py` con primo avvio
+automatico da registro legacy e rifiuto di sorgenti divergenti.
+
 ## Limiti da non nascondere
 
 - Un avvio **diretto al liceo**, a giornata EA già avviata e senza
