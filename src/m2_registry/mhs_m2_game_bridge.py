@@ -31,7 +31,7 @@ def _saved_roster_matches_live_game(slot):
     """Read-only check before trusting a cached EA GUID across restarts."""
     try:
         import services
-        from sims.sim_info_types import Age, Species
+        from sims.sim_info_types import Species
         from mhs34_settings import SettingsStore
         folder = os.path.dirname(_slot_cache().path)
         # Identity must survive *incomplete* edits: a removed student,
@@ -54,13 +54,17 @@ def _saved_roster_matches_live_game(slot):
         getter = getattr(manager, 'get', None)
         if not callable(getter):
             return False
+        matching = 0
         for sid in ids:
             info = getter(int(sid))
-            if (info is None or
-                    getattr(info, 'age', None) != Age.TEEN or
-                    getattr(info, 'species', None) != Species.HUMAN):
-                return False
-        return True
+            if (info is not None and
+                    getattr(info, 'species', None) == Species.HUMAN):
+                matching += 1
+        # Teenagers can age up or die between saves; the identifier must
+        # still be recoverable to allow the menu to remove/reassign them.
+        # The EA classroom controller checks actual teenage eligibility
+        # before inviting anybody; identity restoration does not.
+        return matching >= min(3, len(ids))
     except Exception:
         return False
 
