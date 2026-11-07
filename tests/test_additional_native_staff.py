@@ -409,6 +409,8 @@ class SupplementalRuntimeTests(unittest.TestCase):
             staff_extra_attempted=set(),
             staff_extra_created={},staff_extra_receipts=[],
             staff_extra_last_status=None,
+            m152_staff_last_scan_ticks=None,
+            m152_staff_scan_count=0,m152_staff_scan_skipped=0,
             staff_pending=None,staff_pending_guests={},
             staff_jobs={guid:types.SimpleNamespace(guid64=guid)
                         for guid in (278010,290196,278223,277895,278963)},
@@ -418,7 +420,9 @@ class SupplementalRuntimeTests(unittest.TestCase):
             bound_zone=20)
         env={
             '_ea_native_cafeteria_tag':lambda:None,
-            'game_clock':lambda service:{'hour':10,'minute':33},
+            'game_clock':lambda service:{
+                'hour':10,'minute':33,
+                'absolute_ticks':(10*60+33)*1500},
             'services':services,'VENUE_STAFF_SITUATION':298096,
             'CORE_SITUATION':298052,
             'CAFETERIA_STAFF_SITUATION':278011,
