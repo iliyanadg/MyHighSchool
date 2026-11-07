@@ -277,5 +277,107 @@ class SaveAsCloneTests(unittest.TestCase):
         self.assertFalse(any('_slot_42' in name for name in self.state()))
 
 
+    def test_m165_cold_start_with_old_legacy_registry_bootstraps_without_cheat(self):
+        import sys
+        import mhs_m2_game_bridge as bridge
+        from mhs56_slot_identity import (
+            TravelSlotGuard, VerifiedSlotBindings, synthetic_slot_for_guid)
+        from types import ModuleType
+        from unittest.mock import patch
+        guid='0x12345'
+        new_slot=synthetic_slot_for_guid(guid)
+        before={name:Path(self.folder,name).read_bytes()
+                for name in self.state()}
+        self.assertFalse(Path(self.folder,
+            'MHS_VerifiedSaveIdentity.json').exists())
+        self.assertFalse(Path(RosterStore(self.folder).path(new_slot)).exists())
+        game_services=ModuleType('services')
+        game_services.get_persistence_service=lambda:SimpleNamespace(
+            get_save_slot_proto_buff=lambda:SimpleNamespace(slot_id=0xffffffff),
+            get_save_slot_proto_guid=lambda:guid)
+        game_services.active_household=lambda:SimpleNamespace(
+            id=721,sim_info_gen=lambda:(
+                SimpleNamespace(sim_id=int(s),age='TEEN',species='HUMAN')
+                for s in self.played))
+        game_services.sim_info_manager=lambda:self.manager
+        kinds=ModuleType('sims.sim_info_types')
+        kinds.Age=SimpleNamespace(TEEN='TEEN',YOUNGADULT='YOUNGADULT',
+                                  ADULT='ADULT',ELDER='ELDER')
+        kinds.Species=SimpleNamespace(HUMAN='HUMAN')
+        sims=ModuleType('sims')
+        sims.sim_info_types=kinds
+        controller=ModuleType('mhs145_classroom_controller')
+        controller.zone_schedule=lambda:(100,None)
+        controller.SCHOOL_SCHEDULES=frozenset((277657,279958))
+        controller._RUNTIME=None
+        cache=VerifiedSlotBindings(str(Path(self.folder)/
+            'MHS_VerifiedSaveIdentity.json'))
+        with patch.object(bridge,'_slot_cache',lambda:cache), \
+             patch.dict(sys.modules,{'services':game_services,'sims':sims,
+                 'sims.sim_info_types':kinds,
+                 'mhs145_classroom_controller':controller}):
+            bridge._SLOT_GUARD=TravelSlotGuard()
+            bridge._CACHED_RECOVERY=False
+            self.assertEqual(bridge.current_slot(),new_slot)
+            self.assertEqual(cache.unique(guid,721),new_slot)
+            self.assertEqual(len(RosterStore(self.folder).load(new_slot).assignments),16)
+            self.assertTrue(SettingsStore(self.folder).load(new_slot).active)
+            self.assertEqual(StaffStore(self.folder).load(new_slot).roles,
+                             StaffStore(self.folder).load(self.source).roles)
+            # A second Python session still resolves without another import.
+            bridge._SLOT_GUARD=TravelSlotGuard()
+            bridge._CACHED_RECOVERY=False
+            self.assertEqual(bridge.current_slot(),new_slot)
+        for name,blob in before.items():
+            self.assertEqual(Path(self.folder,name).read_bytes(),blob)
+
+    def test_m165_two_different_legacy_schools_fail_closed(self):
+        import sys
+        import mhs_m2_game_bridge as bridge
+        from mhs56_slot_identity import TravelSlotGuard, VerifiedSlotBindings
+        from types import ModuleType
+        from unittest.mock import patch
+        self.write_source('46')
+        other=dict(self.names)
+        other['principal']='509'
+        self.sim_infos[509]=SimpleNamespace(
+            age='ADULT',species='HUMAN',is_selectable=False)
+        StaffStore(self.folder).save('46',StaffRoster('46',other))
+        before=self.state()
+        game_services=ModuleType('services')
+        game_services.get_persistence_service=lambda:SimpleNamespace(
+            get_save_slot_proto_buff=lambda:SimpleNamespace(slot_id=0xffffffff),
+            get_save_slot_proto_guid=lambda:'0x9876')
+        game_services.active_household=lambda:SimpleNamespace(
+            id=721,sim_info_gen=lambda:(
+                SimpleNamespace(sim_id=int(s),age='TEEN',species='HUMAN')
+                for s in self.played))
+        game_services.sim_info_manager=lambda:self.manager
+        kinds=ModuleType('sims.sim_info_types')
+        kinds.Age=SimpleNamespace(TEEN='TEEN',YOUNGADULT='YOUNGADULT',
+                                  ADULT='ADULT',ELDER='ELDER')
+        kinds.Species=SimpleNamespace(HUMAN='HUMAN')
+        sims=ModuleType('sims')
+        sims.sim_info_types=kinds
+        controller=ModuleType('mhs145_classroom_controller')
+        controller.zone_schedule=lambda:(100,None)
+        controller.SCHOOL_SCHEDULES=frozenset((277657,279958))
+        controller._RUNTIME=None
+        cache=VerifiedSlotBindings(str(Path(self.folder)/
+            'MHS_VerifiedSaveIdentity.json'))
+        with patch.object(bridge,'_slot_cache',lambda:cache), \
+             patch.dict(sys.modules,{'services':game_services,'sims':sims,
+                 'sims.sim_info_types':kinds,
+                 'mhs145_classroom_controller':controller}):
+            bridge._SLOT_GUARD=TravelSlotGuard()
+            bridge._CACHED_RECOVERY=False
+            with self.assertRaises(bridge.BridgeError):
+                bridge.current_slot()
+            self.assertIn('MULTIPLE_SOURCE_SAVES',bridge._MIGRATION_DIAGNOSTIC)
+            self.assertIsNone(cache.unique('0x9876',721))
+        self.assertEqual(before,self.state())
+
+
+
 if __name__=='__main__':
     unittest.main()
