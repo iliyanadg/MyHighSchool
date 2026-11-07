@@ -33,21 +33,22 @@ def _saved_roster_matches_live_game(slot):
         import services
         from sims.sim_info_types import Age, Species
         from mhs34_settings import SettingsStore
-        from mhs97_core_role_store import CoreRoleStore
         folder = os.path.dirname(_slot_cache().path)
+        # Identity must survive *incomplete* edits: a removed student,
+        # disabled activation or a missing Core role is not a different save.
+        # Attendance preflight separately enforces 8+8 and all five roles.
+        if not os.path.isfile(SettingsStore(folder).path(slot)):
+            return False
+        if not os.path.isfile(RosterStore(folder).path(slot)):
+            return False
         settings = SettingsStore(folder).load(slot)
-        if not settings.active or settings.class_count != 2:
+        if settings.class_count != 2:
             return False
         roster = RosterStore(folder).load(slot)
         groups = tuple(tuple(str(s) for s in roster.class_members(i))
                        for i in (1,2))
         ids = groups[0] + groups[1]
-        if (len(groups[0]) != 8 or len(groups[1]) != 8 or
-                len(set(ids)) != 16):
-            return False
-        core = CoreRoleStore(folder).load(slot)
-        if (not core.complete or
-                not set(core.chosen().values()) <= set(ids)):
+        if not (1 <= len(ids) <= 20 and len(set(ids)) == len(ids)):
             return False
         manager = services.sim_info_manager()
         getter = getattr(manager, 'get', None)
