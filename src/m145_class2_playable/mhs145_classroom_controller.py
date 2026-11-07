@@ -1370,7 +1370,13 @@ def arm_m127():
         zone,schedule=zone_schedule()
         if zone is None or schedule in SCHOOL_SCHEDULES:
             return 'M147 BLOCCATA: armare da casa prima della scuola'
-        slot,targets,pinned=registered_eight()
+        # M153: after school-to-home travel the EA proto may remain a
+        # scratch/temporary ID. Reuse the M56 *verified* session+household
+        # anchor for read-only comparison when a live controller is active.
+        # A FIRST arm still requires an actual EA slot number. This never
+        # persists or guesses a save identity from the roster or file name.
+        already_active=_RUNTIME is not None and _RUNTIME.active
+        slot,targets,pinned=registered_eight(allow_travel=already_active)
         roster=RosterStore(FOLDER).load(slot)
         selected=tuple(tuple(str(s) for s in roster.class_members(i))
                        for i in (1,2))
@@ -1383,7 +1389,19 @@ def arm_m127():
                 _RUNTIME.lesson_classes,_RUNTIME.targets,_RUNTIME.pinned,
                 selected,targets,pinned,zone!=_RUNTIME.home_zone)
             if not required:
-                return 'M147 GIA ATTIVA: registro corrente confermato'
+                # This is already the same verified save, students and staff:
+                # ensure the arrival watcher survives the return home.
+                _m141_start_watcher(_RUNTIME)
+                return 'M153 GIA ATTIVA: stesso salvataggio; pronto per prossimo giorno'
+            # A changed classroom/household/zone requires a new controller.
+            # NEVER stop the running one on a scratch ID: require strict EA
+            # real-slot evidence before any reload or in-memory mutation.
+            try:
+                if str(current_slot(allow_travel=False))!=slot:
+                    return 'M153 RICARICA BLOCCATA: slot reale diverso'
+            except Exception:
+                return ('M153 RICARICA RINVIATA: ID EA temporaneo; '
+                        'registro esistente non modificato')
             if not _RUNTIME.stop():
                 return 'M147 RICARICA BLOCCATA: '+_RUNTIME.error
             _RUNTIME=None
