@@ -1,4 +1,4 @@
-# M155–M158 — Continuità del salvataggio, 2 classi
+# M155–M159 — Continuità del salvataggio, 2 classi
 
 Questa revisione parte dal controller M154 e **non modifica** inviti EA, lezioni,
 lavagne, organico scolastico o capienza (due classi di otto).
@@ -23,7 +23,10 @@ lavagne, organico scolastico o capienza (due classi di otto).
    se i quattro registri, ricostruiti per la stessa destinazione, sono
    identici. In caso di configurazioni diverse, nessuna sorgente viene
    scelta automaticamente e i file non vengono sovrascritti.
-5. Se il recupero opzionale fallisce, la mod conserva i dati preesistenti
+5. Se il nuovo slot viene caricato nella stessa sessione in cui il controller
+   conosce ancora lo slot precedente, quest'ultimo è usato come sorgente
+   preferita, dopo tutte le convalide; non viene scelta una partita qualsiasi.
+6. Se il recupero opzionale fallisce, la mod conserva i dati preesistenti
    senza impedire il caricamento del gioco.
 
 ## Limiti da non nascondere
