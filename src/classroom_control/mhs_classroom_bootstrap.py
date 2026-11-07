@@ -15,6 +15,8 @@ _MAX_HOME_RETRY_ATTEMPTS=10
 def _slot_temporarily_unverified(status):
     """Retry only transient EA save-identity reads, never invalid rosters."""
     value=str(status).lower()
+    if value=='zone_director_pending_no_home_activation':
+        return True
     return ('activation_blocked:' in value and
             ('slot ea non verificato' in value or
              'id salvataggio temporaneo' in value or
@@ -133,7 +135,8 @@ def refresh(reload=False):
             outside_original_home=(runtime is not None and
                                    getattr(runtime,'home_zone',None) is not None
                                    and str(zone)!=str(runtime.home_zone))
-            if residence is False or outside_original_home:
+            if (residence is False or outside_original_home or
+                    (residence is None and runtime is None)):
                 if runtime is not None and runtime.active:
                     controller._m141_start_watcher(runtime)
                     _STATUS='NON_HOME_ZONE_STANDBY'
