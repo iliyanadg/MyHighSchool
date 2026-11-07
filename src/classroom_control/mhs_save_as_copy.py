@@ -160,7 +160,12 @@ def prepare_copy(folder, source_slot, target_slot, info_manager,
             payload.append((kind,dest,expected))
     return {'source':source,'target':target,'payload':tuple(payload),
             'unchanged':tuple(unchanged),'students':16,
-            'staff':staff_count,'roles':5}
+            'staff':staff_count,'roles':5,
+            # Compare candidates after rebinding to the SAME target slot.
+            # Multiple source saves with identical school configuration are
+            # equivalent; choosing any cannot select different students.
+            'configuration':tuple((kind,cloned[kind].to_json())
+                                  for kind,_,_ in stores)}
 
 
 def import_copy(folder, source_slot, target_slot, info_manager,
@@ -252,6 +257,14 @@ def import_unique_copy(folder,target_slot,info_manager,teen,human,
     if not matches:
         raise SaveAsCopyError('NO_MATCHING_SOURCE_SAVE')
     if len(matches)!=1:
-        raise SaveAsCopyError('MULTIPLE_SOURCE_SAVES_CHOOSE_SLOT')
+        # Exact-equivalent copies of an earlier save are safe to merge: all
+        # four records produce identical target-slot JSON. Differing sources
+        # remain ambiguous and must never be selected by file timestamp.
+        signatures = [
+            prepare_copy(folder,row[0],target_slot,info_manager,teen,
+                         human,adult_ages,active_household_ids)['configuration']
+            for row in matches]
+        if any(signature != signatures[0] for signature in signatures[1:]):
+            raise SaveAsCopyError('MULTIPLE_SOURCE_SAVES_CHOOSE_SLOT')
     return import_copy(folder,matches[0][0],target_slot,info_manager,teen,
                        human,adult_ages,active_household_ids)
