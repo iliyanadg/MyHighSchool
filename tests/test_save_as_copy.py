@@ -172,5 +172,59 @@ class SaveAsCloneTests(unittest.TestCase):
         self.assertFalse(any('_slot_42' in name for name in self.state()))
 
 
+    def test_m156_auto_import_at_home_on_new_save(self):
+        from mhs_classroom_bootstrap import _recover_save_as_at_home
+        from types import ModuleType
+        from unittest.mock import patch
+        import sys
+        controller=SimpleNamespace(FOLDER=self.folder, SettingsStore=SettingsStore)
+        game_services=ModuleType('services')
+        active=SimpleNamespace(sim_info_gen=lambda: (
+            SimpleNamespace(sim_id=int(s),age='TEEN',species='HUMAN')
+            for s in self.played))
+        game_services.active_household=lambda: active
+        game_services.sim_info_manager=lambda: self.manager
+        sims=ModuleType('sims')
+        kinds=ModuleType('sims.sim_info_types')
+        kinds.Age=SimpleNamespace(TEEN='TEEN',YOUNGADULT='YOUNGADULT',
+                                  ADULT='ADULT',ELDER='ELDER')
+        kinds.Species=SimpleNamespace(HUMAN='HUMAN')
+        sims.sim_info_types=kinds
+        with patch.dict(sys.modules,{'services':game_services,'sims':sims,
+                                     'sims.sim_info_types':kinds}):
+            result=_recover_save_as_at_home(controller,self.target,False)
+            self.assertEqual(result,'IMPORTED_FROM_41')
+            self.assertTrue(SettingsStore(self.folder).load(self.target).active)
+            self.assertEqual(len(RosterStore(self.folder).load(self.target).assignments),16)
+            again=_recover_save_as_at_home(controller,self.target,False)
+            self.assertEqual(again,'TARGET_ALREADY_CONFIGURED')
+
+    def test_m156_auto_import_refuses_school_or_ambiguous_sources(self):
+        from mhs_classroom_bootstrap import _recover_save_as_at_home
+        controller=SimpleNamespace(FOLDER=self.folder,SettingsStore=SettingsStore)
+        self.assertEqual(_recover_save_as_at_home(controller,self.target,True),'NOT_HOME')
+        self.write_source('46')
+        # Ambiguity must never be solved by choosing the most recent file.
+        from types import ModuleType
+        from unittest.mock import patch
+        import sys
+        game_services=ModuleType('services')
+        game_services.active_household=lambda: SimpleNamespace(
+            sim_info_gen=lambda: (SimpleNamespace(
+                sim_id=int(s),age='TEEN',species='HUMAN') for s in self.played))
+        game_services.sim_info_manager=lambda:self.manager
+        kinds=ModuleType('sims.sim_info_types')
+        kinds.Age=SimpleNamespace(TEEN='TEEN',YOUNGADULT='YOUNGADULT',
+                                  ADULT='ADULT',ELDER='ELDER')
+        kinds.Species=SimpleNamespace(HUMAN='HUMAN')
+        sims=ModuleType('sims')
+        sims.sim_info_types=kinds
+        with patch.dict(sys.modules,{'services':game_services,'sims':sims,
+                                     'sims.sim_info_types':kinds}):
+            result=_recover_save_as_at_home(controller,self.target,False)
+        self.assertIn('MULTIPLE_SOURCE_SAVES',result)
+        self.assertFalse(any('_slot_42' in name for name in self.state()))
+
+
 if __name__=='__main__':
     unittest.main()
