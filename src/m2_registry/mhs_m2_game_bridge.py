@@ -12,7 +12,7 @@ class BridgeError(RuntimeError):
     pass
 
 
-from mhs56_slot_identity import TravelSlotGuard, IdentityError
+from mhs56_slot_identity import TravelSlotGuard, IdentityError, positive_slot
 
 _SLOT_GUARD = TravelSlotGuard()
 
@@ -38,8 +38,26 @@ def current_slot(allow_travel=False):
         stable = getter() if callable(getter) else None
         household = services.active_household()
         household_id = getattr(household, 'id', None)
-        return _SLOT_GUARD.resolve(slot, stable, household_id,
-                                   allow_travel=allow_travel)
+        verified_home_write = False
+        # EA can expose its temporary travel slot even after reaching HOME.
+        # Only a currently running and previously verified HOME controller
+        # may reuse its exact bound identity for a menu write.
+        if not allow_travel and positive_slot(slot) is None:
+            try:
+                import mhs145_classroom_controller as controller
+                runtime = controller._RUNTIME
+                zone, schedule = controller.zone_schedule()
+                verified_home_write = bool(
+                    zone is not None and
+                    schedule not in controller.SCHOOL_SCHEDULES and
+                    runtime is not None and runtime.active and
+                    not runtime.in_school() and
+                    runtime.slot == _SLOT_GUARD.slot)
+            except (ImportError, AttributeError, TypeError, ValueError):
+                verified_home_write = False
+        return _SLOT_GUARD.resolve(
+            slot, stable, household_id, allow_travel=allow_travel,
+            verified_home_write=verified_home_write)
     except (IdentityError, ValueError, TypeError, AttributeError,
             ImportError) as exc:
         raise BridgeError('Slot EA non verificato: {}'.format(str(exc)[:125]))
