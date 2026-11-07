@@ -5,6 +5,7 @@ but the school's arrival watcher may not run until later. The very first
 menu test must see the new active school settings and its sixteen pupils.
 """
 import unittest
+import sys
 
 from tests.test_m166_multiple_save_as import MultipleSaveAsGameIdentityTests
 from mhs_m2_store import RosterStore
@@ -13,11 +14,16 @@ from mhs34_settings import SettingsStore
 import mhs_m2_game_bridge as bridge
 
 
-class ImmediateSaveAsTests(MultipleSaveAsGameIdentityTests):
-    """Use M166's real school registry and mocked EA persistence services."""
+class ImmediateSaveAsTests(unittest.TestCase):
+    """Reuse fixtures without inheriting M166's unrelated test cases."""
+    write_roster = MultipleSaveAsGameIdentityTests.write_roster
+    cold_start = MultipleSaveAsGameIdentityTests.cold_start
 
     def setUp(self):
-        super().setUp()
+        MultipleSaveAsGameIdentityTests.setUp(self)
+        controller = sys.modules['mhs145_classroom_controller']
+        controller.SettingsStore = SettingsStore
+        controller.FOLDER = self.folder
         # M166 base tests start at an EA scratch slot. For Save As the
         # actual EA number changes while keeping the *same* zone object.
         self.slot = 10
