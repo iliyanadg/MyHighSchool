@@ -190,7 +190,10 @@ def install(persistence_class=None):
         if not callable(original):
             _LAST_STATUS = 'SAVE_GENERATOR_UNAVAILABLE'
             return False
-        if getattr(original,'_mhs168_real_save_hook',False):
+        if (getattr(original,'_mhs168_real_save_hook',False) or
+                getattr(persistence_class,'_mhs168_save_hook_installed',False)):
+            # Another mod may later chain its own wrapper around this one.
+            # Avoid stacking a second MHS callback on the same generator.
             _INSTALLED = True
             return True
 
@@ -210,6 +213,7 @@ def install(persistence_class=None):
 
         wrapped._mhs168_real_save_hook=True
         persistence_class.save_game_gen=wrapped
+        persistence_class._mhs168_save_hook_installed=True
         _HOOK=(persistence_class,original,wrapped)
         _INSTALLED=True
         _LAST_STATUS='HOOK_INSTALLED'
