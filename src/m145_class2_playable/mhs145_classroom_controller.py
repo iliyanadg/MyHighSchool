@@ -307,6 +307,9 @@ class ThirteenNPCController(object):
         self.staff_extra_created={}
         self.staff_extra_receipts=[]
         self.staff_extra_last_status=None
+        self.m152_staff_last_scan_ticks=None
+        self.m152_staff_scan_count=0
+        self.m152_staff_scan_skipped=0
         self.school_npc_cap_service=None
         self.school_npc_cap_delta=0
         self.school_npc_cap_state={'status':'NOT_STARTED'}
@@ -366,6 +369,9 @@ class ThirteenNPCController(object):
         self.staff_extra_created.clear()
         self.staff_extra_receipts[:]=[]
         self.staff_extra_last_status=None
+        self.m152_staff_last_scan_ticks=None
+        self.m152_staff_scan_count=0
+        self.m152_staff_scan_skipped=0
         # Keep each school day's NPC capacity history independent. If an
         # earlier modifier could not be released, retain its evidence and
         # refuse a fresh unbalanced boost rather than hiding the conflict.
@@ -2414,6 +2420,17 @@ def _maybe_additional_school_staff(runtime):
         stamp=game_clock(services.time_service())
         if not supplemental_staff_window(stamp):
             return False
+        # Keep the first school shift scan and rescan every 12 processed Sim
+        # minutes.  Other EA alarms, native class jobs and staff invites
+        # retain their original schedules and behavior.
+        from mhs152_staff_scan_policy import should_scan_supplemental_staff
+        ticks=stamp.get('absolute_ticks')
+        if not should_scan_supplemental_staff(
+                ticks,runtime.m152_staff_last_scan_ticks):
+            runtime.m152_staff_scan_skipped+=1
+            return False
+        runtime.m152_staff_last_scan_ticks=ticks
+        runtime.m152_staff_scan_count+=1
         from mhs_school_readback import school_memberships
         plan=runtime.staff_plan
         staff_groups=plan.get('job_groups',{})
@@ -3392,6 +3409,13 @@ def _m143_write_full_report(runtime):
                 'original_ea_npc_test_required':True,
                 'no_direct_action_cancellation':True,
                 'queued_not_proof_of_physical_attendance':True},
+            'm152_staff_scan_efficiency':{
+                'interval_sim_minutes':12,
+                'full_scans':runtime.m152_staff_scan_count,
+                'skipped_three_minute_polls':runtime.m152_staff_scan_skipped,
+                'native_lesson_alarm_interval_unchanged':True,
+                'staff_membership_and_station_readback_preserved':True,
+                'sim_lag_causality_not_yet_proven':True},
             'school_staff':{
                 'samples':runtime.school_staff_samples,
                 'native_job_shift_verdict':shift_verdict,
