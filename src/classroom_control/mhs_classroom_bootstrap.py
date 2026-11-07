@@ -25,6 +25,52 @@ def settings_message(status):
             'le modifiche al gruppo scolastico valgono dalla prossima giornata.')
 
 
+def _recover_save_as_at_home(controller, slot, school):
+    """Auto-inherit four registries after Save As only with one exact match.
+
+    This runs only for a real, verified EA slot. The import is transactional,
+    never overwrites existing different data and refuses ambiguous sources.
+    A missing match leaves the target untouched and inactive.
+    """
+    if school:
+        return 'NOT_HOME'
+    from mhs56_slot_identity import positive_slot
+    if positive_slot(slot) is None:
+        return 'UNVERIFIED_SLOT'
+    from mhs_save_as_copy import import_unique_copy, SaveAsCopyError
+    from mhs_m2_store import RosterStore
+    from mhs53_staff_store import StaffStore
+    from mhs97_core_role_store import CoreRoleStore
+    from sims.sim_info_types import Age, Species
+    import os
+    paths = (
+        controller.SettingsStore(controller.FOLDER).path(slot),
+        RosterStore(controller.FOLDER).path(slot),
+        StaffStore(controller.FOLDER).path(slot),
+        CoreRoleStore(controller.FOLDER).path(slot))
+    # Even a partially configured save must not be silently replaced or
+    # inherited from an unrelated slot. Explicit recovery remains available.
+    if any(os.path.lexists(p) for p in paths):
+        return 'TARGET_ALREADY_CONFIGURED'
+    import services
+    household = services.active_household()
+    if household is None:
+        return 'HOUSEHOLD_NOT_READY'
+    played = tuple(str(info.sim_id) for info in household.sim_info_gen()
+                   if getattr(info, 'age', None) == Age.TEEN
+                   and getattr(info, 'species', None) == Species.HUMAN)
+    if not played:
+        return 'NO_PLAYABLE_TEEN'
+    try:
+        report = import_unique_copy(
+            controller.FOLDER, slot, services.sim_info_manager(),
+            Age.TEEN, Species.HUMAN, (Age.YOUNGADULT, Age.ADULT, Age.ELDER),
+            played)
+    except SaveAsCopyError as exc:
+        return 'SKIPPED_' + str(exc)[:100]
+    return 'IMPORTED_FROM_' + report['source']
+
+
 def refresh(reload=False):
     global _STATUS
     try:
@@ -32,10 +78,13 @@ def refresh(reload=False):
         import mhs145_classroom_controller as controller
         from mhs_school_session import session_decision
         slot=str(controller.current_slot(allow_travel=True))
-        settings=controller.SettingsStore(controller.FOLDER).load(slot)
         runtime=controller._RUNTIME
         zone,schedule=controller.zone_schedule()
         school=schedule in controller.SCHOOL_SCHEDULES
+        # On an empty real Save As target, inherit an unambiguous source
+        # before reading settings. Never infer slot from an EA scratch ID.
+        _recover_save_as_at_home(controller,slot,school)
+        settings=controller.SettingsStore(controller.FOLDER).load(slot)
         key=controller.current_school_day(slot)
         if runtime is not None and runtime.slot!=slot:
             if not runtime.stop():
