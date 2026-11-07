@@ -2800,6 +2800,18 @@ def _m141_start_watcher(runtime):
             if runtime.in_school():
                 _m141_start_trace(runtime,'school_arrival_watcher')
             else:
+                # M161: Save As may change the REAL EA slot without a zone
+                # load. Reuse this existing lightweight home watcher rather
+                # than creating a second alarm or school controller.
+                try:
+                    observed=str(current_slot(allow_travel=True))
+                    if observed != runtime.slot:
+                        import mhs_classroom_bootstrap
+                        mhs_classroom_bootstrap.refresh(reload=True)
+                        return
+                except Exception:
+                    # If EA only exposes a scratch ID, never guess a source.
+                    pass
                 try:
                     from mhs_additional_native_staff import (
                         stop_temporary_school_npc_capacity)
