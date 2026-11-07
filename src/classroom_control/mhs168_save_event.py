@@ -155,6 +155,8 @@ def _after_save(save_game_data, source):
         bridge._LAST_SAVE_TITLE = name
         bridge._LAST_ZONE_TOKEN = id(zone)
         bridge._CACHED_RECOVERY = False
+        bridge._COMMITTED_SAVE_ANCHOR = (
+            destination, id(zone), str(guid), str(household_id))
         try:
             import mhs_classroom_bootstrap as bootstrap
             import mhs145_classroom_controller as controller
