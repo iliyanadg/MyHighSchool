@@ -190,6 +190,10 @@ def install(persistence_class=None):
     global _INSTALLED, _HOOK, _LAST_STATUS
     try:
         if persistence_class is None:
+            if _INSTALLED and _HOOK is not None:
+                # A prior exact-class install succeeded. Later home refresh
+                # must not replace its status or import the EA module again.
+                return True
             from services.persistence_service import PersistenceService
             persistence_class = PersistenceService
         original = getattr(persistence_class,'save_game_gen',None)
