@@ -114,10 +114,22 @@ class SaveAsCloneTests(unittest.TestCase):
         self.assertEqual(eligible_source_slots(self.folder,self.target,
                 self.manager,'TEEN','HUMAN',('ADULT',),['999999']),())
 
-    def test_multiple_candidates_not_guessed(self):
+    def test_identical_multiple_sources_are_safe_to_import(self):
         self.write_source('46')
         found=eligible_source_slots(self.folder,self.target,*self.opts())
         self.assertEqual(tuple(row[0] for row in found),('41','46'))
+        report=import_unique_copy(self.folder,self.target,*self.opts())
+        self.assertEqual(report['source'],'41')
+        self.assertEqual(report['students'],16)
+
+    def test_different_multiple_candidates_not_guessed(self):
+        self.write_source('46')
+        alternative=StaffStore(self.folder).load('46')
+        different=dict(self.names)
+        different['principal']='509'
+        self.sim_infos[509]=SimpleNamespace(
+            age='ADULT',species='HUMAN',is_selectable=False)
+        StaffStore(self.folder).save('46',StaffRoster('46',different))
         with self.assertRaisesRegex(SaveAsCopyError,'MULTIPLE_SOURCE_SAVES'):
             import_unique_copy(self.folder,self.target,*self.opts())
         report=import_copy(self.folder,'41',self.target,*self.opts())
@@ -204,6 +216,13 @@ class SaveAsCloneTests(unittest.TestCase):
         controller=SimpleNamespace(FOLDER=self.folder,SettingsStore=SettingsStore)
         self.assertEqual(_recover_save_as_at_home(controller,self.target,True),'NOT_HOME')
         self.write_source('46')
+        # Give one prior save different staff; divergent sources are
+        # ambiguous even if their roster of 16 teens still matches.
+        other=dict(self.names)
+        other['principal']='509'
+        self.sim_infos[509]=SimpleNamespace(
+            age='ADULT',species='HUMAN',is_selectable=False)
+        StaffStore(self.folder).save('46',StaffRoster('46',other))
         # Ambiguity must never be solved by choosing the most recent file.
         from types import ModuleType
         from unittest.mock import patch
