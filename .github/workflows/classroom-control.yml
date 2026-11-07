@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          python -m unittest tests.test_m155_verified_home_writes tests.test_m160_restart_identity tests.test_m166_multiple_save_as tests.test_m167_immediate_save_as tests.test_m163_home_auto_rearm tests.test_save_as_copy tests.test_classroom_bootstrap_day_rollover tests.test_m153_return_home_slot_continuity -v > continuity-test-output.txt 2>&1
+          python -m unittest tests.test_m155_verified_home_writes tests.test_m160_restart_identity tests.test_m166_multiple_save_as tests.test_m167_immediate_save_as tests.test_m168_real_save_event tests.test_m163_home_auto_rearm tests.test_save_as_copy tests.test_classroom_bootstrap_day_rollover tests.test_m153_return_home_slot_continuity -v > continuity-test-output.txt 2>&1
           rc=$?
           cat continuity-test-output.txt
           echo "TEST_EXIT_CODE=$rc" >> continuity-test-output.txt
@@ -60,7 +60,7 @@ jobs:
           python -m unittest tests.test_m151_npc_football_preclass -v
           python -m unittest tests.test_m152_staff_scan_throttle -v
           python -m unittest tests.test_m153_return_home_slot_continuity -v
-          python -m unittest tests.test_m155_verified_home_writes tests.test_m160_restart_identity tests.test_m166_multiple_save_as tests.test_m167_immediate_save_as tests.test_m163_home_auto_rearm -v
+          python -m unittest tests.test_m155_verified_home_writes tests.test_m160_restart_identity tests.test_m166_multiple_save_as tests.test_m167_immediate_save_as tests.test_m168_real_save_event tests.test_m163_home_auto_rearm -v
           python -m unittest tests.test_unified_journal -v
           python -m unittest tests.test_school_session tests.test_classroom_attendance_policy tests.test_classroom_runtime tests.test_mod_inventory -v
           python -m unittest tests.test_classroom_control_build tests.test_m54_human_staff_species tests.test_m53_staff_management tests.test_m147_roster_independence tests.test_m148_clocks_and_sampling tests.test_m147_native_roles tests.test_m146_class_timing_policy tests.test_m145_subject_picker_patch tests.test_m143_native_attendance_and_lunch tests.test_m142_two_periods_and_lunch tests.test_m141_day_trace tests.test_m140_native_lesson_entry tests.test_m139_ea_zerbu_adapter tests.test_m138_exclusive_whiteboard tests.test_m137_zerbu_board_compat tests.test_m131_native_playable_class tests.test_m130_physical_seat_audit -v

@@ -22,6 +22,10 @@ _CACHED_RECOVERY = False
 _LAST_BOUND = None
 _LAST_SAVE_TITLE = None
 _LAST_ZONE_TOKEN = None
+# The most recent completed EA save operation is authoritative within the
+# same loaded zone. PersistenceService can temporarily report its OLD proto
+# slot even after Save As; no filename or household guessing is needed.
+_COMMITTED_SAVE_ANCHOR = None
 
 
 def _named_slot_cache():
@@ -202,7 +206,7 @@ def current_slot(allow_travel=False):
     resolves to a separately verified roster. If two saves remain indistinct,
     fail closed; never silently mix school registries.
     """
-    global _CACHED_RECOVERY, _LAST_BOUND, _LAST_SAVE_TITLE, _LAST_ZONE_TOKEN
+    global _CACHED_RECOVERY, _LAST_BOUND, _LAST_SAVE_TITLE, _LAST_ZONE_TOKEN, _COMMITTED_SAVE_ANCHOR
     try:
         import services
         persistence = services.get_persistence_service()
@@ -215,11 +219,36 @@ def current_slot(allow_travel=False):
         stable = getter() if callable(getter) else None
         household = services.active_household()
         household_id = getattr(household, 'id', None)
-        real = positive_slot(slot)
+        live_slot = positive_slot(slot)
+        # EA's own SaveSlotData field 20 is the manual save slot inside a
+        # loaded/scratch save. This remains available after cold start
+        # even when the proto slot_id is 0 or 0xffffffff (Llamafone study).
+        # Guard against the dedicated EA autosave slot if it is exported.
+        preferred = positive_slot(
+            getattr(proto, 'preferred_manual_slot_id', None))
+        try:
+            from services.persistence_service import AUTO_SAVE_SLOT_ID
+            if preferred is not None and str(AUTO_SAVE_SLOT_ID) == preferred:
+                preferred = None
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
+        real = live_slot if live_slot is not None else preferred
         zone_object = getattr(services, 'current_zone', lambda: None)()
         zone_token = id(zone_object) if zone_object is not None else None
         named = _named_slot_cache() if title else None
-        if named is not None and named.has_conflict(stable, title):
+        committed = _COMMITTED_SAVE_ANCHOR
+        if committed is not None:
+            committed_slot, committed_zone, committed_guid, committed_household = committed
+            if (zone_token is not None and zone_token == committed_zone
+                    and str(stable) == committed_guid
+                    and str(household_id) == committed_household
+                    and _saved_roster_matches_live_game(committed_slot)):
+                # During the same EA zone, use the exact destination of the
+                # just-completed save_game_gen transaction; its proto might
+                # still show the prior slot/title for a short period.
+                return committed_slot
+            _COMMITTED_SAVE_ANCHOR = None
+        if real is None and named is not None and named.has_conflict(stable, title):
             raise BridgeError('Nomi di salvataggio duplicati: identita ambigua')
 
         if real is not None:
@@ -273,7 +302,15 @@ def current_slot(allow_travel=False):
             # An already named, separately validated store may be synthetic.
             # Keep using it even when the EA proto briefly exposes a number.
             mapped = named.unique(stable, title) if named else None
-            if mapped is not None and _saved_roster_matches_live_game(mapped):
+            # A real slot recorded by EA (live or preferred_manual_slot_id)
+            # takes precedence whenever it owns a validated school registry.
+            # A title cache could otherwise steal Save As #2 if the
+            # copies happen to have the SAME name and the SAME Sim IDs.
+            # Use the older name mapping only as a migration fallback when
+            # the actual EA slot has no configured school.
+            if _saved_roster_matches_live_game(real):
+                result = _SLOT_GUARD.resolve(real, stable, household_id)
+            elif mapped is not None and _saved_roster_matches_live_game(mapped):
                 result = _SLOT_GUARD.resolve(mapped, stable, household_id)
             else:
                 result = _SLOT_GUARD.resolve(real, stable, household_id)
