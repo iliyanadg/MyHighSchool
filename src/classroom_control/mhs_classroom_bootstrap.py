@@ -122,6 +122,13 @@ def registry_changed_at_home():
 
 def refresh(reload=False):
     global _STATUS,_SAVE_AS_STATUS
+    # EA PersistenceService may not have been importable during tuning load.
+    # Recheck at the first real zone load, without stacking hooks.
+    try:
+        import mhs168_save_event
+        mhs168_save_event.install()
+    except ImportError:
+        pass
     try:
         import services
         import mhs145_classroom_controller as controller
