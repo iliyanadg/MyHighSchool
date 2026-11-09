@@ -36,6 +36,22 @@ def settings_message(status):
             'le modifiche al gruppo scolastico valgono dalla prossima giornata.')
 
 
+
+def activation_diagnostics():
+    """Report the actual last startup reason without arming or modifying data.
+
+    The ordinary settings toast deliberately hides technical codes; the
+    read-only mhs148.status command must not hide the failure as the old
+    generic 'M142 non attiva' text did.
+    """
+    try:
+        import mhs168_save_event
+        save_status=mhs168_save_event.last_status()
+    except (ImportError, AttributeError):
+        save_status='SAVE_EVENT_UNAVAILABLE'
+    return ('MY HIGH SCHOOL controller=NON_ATTIVO | avvio={} | '
+            'salvataggio={}').format(_STATUS,save_status)
+
 def _recover_save_as_at_home(controller, slot, school, previous_slot=None):
     """Auto-inherit four registries after Save As only with one exact match.
 
