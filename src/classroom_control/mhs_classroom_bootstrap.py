@@ -30,8 +30,11 @@ def settings_message(status):
         if any(code in text for code in ('CORE','EIGHT','classi','Registro')):
             return ('Frequenza non attivata. Completa due classi da otto studenti '
                     'e assegna i cinque ruoli speciali. I dati sono conservati.')
-        return ('Frequenza personalizzata non attivata: le regole scolastiche '
-                'caricate non sono supportate. I dati sono conservati.')
+        # Do not obscure unrelated failures as "unsupported school rules".
+        # The original reason is bounded for the in-game notification.
+        reason=text.replace('\r',' ').replace('\n',' ')[:130]
+        return ('MY HIGH SCHOOL non attivata: {}. I dati sono conservati.'
+                .format(reason))
     return ('Impostazioni salvate. La gestione usa le classi e i ruoli scelti; '
             'le modifiche al gruppo scolastico valgono dalla prossima giornata.')
 
