@@ -87,9 +87,10 @@ def _game_identity_ok(student_roster, staff_roster, core_roster, info_manager,
             if sid in ids:
                 if getattr(info, 'age', None) != teen or getattr(info, 'species', None) != human:
                     raise SaveAsCopyError('REGISTERED_SIM_NOT_HUMAN_TEEN')
-                if (sid in played and getattr(info, 'is_selectable', None) is not True or
-                        sid not in played and getattr(info, 'is_selectable', None) is not False):
-                    raise SaveAsCopyError('SAVED_STUDENT_PLAYABILITY_CHANGED')
+                # Current household membership (checked above) determines
+                # who is player-controlled for this save. The EA selectable
+                # flag is transient and must not prevent copying identical
+                # registered Sims into a genuine Save As destination.
             else:
                 if (getattr(info, 'age', None) not in adult_ages or
                         getattr(info, 'species', None) != human):
