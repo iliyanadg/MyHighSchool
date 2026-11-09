@@ -41,11 +41,10 @@ def settings_message(status):
 
 
 def activation_diagnostics():
-    """Report the actual last startup reason without arming or modifying data.
+    """Report startup and Save As status without arming or modifying data.
 
-    The ordinary settings toast deliberately hides technical codes; the
-    read-only mhs148.status command must not hide the failure as the old
-    generic 'M142 non attiva' text did.
+    This read-only diagnostic supplements the in-game failure notification
+    instead of returning only the old, generic 'M142 non attiva' message.
     """
     try:
         import mhs168_save_event
