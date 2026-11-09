@@ -1554,9 +1554,16 @@ def mhs148_save_copy_from(source_slot: int=0,_connection=None):
 @sims4.commands.Command('mhs148.status',
     command_type=sims4.commands.CommandType.Live)
 def m127status(_connection=None):
-    sims4.commands.output(
-        _RUNTIME.report() if _RUNTIME is not None
-        else 'M142 non attiva',_connection)
+    """Read-only status, including why automatic initialization failed."""
+    if _RUNTIME is not None:
+        sims4.commands.output(_RUNTIME.report(),_connection)
+        return
+    try:
+        import mhs_classroom_bootstrap
+        detail=mhs_classroom_bootstrap.activation_diagnostics()
+    except Exception as exc:
+        detail='MY HIGH SCHOOL controller=NON_ATTIVO | diagnostica='+type(exc).__name__
+    sims4.commands.output(detail,_connection)
 
 
 @sims4.commands.Command('mhs148.stop',

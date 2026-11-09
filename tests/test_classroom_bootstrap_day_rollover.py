@@ -68,6 +68,27 @@ class DailyLifecycleTests(TestCase):
             result = bootstrap.refresh(reload=reload)
         return result, events, controller, runtime
 
+    def test_inactive_diagnostics_show_real_error_without_rearming(self):
+        save_module = types.ModuleType('mhs168_save_event')
+        save_module.last_status = lambda: 'COPIED_17_TO_18'
+        reason = 'M142 NON ATTIVA: SessionPolicyError: NPC_PLAYABILITY_UNVERIFIED'
+        with patch.object(bootstrap, '_STATUS', reason), patch.dict(
+                sys.modules, {'mhs168_save_event': save_module}):
+            before = bootstrap._STATUS
+            result = bootstrap.activation_diagnostics()
+            self.assertIn('controller=NON_ATTIVO', result)
+            self.assertIn(reason, result)
+            self.assertIn('COPIED_17_TO_18', result)
+            # Merely reading the status cannot invoke refresh or alter state.
+            self.assertEqual(bootstrap._STATUS, before)
+
+    def test_error_toast_includes_real_reason_not_generic_unsupported_rules(self):
+        reason = 'M142 NON ATTIVA: SessionPolicyError: NPC_PLAYABILITY_UNVERIFIED'
+        rendered = bootstrap.settings_message(reason)
+        self.assertIn('NPC_PLAYABILITY_UNVERIFIED', rendered)
+        self.assertIn('dati sono conservati', rendered)
+        self.assertNotIn('regole scolastiche caricate', rendered)
+
     def test_next_school_day_refreshes_without_uninstalling_hooks(self):
         result, events, controller, runtime = self.run_refresh(5, 6)
         self.assertEqual(result, 'SCHOOL_SESSION_ACTIVE')

@@ -107,6 +107,28 @@ class SaveAsCloneTests(unittest.TestCase):
             prepare_copy(self.folder,self.source,self.target,*self.opts())
         self.assertFalse(any('_slot_42' in name for name in self.state()))
 
+    def test_save_as_preserves_same_students_with_transient_selectability(self):
+        original = self.state()
+        self.sim_infos[108].is_selectable = None
+        self.sim_infos[109].is_selectable = True
+        delattr(self.sim_infos[110], 'is_selectable')
+        self.sim_infos[100].is_selectable = None
+        result = import_unique_copy(self.folder, self.target, *self.opts())
+        self.assertEqual(result['students'], 16)
+        expected = RosterStore(self.folder).load(self.source).assignments
+        self.assertEqual(RosterStore(self.folder).load(self.target).assignments,
+                         expected)
+        self.assertEqual(CoreRoleStore(self.folder).load(self.target).roles,
+                         CoreRoleStore(self.folder).load(self.source).roles)
+        self.assertEqual(StaffStore(self.folder).load(self.target).roles,
+                         StaffStore(self.folder).load(self.source).roles)
+        for name, blob in original.items():
+            self.assertEqual((Path(self.folder) / name).read_bytes(), blob)
+        # Repeated Save As recovery remains an idempotent, no-overwrite read.
+        self.assertEqual(import_copy(
+            self.folder, self.source, self.target, *self.opts()
+        )['copied_files'], 0)
+
     def test_unrelated_household_is_not_a_matching_source(self):
         with self.assertRaisesRegex(SaveAsCopyError,'HOUSEHOLD_DOES_NOT_MATCH'):
             prepare_copy(self.folder,self.source,self.target,self.manager,'TEEN',

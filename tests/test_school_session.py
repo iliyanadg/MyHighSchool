@@ -71,9 +71,9 @@ class RosterPlanTests(unittest.TestCase):
                     plan_roster(groups, played, appointments, mgr,
                                 'TEEN', 'HUMAN')
 
-    def test_missing_aged_up_nonhuman_and_changed_playability_fail_closed(self):
+    def test_missing_aged_up_and_nonhuman_students_fail_closed(self):
         for field, value in (('age', 'YOUNGADULT'), ('species', 'DOG'),
-                             ('is_selectable', None), ('missing', None)):
+                             ('missing', None)):
             groups, played, pinned, mgr, infos = self.state(1)
             sid = int(groups[1][-1])
             if field == 'missing':
@@ -83,6 +83,27 @@ class RosterPlanTests(unittest.TestCase):
             with self.subTest(field=field):
                 with self.assertRaises(SessionPolicyError):
                     plan_roster(groups, played, pinned, mgr, 'TEEN', 'HUMAN')
+
+    def test_transient_selectability_never_replaces_registered_students(self):
+        groups, played, pinned, mgr, infos = self.state(3)
+        original_ids = groups[0] + groups[1]
+        # EA can expose None for off-lot NPCs and True for Sims in other
+        # played households. Only CURRENT active-household membership counts.
+        for sid in original_ids:
+            infos[int(sid)].is_selectable = None
+        infos[int(groups[0][4])].is_selectable = True
+        delattr(infos[int(groups[1][5])], 'is_selectable')
+        for day in range(3):
+            with self.subTest(day=day):
+                result = plan_roster(groups, played, pinned, mgr,
+                                     'TEEN', 'HUMAN')
+                self.assertEqual(result['played'], played)
+                self.assertEqual(set(result['base'] + tuple(
+                    result['pinned'].values()) + result['played']),
+                    set(original_ids))
+                self.assertEqual(len(result['base']), 8)
+                self.assertEqual(len(set(result['enrolled'])), 16)
+                self.assertEqual(result['groups'], groups)
 
     def test_two_complete_distinct_classes_are_required(self):
         groups, played, pinned, mgr, _ = self.state(1)

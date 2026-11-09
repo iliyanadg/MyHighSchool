@@ -30,11 +30,29 @@ def settings_message(status):
         if any(code in text for code in ('CORE','EIGHT','classi','Registro')):
             return ('Frequenza non attivata. Completa due classi da otto studenti '
                     'e assegna i cinque ruoli speciali. I dati sono conservati.')
-        return ('Frequenza personalizzata non attivata: le regole scolastiche '
-                'caricate non sono supportate. I dati sono conservati.')
+        # Do not obscure unrelated failures as "unsupported school rules".
+        # The original reason is bounded for the in-game notification.
+        reason=text.replace('\r',' ').replace('\n',' ')[:130]
+        return ('MY HIGH SCHOOL non attivata: {}. I dati sono conservati.'
+                .format(reason))
     return ('Impostazioni salvate. La gestione usa le classi e i ruoli scelti; '
             'le modifiche al gruppo scolastico valgono dalla prossima giornata.')
 
+
+
+def activation_diagnostics():
+    """Report startup and Save As status without arming or modifying data.
+
+    This read-only diagnostic supplements the in-game failure notification
+    instead of returning only the old, generic 'M142 non attiva' message.
+    """
+    try:
+        import mhs168_save_event
+        save_status=mhs168_save_event.last_status()
+    except (ImportError, AttributeError):
+        save_status='SAVE_EVENT_UNAVAILABLE'
+    return ('MY HIGH SCHOOL controller=NON_ATTIVO | avvio={} | '
+            'salvataggio={}').format(_STATUS,save_status)
 
 def _recover_save_as_at_home(controller, slot, school, previous_slot=None):
     """Auto-inherit four registries after Save As only with one exact match.

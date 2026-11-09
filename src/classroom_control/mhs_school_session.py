@@ -72,11 +72,11 @@ def plan_roster(groups, played_ids, pinned, sim_info_manager,
             if (getattr(info, 'age', None) != teen_age or
                     getattr(info, 'species', None) != human_species):
                 raise SessionPolicyError('REGISTERED_SIM_NOT_HUMAN_TEEN')
-            selectable = getattr(info, 'is_selectable', None)
-            if sid in played_set and selectable is not True:
-                raise SessionPolicyError('PLAYED_HOUSEHOLD_STATE_CHANGED')
-            if sid in npc_ids and selectable is not False:
-                raise SessionPolicyError('NPC_PLAYABILITY_UNVERIFIED')
+            # The active household provided in played_ids is authoritative.
+            # is_selectable describes a transient UI state, not ownership:
+            # it may be None for an NPC or True for a Sim from another
+            # previously played household. Never reject a valid enrolled
+            # student solely because that flag changes across save/reload.
         except SessionPolicyError:
             raise
         except Exception:
