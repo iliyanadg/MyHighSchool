@@ -26,7 +26,7 @@ def _sim_id(value):
 def _short_diagnostic(value, limit=18):
     """Render a bounded, single-line read-only diagnostic from a live Sim."""
     try:
-        return str(value).replace('\\r', ' ').replace('\\n', ' ')[:limit]
+        return str(value).replace(chr(13), ' ').replace(chr(10), ' ')[:limit]
     except Exception:
         return '?'
 
