@@ -84,6 +84,41 @@ class RosterPlanTests(unittest.TestCase):
                 with self.assertRaises(SessionPolicyError):
                     plan_roster(groups, played, pinned, mgr, 'TEEN', 'HUMAN')
 
+    def test_m170_names_the_exact_invalid_registered_student_without_mutation(self):
+        groups, played, pinned, mgr, infos = self.state(3)
+        original_groups = tuple(tuple(members) for members in groups)
+        original_pinned = dict(pinned)
+        bad_id = int(groups[1][-1])
+        infos[bad_id].age = 'YOUNGADULT'
+        infos[bad_id].first_name = 'Molly'
+        infos[bad_id].last_name = 'Prescott'
+        with self.assertRaises(SessionPolicyError) as failure:
+            plan_roster(groups, played, pinned, mgr, 'TEEN', 'HUMAN')
+        reason = str(failure.exception)
+        self.assertIn('REGISTERED_SIM_NOT_HUMAN_TEEN', reason)
+        self.assertIn('C2', reason)
+        self.assertIn('Molly Prescott', reason)
+        self.assertIn('id=' + str(bad_id), reason)
+        self.assertIn('a=YOUNGADULT', reason)
+        self.assertIn('s=HUMAN', reason)
+        self.assertEqual(groups, original_groups)
+        self.assertEqual(pinned, original_pinned)
+
+    def test_m170_reports_nonhuman_registered_species_without_replacing(self):
+        groups, played, pinned, mgr, infos = self.state(2)
+        bad_id = int(groups[0][-1])
+        infos[bad_id].species = 'DOG'
+        with self.assertRaises(SessionPolicyError) as failure:
+            plan_roster(groups, played, pinned, mgr, 'TEEN', 'HUMAN')
+        reason = str(failure.exception)
+        self.assertIn('C1', reason)
+        self.assertIn('id=' + str(bad_id), reason)
+        self.assertIn('a=TEEN', reason)
+        self.assertIn('s=DOG', reason)
+        self.assertEqual(len(groups[0]), 8)
+        self.assertEqual(len(groups[1]), 8)
+
+
     def test_transient_selectability_never_replaces_registered_students(self):
         groups, played, pinned, mgr, infos = self.state(3)
         original_ids = groups[0] + groups[1]
