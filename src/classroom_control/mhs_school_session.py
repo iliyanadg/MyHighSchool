@@ -23,6 +23,24 @@ def _sim_id(value):
     return result
 
 
+def _short_diagnostic(value, limit=18):
+    """Render a bounded, single-line read-only diagnostic from a live Sim."""
+    try:
+        return str(value).replace(chr(13), ' ').replace(chr(10), ' ')[:limit]
+    except Exception:
+        return '?'
+
+
+def _registered_name(info):
+    try:
+        first = getattr(info, 'first_name', '') or ''
+        last = getattr(info, 'last_name', '') or ''
+        return _short_diagnostic(' '.join(
+            str(value) for value in (first, last) if value), 22) or '?'
+    except Exception:
+        return '?'
+
+
 def plan_roster(groups, played_ids, pinned, sim_info_manager,
                 teen_age, human_species, core_jobs=CORE_JOBS):
     """Validate two classes and return their native invitation partition.
@@ -69,9 +87,19 @@ def plan_roster(groups, played_ids, pinned, sim_info_manager,
             info = getter(int(sid))
             if info is None:
                 raise SessionPolicyError('REGISTERED_SIM_MISSING')
-            if (getattr(info, 'age', None) != teen_age or
-                    getattr(info, 'species', None) != human_species):
-                raise SessionPolicyError('REGISTERED_SIM_NOT_HUMAN_TEEN')
+            age = getattr(info, 'age', None)
+            species = getattr(info, 'species', None)
+            if age != teen_age or species != human_species:
+                # Do not alter saved enrollment, substitute another Sim, or
+                # relax the requirement. Identify the exact enrolled Sim
+                # causing the block so a genuine age-up can be distinguished
+                # from an unexpected EA runtime enum/species value.
+                klass = 1 if sid in normalized[0] else 2
+                raise SessionPolicyError(
+                    'REGISTERED_SIM_NOT_HUMAN_TEEN C{} {} id={} a={} s={}'
+                    .format(klass, _registered_name(info), sid,
+                            _short_diagnostic(age),
+                            _short_diagnostic(species)))
             # The active household provided in played_ids is authoritative.
             # is_selectable describes a transient UI state, not ownership:
             # it may be None for an NPC or True for a Sim from another
